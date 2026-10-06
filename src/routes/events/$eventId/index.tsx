@@ -2,6 +2,7 @@ import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { CalendarDays, LogIn, MonitorPlay, Share2, Store, Trophy, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { DeleteEventButton } from '#/components/events/delete-event.tsx'
 import { HostDesk } from '#/components/events/host-desk.tsx'
 import { JoinQrCard } from '#/components/events/join-qr.tsx'
 import { MatchClock } from '#/components/events/match-clock.tsx'
@@ -83,8 +84,8 @@ function EventHub() {
               <Users className="size-4" /> <span className="tabular">{event.playerCount}</span> players
             </span>
             <span className="inline-flex items-center gap-2">
-              <Avatar name={event.host.name} src={event.host.image} size="sm" className="size-5 text-[9px]" /> Hosted by{' '}
-              {event.host.name}
+              <Avatar name={event.host.name} src={event.host.image} size="sm" className="size-6 text-[11px]" /> Hosted
+              by {event.host.name}
             </span>
           </p>
           <div className="flex flex-wrap gap-2">
@@ -97,6 +98,9 @@ function EventHub() {
               >
                 <MonitorPlay /> Store screen
               </Link>
+            ) : null}
+            {isHost && event.status === 'registration' ? (
+              <DeleteEventButton eventId={eventId} eventName={event.name} />
             ) : null}
             <Button variant="outline" size="sm" onClick={share}>
               <Share2 /> Share

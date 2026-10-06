@@ -256,13 +256,6 @@
     background: var(--ember);
   }
 
-  /* Subtle surface grain so large black areas do not look like a dead screen. */
-  .grain {
-    background-image:
-      radial-gradient(circle at 20% -10%, color-mix(in oklab, var(--orange) 14%, transparent), transparent 46%),
-      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.035 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  }
-
   .stagger > * {
     animation: var(--animate-rise);
     animation-delay: calc(min(var(--i, 0), 8) * 45ms);

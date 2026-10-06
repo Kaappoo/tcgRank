@@ -1,5 +1,5 @@
 /** Alphabet without look-alike characters (0/O, 1/I/L) so codes survive being read aloud. */
-export const JOIN_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
+const JOIN_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
 export const JOIN_CODE_LENGTH = 6
 
 const ID_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz'

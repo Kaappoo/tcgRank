@@ -43,7 +43,7 @@ export interface ProfileStats {
   readonly bestFinish: number | null
 }
 
-export interface Profile {
+interface Profile {
   readonly user: PlayerRef & {
     readonly playerId: string | null
     readonly bio: string | null

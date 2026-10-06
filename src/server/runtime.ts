@@ -6,7 +6,7 @@ import { Mailer } from './email/mailer.ts'
 import { EventsService } from './events/service.ts'
 import { ProfilesService } from './profiles/service.ts'
 
-export const AppLayer = Layer.mergeAll(EventsService.layer, DecksService.layer, ProfilesService.layer).pipe(
+const AppLayer = Layer.mergeAll(EventsService.layer, DecksService.layer, ProfilesService.layer).pipe(
   Layer.provideMerge(Layer.mergeAll(Db.fromDatabase(database), Mailer.layer)),
   Layer.orDie,
 )

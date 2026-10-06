@@ -22,7 +22,7 @@ export function CardThumb({ card, className }: { card: DeckCard; className?: str
           </div>
         )}
       </div>
-      <figcaption className="absolute -top-2 -right-2 flex size-8 items-center justify-center rounded-full bg-orange font-numerals text-lg text-on-orange shadow-[0_6px_14px_-6px_var(--orange)]">
+      <figcaption className="absolute -top-2 -right-2 flex size-8 items-center justify-center rounded-full bg-orange font-numerals text-lg text-on-orange shadow-[0_4px_10px_-4px_rgb(0_0_0/0.8)]">
         <span className="sr-only">{card.count} copies of </span>
         {card.count}
         <span className="sr-only"> {card.name}</span>

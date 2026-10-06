@@ -7,7 +7,7 @@ import { EVENT_FORMATS } from '#/server/db/schema.ts'
  * Domain models and persisted data use Effect Schema instead (see src/domain).
  */
 
-export const eventFormat = z.enum(EVENT_FORMATS)
+const eventFormat = z.enum(EVENT_FORMATS)
 
 export const createEventInput = z.object({
   name: z.string().trim().min(3, 'Give the event a name of at least 3 characters').max(80),
@@ -37,7 +37,6 @@ export const reportResultInput = z
   .refine((v) => v.player1Games + v.player2Games <= 3, {
     message: 'A best-of-three has at most three games',
   })
-export type ReportResultInput = z.infer<typeof reportResultInput>
 
 export const matchIdInput = z.object({ matchId: z.string().min(1) })
 

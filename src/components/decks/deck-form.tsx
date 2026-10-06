@@ -3,16 +3,16 @@ import { ImagePlus, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
-import { Select } from '#/components/ui/select.tsx'
 import { Switch } from '#/components/ui/switch.tsx'
 import { Textarea } from '#/components/ui/textarea.tsx'
 import { toast } from '#/components/ui/toast.tsx'
-import { formatLabel } from '#/lib/format.ts'
 import { useUploadThing } from '#/lib/uploadthing.ts'
-import { EVENT_FORMATS, type EventFormat } from '#/server/db/schema.ts'
+import type { EventFormat } from '#/server/db/schema.ts'
 import { deckInput, type DeckInput } from '#/shared/schemas.ts'
 import { DeckListView } from './deck-list-view.tsx'
 import { SubmitButton } from '#/components/ui/submit-button.tsx'
+import { fieldErrors } from '#/lib/form-errors.ts'
+import { FormatField } from '#/components/forms/format-select.tsx'
 
 export interface DeckFormProps {
   readonly initial?: Partial<DeckInput>
@@ -53,7 +53,7 @@ export function DeckForm({ initial, submitLabel, pending, onSubmit }: DeckFormPr
           coverImageUrl: cover,
         })
         if (!parsed.success) {
-          setErrors(Object.fromEntries(parsed.error.issues.map((i) => [String(i.path[0]), i.message])))
+          setErrors(fieldErrors(parsed.error))
           return
         }
         setErrors({})
@@ -71,14 +71,7 @@ export function DeckForm({ initial, submitLabel, pending, onSubmit }: DeckFormPr
             <FieldLabel>Archetype</FieldLabel>
             <Input name="archetype" defaultValue={initial?.archetype} placeholder="Dragapult / Dusknoir" />
           </Field>
-          <Field>
-            <FieldLabel>Format</FieldLabel>
-            <Select
-              value={format}
-              onValueChange={(v) => v && setFormat(v)}
-              options={EVENT_FORMATS.map((f) => ({ value: f, label: formatLabel(f) }))}
-            />
-          </Field>
+          <FormatField value={format} onChange={setFormat} />
         </div>
         <Field invalid={Boolean(errors.list)}>
           <FieldLabel>Deck list</FieldLabel>

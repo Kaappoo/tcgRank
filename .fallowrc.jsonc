@@ -1,0 +1,18 @@
+{
+  // fallow: dead code, duplication and complexity review (`pnpm review:fallow`).
+  "$schema": "./node_modules/fallow/schema.json",
+  "entry": [
+    // Service worker is bundled separately by scripts/build-sw.ts.
+    "src/sw.ts",
+    // CLI scripts run with tsx.
+    "scripts/*.ts",
+  ],
+  "ignorePatterns": ["src/routeTree.gen.ts"],
+  "duplicates": {
+    "minOccurrences": 2,
+    "ignore": ["src/routeTree.gen.ts"],
+  },
+  "rules": {
+    "unused-dependencies": "warn",
+  },
+}

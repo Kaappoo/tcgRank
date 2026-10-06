@@ -40,5 +40,3 @@ export const auth = betterAuth({
     tanstackStartCookies(),
   ],
 })
-
-export type AuthSession = typeof auth.$Infer.Session

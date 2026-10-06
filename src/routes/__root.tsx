@@ -12,7 +12,7 @@ import { absoluteUrl, seo } from '#/lib/seo.ts'
 import type { SessionUser } from '#/server/current-user.ts'
 import appCss from '#/styles/app.css?url'
 
-export interface RouterContext {
+interface RouterContext {
   queryClient: QueryClient
   user: SessionUser | null
 }
@@ -56,7 +56,7 @@ function RootLayout() {
 
   return (
     <Toaster>
-      <div className="grain flex min-h-dvh flex-col">
+      <div className="flex min-h-dvh flex-col">
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] focus:rounded-md focus:bg-orange focus:px-4 focus:py-2 focus:text-on-orange"

@@ -16,7 +16,7 @@ const preview: Preview = {
     (Story) => (
       <QueryClientProvider client={queryClient}>
         <Toaster>
-          <div className="dark grain min-h-[60vh] bg-ink p-6 text-paper">
+          <div className="dark min-h-[60vh] bg-ink p-6 text-paper">
             <Story />
           </div>
         </Toaster>

@@ -12,7 +12,7 @@ import { Schema } from 'effect'
  *   Total Cards: 60
  */
 
-export const DeckSection = Schema.Literals(['pokemon', 'trainer', 'energy'])
+const DeckSection = Schema.Literals(['pokemon', 'trainer', 'energy'])
 export type DeckSection = typeof DeckSection.Type
 
 export class DeckCard extends Schema.Class<DeckCard>('tcgrank/DeckCard')({
@@ -23,9 +23,9 @@ export class DeckCard extends Schema.Class<DeckCard>('tcgrank/DeckCard')({
   section: DeckSection,
 }) {}
 
-export const DeckIssueKind = Schema.Literals(['unrecognized-line', 'wrong-total', 'too-many-copies', 'empty'])
+const DeckIssueKind = Schema.Literals(['unrecognized-line', 'wrong-total', 'too-many-copies', 'empty'])
 
-export class DeckIssue extends Schema.Class<DeckIssue>('tcgrank/DeckIssue')({
+class DeckIssue extends Schema.Class<DeckIssue>('tcgrank/DeckIssue')({
   kind: DeckIssueKind,
   message: Schema.String,
   line: Schema.NullOr(Schema.Int),
@@ -39,8 +39,8 @@ export interface ParsedDeck {
   readonly isLegalSize: boolean
 }
 
-export const DECK_SIZE = 60
-export const MAX_COPIES = 4
+const DECK_SIZE = 60
+const MAX_COPIES = 4
 
 const SECTION_HEADER = /^(pok[eé]mon|trainers?|energy)\s*:?\s*(\d+)?\s*$/i
 const TOTAL_LINE = /^total\s+cards\s*:?\s*\d+\s*$/i

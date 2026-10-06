@@ -1,0 +1,15 @@
+{
+  "ignore": {
+    "files": [".output/**", "storybook-static/**", "src/routeTree.gen.ts", ".claude/**"],
+    "overrides": [
+      {
+        "files": ["src/server/og/**", "src/routes/api/og/**"],
+        "rules": ["react-doctor/only-export-components"]
+      },
+      {
+        "files": ["src/components/ui/local-time.tsx"],
+        "rules": ["react-doctor/no-locale-format-in-render"]
+      }
+    ]
+  }
+}

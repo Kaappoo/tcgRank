@@ -43,22 +43,28 @@ function SignIn() {
     setError(null)
     const identifier = String(form.get('identifier') ?? '').trim()
     const password = String(form.get('password') ?? '')
-    const result = identifier.includes('@')
-      ? await signIn.email({ email: identifier, password })
-      : await signIn.username({ username: identifier, password })
-    setPending(false)
-    if (result.error) return setError(result.error.message ?? 'Wrong email/username or password')
-    await done()
+    try {
+      const result = identifier.includes('@')
+        ? await signIn.email({ email: identifier, password })
+        : await signIn.username({ username: identifier, password })
+      if (result.error) return setError(result.error.message ?? 'Wrong email/username or password')
+      await done()
+    } finally {
+      setPending(false)
+    }
   }
 
   const sendMagicLink = async (email: string) => {
     if (!email.includes('@')) return setError('Enter your email above to get a sign-in link')
     setPending(true)
-    const result = await signIn.magicLink({ email, callbackURL: redirectTo ?? '/' })
-    setPending(false)
-    if (result.error) return setError(result.error.message ?? 'Could not send the link')
-    setMagicSent(true)
-    toast.success('Check your inbox', `We sent a sign-in link to ${email}.`)
+    try {
+      const result = await signIn.magicLink({ email, callbackURL: redirectTo ?? '/' })
+      if (result.error) return setError(result.error.message ?? 'Could not send the link')
+      setMagicSent(true)
+      toast.success('Check your inbox', `We sent a sign-in link to ${email}.`)
+    } finally {
+      setPending(false)
+    }
   }
 
   return (

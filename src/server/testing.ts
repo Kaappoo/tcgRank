@@ -24,6 +24,4 @@ export const asUser =
   <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     Effect.provideService(effect, CurrentUser, who)
 
-export const DbTest = Db.layerTest
-
-export const withDb = <ROut, E, RIn>(layer: Layer.Layer<ROut, E, RIn>) => layer.pipe(Layer.provideMerge(DbTest))
+export const withDb = <ROut, E, RIn>(layer: Layer.Layer<ROut, E, RIn>) => layer.pipe(Layer.provideMerge(Db.layerTest))

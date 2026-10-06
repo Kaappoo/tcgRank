@@ -7,7 +7,7 @@
  * - OOMW% = average OMW% of every opponent faced.
  */
 
-export const POINTS = { win: 3, draw: 1, loss: 0 } as const
+const POINTS = { win: 3, draw: 1, loss: 0 } as const
 export const MIN_WIN_PERCENTAGE = 0.25
 
 export type Outcome = 'p1' | 'p2' | 'draw' | 'bye'
@@ -43,10 +43,10 @@ interface Tally {
 
 const emptyTally = (): Tally => ({ wins: 0, losses: 0, draws: 0, byes: 0, opponents: [] })
 
-export const matchPoints = (t: Pick<Tally, 'wins' | 'draws' | 'byes'>): number =>
+const matchPoints = (t: Pick<Tally, 'wins' | 'draws' | 'byes'>): number =>
   (t.wins + t.byes) * POINTS.win + t.draws * POINTS.draw
 
-export const winPercentage = (t: Pick<Tally, 'wins' | 'losses' | 'draws'>): number => {
+const winPercentage = (t: Pick<Tally, 'wins' | 'losses' | 'draws'>): number => {
   const played = t.wins + t.losses + t.draws
   if (played === 0) return MIN_WIN_PERCENTAGE
   return Math.max(MIN_WIN_PERCENTAGE, t.wins / played)
@@ -56,10 +56,7 @@ const average = (values: ReadonlyArray<number>): number =>
   values.length === 0 ? 0 : values.reduce((sum, v) => sum + v, 0) / values.length
 
 /** Tallies every reported match. Unreported matches are ignored. */
-export const tallyResults = (
-  playerIds: ReadonlyArray<string>,
-  matches: ReadonlyArray<MatchRecord>,
-): Map<string, Tally> => {
+const tallyResults = (playerIds: ReadonlyArray<string>, matches: ReadonlyArray<MatchRecord>): Map<string, Tally> => {
   const tallies = new Map<string, Tally>(playerIds.map((id) => [id, emptyTally()]))
   const get = (id: string) => {
     let t = tallies.get(id)
@@ -98,7 +95,7 @@ export const tallyResults = (
   return tallies
 }
 
-export const compareStandings = (a: Omit<Standing, 'rank'>, b: Omit<Standing, 'rank'>): number =>
+const compareStandings = (a: Omit<Standing, 'rank'>, b: Omit<Standing, 'rank'>): number =>
   b.points - a.points ||
   b.opponentWinPercentage - a.opponentWinPercentage ||
   b.opponentOpponentWinPercentage - a.opponentOpponentWinPercentage ||

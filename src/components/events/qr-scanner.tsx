@@ -1,6 +1,8 @@
 import { Camera, CameraOff } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { Button } from '#/components/ui/button.tsx'
+import { useHydrated } from '#/hooks/use-hydrated.ts'
+import { codeFromScan } from '#/lib/join.ts'
 
 interface DetectedBarcode {
   rawValue: string
@@ -14,12 +16,6 @@ declare global {
   }
 }
 
-/** Extracts a join code from a scanned URL (".../join/ABC123") or a bare code. */
-export const codeFromScan = (raw: string): string | null => {
-  const match = /\/join\/([A-Za-z0-9]{4,12})/.exec(raw) ?? /^([A-Za-z0-9]{6})$/.exec(raw.trim())
-  return match?.[1]?.toUpperCase() ?? null
-}
-
 /**
  * In-app scanner for browsers with the BarcodeDetector API (Chrome on Android).
  * Everywhere else the phone's own camera app opens the join link directly.
@@ -28,7 +24,9 @@ export function QrScanner({ onCode }: { onCode: (code: string) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [active, setActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const supported = typeof window !== 'undefined' && 'BarcodeDetector' in window
+  // Only decided after hydration so server and client markup agree.
+  const supported = useHydrated() && 'BarcodeDetector' in window
+  const handleCode = useEffectEvent((code: string) => onCode(code))
 
   useEffect(() => {
     if (!active || !window.BarcodeDetector) return
@@ -43,7 +41,7 @@ export function QrScanner({ onCode }: { onCode: (code: string) => void }) {
         const [hit] = await detector.detect(videoRef.current)
         const code = hit ? codeFromScan(hit.rawValue) : null
         if (code) {
-          onCode(code)
+          handleCode(code)
           setActive(false)
           return
         }
@@ -72,7 +70,7 @@ export function QrScanner({ onCode }: { onCode: (code: string) => void }) {
       cancelAnimationFrame(frame)
       stream?.getTracks().forEach((t) => t.stop())
     }
-  }, [active, onCode])
+  }, [active])
 
   if (!supported) return null
 

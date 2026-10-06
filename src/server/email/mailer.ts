@@ -1,7 +1,7 @@
 import { Config, Context, Effect, Layer, Ref, Schema } from 'effect'
 import { Resend } from 'resend'
 
-export class EmailError extends Schema.TaggedError<EmailError>()('EmailError', {
+class EmailError extends Schema.TaggedError<EmailError>()('EmailError', {
   cause: Schema.Defect(),
 }) {}
 

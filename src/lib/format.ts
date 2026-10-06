@@ -15,15 +15,6 @@ export const statusLabel = (status: EventStatus, currentRound: number): string =
   return `Round ${currentRound} live`
 }
 
-export const formatEventDate = (ms: number, locale?: string): string =>
-  new Date(ms).toLocaleString(locale, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-
 export const initials = (name: string): string =>
   name
     .split(/\s+/)

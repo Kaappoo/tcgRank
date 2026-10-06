@@ -21,6 +21,7 @@ export const Route = createFileRoute('/api/og/player/$username')({
               {user.image ? (
                 <img
                   src={user.image}
+                  alt=""
                   width={128}
                   height={128}
                   style={{ borderRadius: 999, border: `6px solid ${palette.orange}` }}

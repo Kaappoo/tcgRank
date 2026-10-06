@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { joinUrl, QrCode } from './join-qr.tsx'
-import { codeFromScan } from './qr-scanner.tsx'
+import { codeFromScan, joinUrl } from '#/lib/join.ts'
+import { QrCode } from './join-qr.tsx'
 
 describe('join QR', () => {
   it('builds the join URL', () => {

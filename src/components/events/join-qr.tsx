@@ -2,11 +2,8 @@ import { Check, Copy, Share2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { renderSVG } from 'uqr'
 import { Button } from '#/components/ui/button.tsx'
+import { joinUrl } from '#/lib/join.ts'
 import { cn } from '#/lib/utils.ts'
-
-export function joinUrl(origin: string, code: string) {
-  return `${origin.replace(/\/$/, '')}/join/${code}`
-}
 
 /** QR code players scan with their camera to land straight in the event. */
 export function QrCode({ value, className, label }: { value: string; className?: string; label: string }) {

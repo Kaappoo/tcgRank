@@ -1,6 +1,5 @@
 import { Link, useRouteContext } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
-import { Avatar } from '#/components/ui/avatar.tsx'
 import { buttonVariants } from '#/components/ui/button.tsx'
 import { cn } from '#/lib/utils.ts'
 import { Logo } from './logo.tsx'
@@ -55,8 +54,4 @@ export function SiteHeader() {
       </div>
     </header>
   )
-}
-
-export function HeaderAvatar({ name, image }: { name: string; image: string | null }) {
-  return <Avatar name={name} src={image} size="sm" />
 }

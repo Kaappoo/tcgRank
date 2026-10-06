@@ -15,7 +15,7 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-orange text-on-orange shadow-[0_8px_24px_-12px_var(--orange)] hover:bg-orange-hot hover:shadow-[0_12px_30px_-12px_var(--orange)] disabled:bg-surface-raised disabled:text-paper-dim disabled:opacity-100 disabled:shadow-none data-disabled:bg-surface-raised data-disabled:text-paper-dim data-disabled:opacity-100 data-disabled:shadow-none',
+          'bg-orange text-on-orange shadow-[0_6px_16px_-8px_rgb(0_0_0/0.8)] hover:bg-orange-hot disabled:bg-surface-raised disabled:text-paper-dim disabled:opacity-100 disabled:shadow-none data-disabled:bg-surface-raised data-disabled:text-paper-dim data-disabled:opacity-100 data-disabled:shadow-none',
         secondary:
           'bg-surface-raised text-paper hover:bg-[color-mix(in_oklab,var(--surface-raised)_80%,var(--paper)_8%)]',
         outline: 'border border-line-strong bg-transparent text-paper hover:border-orange hover:text-orange',

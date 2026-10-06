@@ -71,12 +71,7 @@ function Home() {
           </div>
 
           <div className="relative flex flex-col gap-4 lg:pl-6" aria-label="Preview of a player's pairing screen">
-            <PairingCard
-              match={demoMatch}
-              viewerId="you"
-              records={demoRecords}
-              className="shadow-[0_40px_80px_-30px_rgb(0_0_0/0.9)]"
-            />
+            <PairingCard match={demoMatch} viewerId="you" records={demoRecords} />
             <div className="rounded-2xl border border-line bg-surface/90 p-5 backdrop-blur">
               <MatchClock endsAt={null} pausedRemainingMs={DEMO_PAUSED_MS} roundMinutes={50} size="md" />
             </div>

@@ -36,10 +36,10 @@ const playerRefColumns = {
   image: user.image,
 }
 
-export const outcomeFromGames = (player1Games: number, player2Games: number): Outcome =>
+const outcomeFromGames = (player1Games: number, player2Games: number): Outcome =>
   player1Games > player2Games ? 'p1' : player2Games > player1Games ? 'p2' : 'draw'
 
-export interface ListEventsOptions {
+interface ListEventsOptions {
   readonly scope: 'upcoming' | 'live' | 'finished' | 'mine'
   readonly search?: string | undefined
 }
@@ -330,12 +330,22 @@ const make = Effect.gen(function* () {
     }
   })
 
+  /** Everyone who entered plus every match so far — the inputs to pairing and standings. */
+  const loadEntriesAndHistory = (eventId: string) =>
+    Effect.all(
+      [
+        db.query((d) => d.select().from(eventPlayers).where(eq(eventPlayers.eventId, eventId))),
+        db.query((d) => d.select().from(matches).where(eq(matches.eventId, eventId))),
+      ],
+      { concurrency: 'unbounded' },
+    )
+
   const startNextRound = Effect.fn('EventsService.startNextRound')(function* (eventId: string) {
     const event = yield* loadHostedEvent(eventId)
     if (event.status === 'finished') return yield* new InvalidState({ reason: 'This event has already finished' })
     yield* assertRoundComplete(event)
 
-    const entries = yield* db.query((d) => d.select().from(eventPlayers).where(eq(eventPlayers.eventId, eventId)))
+    const [entries, history] = yield* loadEntriesAndHistory(eventId)
     const active = entries.filter((e) => e.droppedAtRound === null).map((e) => e.userId)
     if (active.length < 2) return yield* new InvalidState({ reason: 'You need at least two players to pair a round' })
 
@@ -345,7 +355,6 @@ const make = Effect.gen(function* () {
       return yield* new InvalidState({ reason: `All ${plannedRounds} Swiss rounds have been played` })
     }
 
-    const history = yield* db.query((d) => d.select().from(matches).where(eq(matches.eventId, eventId)))
     const pairings = yield* pairRound({
       activePlayerIds: active,
       allPlayerIds: entries.map((e) => e.userId),
@@ -400,8 +409,7 @@ const make = Effect.gen(function* () {
     if (event.currentRound === 0) return yield* new InvalidState({ reason: 'Play at least one round first' })
     yield* assertRoundComplete(event)
 
-    const entries = yield* db.query((d) => d.select().from(eventPlayers).where(eq(eventPlayers.eventId, eventId)))
-    const history = yield* db.query((d) => d.select().from(matches).where(eq(matches.eventId, eventId)))
+    const [entries, history] = yield* loadEntriesAndHistory(eventId)
     const standings = computeStandings(
       entries.map((e) => e.userId),
       history,

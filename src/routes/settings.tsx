@@ -15,6 +15,7 @@ import { useUploadThing } from '#/lib/uploadthing.ts'
 import { updateProfile } from '#/server/functions/profiles.ts'
 import { profileInput } from '#/shared/schemas.ts'
 import { SubmitButton } from '#/components/ui/submit-button.tsx'
+import { fieldErrors } from '#/lib/form-errors.ts'
 
 export const Route = createFileRoute('/settings')({
   beforeLoad: requireAuth,
@@ -63,7 +64,7 @@ function Settings() {
           const form = Object.fromEntries(new FormData(e.currentTarget))
           const parsed = profileInput.safeParse({ ...form, image })
           if (!parsed.success) {
-            setErrors(Object.fromEntries(parsed.error.issues.map((i) => [String(i.path[0]), i.message])))
+            setErrors(fieldErrors(parsed.error))
             return
           }
           setErrors({})

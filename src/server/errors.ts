@@ -4,12 +4,14 @@ export class NotFound extends Schema.TaggedError<NotFound>()('NotFound', {
   entity: Schema.String,
   id: Schema.String,
 }) {
+  // fallow-ignore-next-line unused-class-member
   override get message() {
     return `${this.entity} not found`
   }
 }
 
 export class Unauthenticated extends Schema.TaggedError<Unauthenticated>()('Unauthenticated', {}) {
+  // fallow-ignore-next-line unused-class-member
   override get message() {
     return 'Sign in to continue'
   }
@@ -18,6 +20,7 @@ export class Unauthenticated extends Schema.TaggedError<Unauthenticated>()('Unau
 export class Forbidden extends Schema.TaggedError<Forbidden>()('Forbidden', {
   reason: Schema.String,
 }) {
+  // fallow-ignore-next-line unused-class-member
   override get message() {
     return this.reason
   }
@@ -27,6 +30,7 @@ export class Forbidden extends Schema.TaggedError<Forbidden>()('Forbidden', {
 export class InvalidState extends Schema.TaggedError<InvalidState>()('InvalidState', {
   reason: Schema.String,
 }) {
+  // fallow-ignore-next-line unused-class-member
   override get message() {
     return this.reason
   }
@@ -35,6 +39,7 @@ export class InvalidState extends Schema.TaggedError<InvalidState>()('InvalidSta
 export class DatabaseError extends Schema.TaggedError<DatabaseError>()('DatabaseError', {
   cause: Schema.Defect(),
 }) {
+  // fallow-ignore-next-line unused-class-member
   override get message() {
     return 'Database request failed'
   }

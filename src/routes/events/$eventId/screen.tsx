@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { joinUrl, QrCode } from '#/components/events/join-qr.tsx'
+import { QrCode } from '#/components/events/join-qr.tsx'
+import { joinUrl } from '#/lib/join.ts'
 import { MatchClock } from '#/components/events/match-clock.tsx'
 import { Logo } from '#/components/layout/logo.tsx'
 import { LiveDot } from '#/components/ui/badge.tsx'

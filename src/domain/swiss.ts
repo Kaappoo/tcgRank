@@ -1,7 +1,7 @@
 import { Effect, Random } from 'effect'
 import { computeStandings, type MatchRecord } from './standings.ts'
 
-export interface Pairing {
+interface Pairing {
   readonly table: number
   readonly player1Id: string
   /** `null` means player 1 receives a bye. */
@@ -62,7 +62,7 @@ const pairSequentially = (ordered: ReadonlyArray<string>): Array<[string, string
   return pairs
 }
 
-export interface PairRoundInput {
+interface PairRoundInput {
   /** Players still active in the event (dropped players excluded). */
   readonly activePlayerIds: ReadonlyArray<string>
   /** Every player that ever entered — needed for tiebreakers of dropped opponents. */

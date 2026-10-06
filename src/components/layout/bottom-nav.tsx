@@ -26,7 +26,7 @@ export function BottomNav() {
           to="/join"
           className="-mt-5 flex flex-1 flex-col items-center gap-1 pb-2 text-[11px] font-semibold text-paper"
         >
-          <span className="flex size-14 items-center justify-center rounded-2xl bg-orange text-on-orange shadow-[0_10px_30px_-10px_var(--orange)] transition-transform active:scale-95">
+          <span className="flex size-14 items-center justify-center rounded-2xl bg-orange text-on-orange shadow-[0_8px_18px_-8px_rgb(0_0_0/0.9)] transition-transform active:scale-95">
             <QrCode className="size-6" />
           </span>
           Join

@@ -24,7 +24,7 @@ export function EventRow({ event }: { event: EventSummary }) {
         />
       </div>
       <div className="flex min-w-0 flex-col gap-1.5">
-        <h3 className="truncate font-display text-lg sm:text-xl">{event.name}</h3>
+        <h3 className="line-clamp-2 font-display text-lg leading-tight sm:text-xl">{event.name}</h3>
         <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-paper-dim">
           <span className="inline-flex items-center gap-1.5">
             <Store className="size-3.5" />

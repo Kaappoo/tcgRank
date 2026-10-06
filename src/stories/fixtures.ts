@@ -1,9 +1,9 @@
 import type { MatchView, StandingView } from '#/server/events/views.ts'
 
-export const ash = { id: 'ash', name: 'Ash Ketchum', username: 'ash', image: null }
-export const misty = { id: 'misty', name: 'Misty Waterflower', username: 'misty', image: null }
-export const brock = { id: 'brock', name: 'Brock Harrison', username: 'brock', image: null }
-export const gary = { id: 'gary', name: 'Gary Oak', username: 'gary', image: null }
+const ash = { id: 'ash', name: 'Ash Ketchum', username: 'ash', image: null }
+const misty = { id: 'misty', name: 'Misty Waterflower', username: 'misty', image: null }
+const brock = { id: 'brock', name: 'Brock Harrison', username: 'brock', image: null }
+const gary = { id: 'gary', name: 'Gary Oak', username: 'gary', image: null }
 
 export const playingMatch: MatchView = {
   id: 'match-1',

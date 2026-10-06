@@ -1,6 +1,6 @@
 import { useHydrated } from '#/hooks/use-hydrated.ts'
 
-export const DATE_TIME: Intl.DateTimeFormatOptions = {
+const DATE_TIME: Intl.DateTimeFormatOptions = {
   weekday: 'short',
   month: 'short',
   day: 'numeric',

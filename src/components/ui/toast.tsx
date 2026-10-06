@@ -2,7 +2,7 @@ import { Toast } from '@base-ui/react/toast'
 import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-export const toastManager = Toast.createToastManager()
+const toastManager = Toast.createToastManager()
 
 type ToastTone = 'default' | 'success' | 'error'
 

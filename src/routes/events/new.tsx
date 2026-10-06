@@ -5,16 +5,16 @@ import { useState } from 'react'
 import { Page, PageHeader } from '#/components/layout/page.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
-import { Select } from '#/components/ui/select.tsx'
 import { Textarea } from '#/components/ui/textarea.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { recommendedRounds } from '#/domain/swiss.ts'
-import { formatLabel } from '#/lib/format.ts'
 import { requireAuth } from '#/lib/guards.ts'
-import { EVENT_FORMATS, type EventFormat } from '#/server/db/schema.ts'
+import type { EventFormat } from '#/server/db/schema.ts'
 import { createEvent } from '#/server/functions/events.ts'
 import { createEventInput } from '#/shared/schemas.ts'
 import { SubmitButton } from '#/components/ui/submit-button.tsx'
+import { fieldErrors } from '#/lib/form-errors.ts'
+import { FormatField } from '#/components/forms/format-select.tsx'
 
 export const Route = createFileRoute('/events/new')({
   beforeLoad: requireAuth,
@@ -70,7 +70,7 @@ function NewEvent() {
             startsAt: new Date(String(form.get('startsAt'))),
           })
           if (!parsed.success) {
-            setErrors(Object.fromEntries(parsed.error.issues.map((i) => [String(i.path[0]), i.message])))
+            setErrors(fieldErrors(parsed.error))
             return
           }
           setErrors({})
@@ -95,14 +95,7 @@ function NewEvent() {
           </Field>
         </div>
         <div className="grid gap-6 sm:grid-cols-2">
-          <Field>
-            <FieldLabel>Format</FieldLabel>
-            <Select
-              value={format}
-              onValueChange={(v) => v && setFormat(v)}
-              options={EVENT_FORMATS.map((f) => ({ value: f, label: formatLabel(f) }))}
-            />
-          </Field>
+          <FormatField value={format} onChange={setFormat} />
           <Field invalid={Boolean(errors.plannedRounds)}>
             <FieldLabel>Swiss rounds</FieldLabel>
             <Input name="plannedRounds" type="number" min={0} max={12} defaultValue={0} inputMode="numeric" />

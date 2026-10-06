@@ -48,18 +48,21 @@ function SignUp() {
     setErrors({})
     setPending(true)
     const { name, username, email, password } = parsed.data
-    const result = await signUp.email({
-      name,
-      email,
-      password,
-      username: username.toLowerCase(),
-      displayUsername: username,
-    })
-    setPending(false)
-    if (result.error) return setErrors({ form: result.error.message ?? 'Could not create your account' })
-    await queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey })
-    await router.invalidate()
-    await router.navigate({ href: redirectTo ?? '/' })
+    try {
+      const result = await signUp.email({
+        name,
+        email,
+        password,
+        username: username.toLowerCase(),
+        displayUsername: username,
+      })
+      if (result.error) return setErrors({ form: result.error.message ?? 'Could not create your account' })
+      await queryClient.invalidateQueries({ queryKey: sessionQuery.queryKey })
+      await router.invalidate()
+      await router.navigate({ href: redirectTo ?? '/' })
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
