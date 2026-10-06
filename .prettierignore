@@ -1,0 +1,8 @@
+node_modules
+.output
+drizzle
+pnpm-lock.yaml
+src/routeTree.gen.ts
+.claude
+storyboard-static
+storybook-static

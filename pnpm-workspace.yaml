@@ -1,0 +1,6 @@
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - msgpackr-extract
+  - "@tailwindcss/oxide"
+  - lightningcss
