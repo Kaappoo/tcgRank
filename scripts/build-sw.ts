@@ -1,32 +1,34 @@
 import { injectManifest } from '@serwist/build'
 import { build } from 'esbuild'
-import { existsSync, rmSync } from 'node:fs'
+import { rmSync } from 'node:fs'
+import { join } from 'node:path'
 
 /**
- * TanStack Start emits client assets to .output/public. We bundle src/sw.ts
- * with esbuild, then let Serwist inject the precache manifest for that folder.
+ * Bundles src/sw.ts with esbuild, then lets Serwist inject the precache
+ * manifest for the client output folder. Runs from the Vite plugin in
+ * vite.config.ts right after the client build, before Nitro snapshots
+ * the public assets.
  */
-const publicDir = '.output/public'
-if (!existsSync(publicDir)) throw new Error(`${publicDir} not found — run "vite build" first`)
-
-const bundled = '.output/sw.bundle.js'
-await build({
-  entryPoints: ['src/sw.ts'],
-  bundle: true,
-  format: 'esm',
-  target: 'es2022',
-  minify: true,
-  outfile: bundled,
-  define: { 'process.env.NODE_ENV': '"production"' },
-})
-
-const { count, size, warnings } = await injectManifest({
-  swSrc: bundled,
-  swDest: `${publicDir}/sw.js`,
-  globDirectory: publicDir,
-  globPatterns: ['assets/**/*.{js,css,woff2}', 'icons/*.png', 'favicon.svg', 'manifest.webmanifest'],
-  maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
-})
-rmSync(bundled)
-for (const w of warnings) console.warn(w)
-console.log(`✓ service worker precaches ${count} files (${(size / 1024).toFixed(0)} KiB)`)
+export async function buildServiceWorker(publicDir: string) {
+  const bundled = join(publicDir, '..', 'sw.bundle.js')
+  await build({
+    entryPoints: ['src/sw.ts'],
+    bundle: true,
+    format: 'esm',
+    target: 'es2022',
+    minify: true,
+    outfile: bundled,
+    define: { 'process.env.NODE_ENV': '"production"' },
+    logLevel: 'warning',
+  })
+  const { count, size, warnings } = await injectManifest({
+    swSrc: bundled,
+    swDest: join(publicDir, 'sw.js'),
+    globDirectory: publicDir,
+    globPatterns: ['assets/**/*.{js,css,woff2}', 'icons/*.png', 'favicon.svg', 'manifest.webmanifest'],
+    maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+  })
+  rmSync(bundled, { force: true })
+  for (const w of warnings) console.warn(w)
+  return { count, size }
+}

@@ -36,7 +36,7 @@ export function PairingCard({ match, viewerId, records, className }: PairingCard
         </div>
 
         {opponent ? (
-          <div className="sm:pr-[16%]">
+          <div className="sm:pr-[24%]">
             <div className="flex flex-col gap-4">
               <Seat player={me} label="You" record={me ? records?.get(me.id) : undefined} />
               <div className="flex items-center gap-3">
@@ -78,7 +78,7 @@ function Seat({
   const name = (
     <span
       className={cn(
-        'line-clamp-2 block break-words font-display',
+        'line-clamp-2 break-words font-display',
         emphasize ? 'text-3xl sm:text-4xl' : 'text-xl text-paper-dim',
       )}
     >

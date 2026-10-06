@@ -10,7 +10,7 @@ export default defineConfig({
         test: {
           name: 'server',
           environment: 'node',
-          include: ['src/domain/**/*.test.ts', 'src/server/**/*.test.ts'],
+          include: ['src/domain/**/*.test.ts', 'src/server/**/*.test.{ts,tsx}'],
         },
       },
       {
@@ -19,7 +19,7 @@ export default defineConfig({
         test: {
           name: 'client',
           environment: 'jsdom',
-          include: ['src/**/*.test.tsx', 'src/lib/**/*.test.ts', 'src/hooks/**/*.test.ts'],
+          include: ['src/components/**/*.test.tsx', 'src/routes/**/*.test.tsx', 'src/lib/**/*.test.ts', 'src/hooks/**/*.test.ts'],
           setupFiles: ['./tests/setup-client.ts'],
         },
       },

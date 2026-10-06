@@ -39,7 +39,7 @@ export const Route = createFileRoute('/api/og/event/$eventId')({
             <div
               style={{
                 fontFamily: 'Archivo Black',
-                fontSize: event.name.length > 28 ? 66 : 84,
+                fontSize: event.name.length > 18 ? 64 : 84,
                 lineHeight: 0.98,
                 marginTop: 28,
                 letterSpacing: -1,
