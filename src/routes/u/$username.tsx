@@ -40,8 +40,8 @@ function ProfilePage() {
   return (
     <Page>
       <header className="relative isolate mb-10 flex flex-col gap-8 overflow-hidden rounded-2xl border border-line bg-surface p-6 sm:p-10">
-        <div aria-hidden className="slab right-[-18%] w-[32%] animate-slab" />
-        <div className="relative flex flex-col gap-6 pr-[18%] sm:flex-row sm:items-center">
+        <div aria-hidden className="slab right-[-10%] hidden w-[20%] animate-slab sm:block" />
+        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:pr-[18%]">
           <Avatar name={user.name} src={user.image} size="xl" className="ring-4 ring-ink" />
           <div className="flex min-w-0 flex-col gap-2">
             <h1 className="font-display text-4xl sm:text-5xl">{user.name}</h1>
@@ -55,7 +55,7 @@ function ProfilePage() {
             {user.bio ? <p className="max-w-xl text-paper-dim">{user.bio}</p> : null}
           </div>
         </div>
-        <div className="relative flex flex-col gap-6 border-t border-line pt-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="relative flex flex-col gap-6 border-t border-line pt-6 sm:mr-[18%] sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-col gap-1">
             <p className="text-sm font-semibold text-paper-dim">Lifetime record</p>
             <p

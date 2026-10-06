@@ -14,7 +14,15 @@ export const handlers = [
     const card = match ? cards[`${match[1]} ${match[2]}`] : undefined
     return HttpResponse.json({
       data: card
-        ? [{ ...card, images: { small: `https://images.test/${card.id}.png`, large: `https://images.test/${card.id}_hires.png` } }]
+        ? [
+            {
+              ...card,
+              images: {
+                small: `https://images.test/${card.id}.png`,
+                large: `https://images.test/${card.id}_hires.png`,
+              },
+            },
+          ]
         : [],
     })
   }),

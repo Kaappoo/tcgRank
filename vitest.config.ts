@@ -19,7 +19,12 @@ export default defineConfig({
         test: {
           name: 'client',
           environment: 'jsdom',
-          include: ['src/components/**/*.test.tsx', 'src/routes/**/*.test.tsx', 'src/lib/**/*.test.ts', 'src/hooks/**/*.test.ts'],
+          include: [
+            'src/components/**/*.test.tsx',
+            'src/routes/**/*.test.tsx',
+            'src/lib/**/*.test.ts',
+            'src/hooks/**/*.test.ts',
+          ],
           setupFiles: ['./tests/setup-client.ts'],
         },
       },
