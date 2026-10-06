@@ -17,3 +17,4 @@ playwright-report
 storybook-static
 public/sw.js
 public/sw.js.map
+e2e.db*

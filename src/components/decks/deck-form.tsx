@@ -1,7 +1,6 @@
 import { useDebouncedValue } from '@tanstack/react-pacer'
 import { ImagePlus, Loader2 } from 'lucide-react'
 import { useState } from 'react'
-import { Button } from '#/components/ui/button.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import { Select } from '#/components/ui/select.tsx'
@@ -13,6 +12,7 @@ import { useUploadThing } from '#/lib/uploadthing.ts'
 import { EVENT_FORMATS, type EventFormat } from '#/server/db/schema.ts'
 import { deckInput, type DeckInput } from '#/shared/schemas.ts'
 import { DeckListView } from './deck-list-view.tsx'
+import { SubmitButton } from '#/components/ui/submit-button.tsx'
 
 export interface DeckFormProps {
   readonly initial?: Partial<DeckInput>
@@ -116,9 +116,9 @@ export function DeckForm({ initial, submitLabel, pending, onSubmit }: DeckFormPr
           </span>
           <Switch checked={isPublic} onCheckedChange={setIsPublic} />
         </label>
-        <Button type="submit" size="xl" disabled={pending || isUploading}>
+        <SubmitButton size="xl" disabled={pending || isUploading}>
           {pending ? 'Saving…' : submitLabel}
-        </Button>
+        </SubmitButton>
       </div>
       <div className="flex flex-col gap-3">
         <h2 className="font-display text-xl">Preview</h2>

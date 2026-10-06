@@ -3,11 +3,11 @@ import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-rout
 import { useState } from 'react'
 import { z } from 'zod'
 import { AuthShell } from '#/components/auth/auth-shell.tsx'
-import { Button } from '#/components/ui/button.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import { signUp } from '#/lib/auth-client.ts'
 import { sessionQuery } from '#/lib/queries.ts'
+import { SubmitButton } from '#/components/ui/submit-button.tsx'
 
 const search = z.object({ redirect: z.string().optional() })
 
@@ -106,9 +106,9 @@ function SignUp() {
           <FieldError>{errors.password}</FieldError>
         </Field>
         <FieldError>{errors.form}</FieldError>
-        <Button type="submit" size="lg" disabled={pending}>
+        <SubmitButton size="lg" disabled={pending}>
           {pending ? 'Creating account…' : 'Create account'}
-        </Button>
+        </SubmitButton>
       </form>
     </AuthShell>
   )

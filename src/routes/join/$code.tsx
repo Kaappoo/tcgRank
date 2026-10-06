@@ -7,6 +7,7 @@ import { Badge } from '#/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#/components/ui/button.tsx'
 import { Select } from '#/components/ui/select.tsx'
 import { useEventActions } from '#/hooks/use-event-actions.ts'
+import { useHydrated } from '#/hooks/use-hydrated.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
 import { formatLabel, statusLabel } from '#/lib/format.ts'
 import { eventByCodeQuery, eventQuery, myDecksQuery } from '#/lib/queries.ts'
@@ -35,6 +36,7 @@ function ConfirmJoin() {
   const { data: decks } = useQuery(myDecksQuery)
   const actions = useEventActions(event.id)
   const [deckId, setDeckId] = useState('none')
+  const hydrated = useHydrated()
 
   return (
     <Page className="flex max-w-xl flex-col gap-8">
@@ -84,7 +86,7 @@ function ConfirmJoin() {
           </label>
           <Button
             size="xl"
-            disabled={actions.join.isPending}
+            disabled={!hydrated || actions.join.isPending}
             onClick={() =>
               actions.join.mutate(deckId === 'none' ? null : deckId, {
                 onSuccess: () => navigate({ to: '/events/$eventId', params: { eventId: event.id } }),

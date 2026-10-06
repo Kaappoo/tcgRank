@@ -29,7 +29,9 @@ describe('MatchClock', () => {
   })
 
   it('applies the server clock offset', () => {
-    render(<MatchClock endsAt={Date.now() + 10 * 60_000} pausedRemainingMs={null} roundMinutes={50} offsetMs={60_000} />)
+    render(
+      <MatchClock endsAt={Date.now() + 10 * 60_000} pausedRemainingMs={null} roundMinutes={50} offsetMs={60_000} />,
+    )
     expect(screen.getByRole('timer')).toHaveTextContent('09:00')
   })
 })

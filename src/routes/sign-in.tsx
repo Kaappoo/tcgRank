@@ -11,6 +11,7 @@ import { Separator } from '#/components/ui/separator.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { signIn } from '#/lib/auth-client.ts'
 import { sessionQuery } from '#/lib/queries.ts'
+import { SubmitButton } from '#/components/ui/submit-button.tsx'
 
 const search = z.object({ redirect: z.string().optional() })
 
@@ -90,9 +91,9 @@ function SignIn() {
           <Input name="password" type="password" autoComplete="current-password" required minLength={8} />
         </Field>
         <FieldError>{error}</FieldError>
-        <Button type="submit" size="lg" disabled={pending}>
+        <SubmitButton size="lg" disabled={pending}>
           {pending ? 'Signing in…' : 'Sign in'}
-        </Button>
+        </SubmitButton>
         <div className="flex items-center gap-3 text-xs text-paper-dim">
           <Separator className="flex-1" /> or <Separator className="flex-1" />
         </div>

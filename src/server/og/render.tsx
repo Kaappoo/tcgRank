@@ -86,7 +86,9 @@ export const OgFrame = ({ children, footer }: { children: ReactNode; footer: Rea
     <div style={{ display: 'flex', flexDirection: 'column', padding: '60px 72px', width: 780, height: '100%' }}>
       <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>{children}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 18, fontSize: 26, color: palette.muted }}>
-        <div style={{ display: 'flex', fontFamily: 'Archivo Black', color: palette.paper, fontSize: 30, letterSpacing: 1 }}>
+        <div
+          style={{ display: 'flex', fontFamily: 'Archivo Black', color: palette.paper, fontSize: 30, letterSpacing: 1 }}
+        >
           TCG<span style={{ color: palette.orange }}>RANK</span>
         </div>
         <div style={{ width: 2, height: 26, background: palette.line }} />

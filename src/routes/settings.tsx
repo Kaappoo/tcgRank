@@ -5,7 +5,6 @@ import { Camera, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { Page, PageHeader } from '#/components/layout/page.tsx'
 import { Avatar } from '#/components/ui/avatar.tsx'
-import { Button } from '#/components/ui/button.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import { Textarea } from '#/components/ui/textarea.tsx'
@@ -15,6 +14,7 @@ import { myProfileQuery, sessionQuery } from '#/lib/queries.ts'
 import { useUploadThing } from '#/lib/uploadthing.ts'
 import { updateProfile } from '#/server/functions/profiles.ts'
 import { profileInput } from '#/shared/schemas.ts'
+import { SubmitButton } from '#/components/ui/submit-button.tsx'
 
 export const Route = createFileRoute('/settings')({
   beforeLoad: requireAuth,
@@ -115,9 +115,9 @@ function Settings() {
         </Field>
         <p className="text-sm text-paper-dim">Signed in as {me.email}</p>
         <div className="flex justify-end">
-          <Button type="submit" size="lg" disabled={save.isPending || isUploading}>
+          <SubmitButton size="lg" disabled={save.isPending || isUploading}>
             {save.isPending ? 'Saving…' : 'Save profile'}
-          </Button>
+          </SubmitButton>
         </div>
       </form>
     </Page>

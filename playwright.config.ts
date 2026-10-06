@@ -18,7 +18,7 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Pixel 7'] } },
   ],
   webServer: {
-    command: `pnpm tsx scripts/migrate.ts && pnpm vite dev --port ${PORT}`,
+    command: `rm -f e2e.db && pnpm tsx scripts/migrate.ts && pnpm vite dev --port ${PORT}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

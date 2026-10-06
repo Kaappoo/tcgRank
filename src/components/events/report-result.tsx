@@ -5,6 +5,7 @@ import { Button } from '#/components/ui/button.tsx'
 import type { MatchView } from '#/server/events/views.ts'
 import { cn } from '#/lib/utils.ts'
 import { describeResult, RESULT_OPTIONS, toGames, type ResultOption } from './result-options.ts'
+import { SubmitButton } from '#/components/ui/submit-button.tsx'
 
 export interface ReportResultProps {
   readonly match: MatchView
@@ -105,9 +106,9 @@ export function ReportResult({ match, viewerId, isPending, onReport, onConfirm }
         ))}
       </div>
       <div className="flex gap-2">
-        <Button type="submit" size="lg" className="flex-1" disabled={!choice || isPending}>
+        <SubmitButton size="lg" className="flex-1" disabled={!choice || isPending}>
           {isPending ? 'Sending…' : 'Submit result'}
-        </Button>
+        </SubmitButton>
         {editing ? (
           <Button type="button" size="lg" variant="ghost" onClick={() => setEditing(false)}>
             Cancel

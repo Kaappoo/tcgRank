@@ -3,7 +3,6 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
 import { Page, PageHeader } from '#/components/layout/page.tsx'
-import { Button } from '#/components/ui/button.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import { Select } from '#/components/ui/select.tsx'
@@ -15,6 +14,7 @@ import { requireAuth } from '#/lib/guards.ts'
 import { EVENT_FORMATS, type EventFormat } from '#/server/db/schema.ts'
 import { createEvent } from '#/server/functions/events.ts'
 import { createEventInput } from '#/shared/schemas.ts'
+import { SubmitButton } from '#/components/ui/submit-button.tsx'
 
 export const Route = createFileRoute('/events/new')({
   beforeLoad: requireAuth,
@@ -147,9 +147,9 @@ function NewEvent() {
           <Textarea name="description" placeholder="Entry fee, prizes, deck registration deadline…" />
         </Field>
         <div className="flex justify-end">
-          <Button type="submit" size="xl" disabled={mutation.isPending}>
+          <SubmitButton size="xl" disabled={mutation.isPending}>
             {mutation.isPending ? 'Creating…' : 'Create event'}
-          </Button>
+          </SubmitButton>
         </div>
       </form>
     </Page>

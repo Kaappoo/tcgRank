@@ -51,6 +51,8 @@ function RootLayout() {
   const { queryClient } = Route.useRouteContext()
   useEffect(() => startQueryPersistence(queryClient), [queryClient])
   useEffect(() => registerServiceWorker(), [])
+  // Lets e2e tests (and CSS, if ever needed) know the page is interactive.
+  useEffect(() => document.documentElement.setAttribute('data-hydrated', ''), [])
 
   return (
     <Toaster>
