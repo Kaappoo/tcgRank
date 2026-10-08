@@ -51,7 +51,7 @@ pnpm dev                        # http://localhost:3000
 
 Seeded accounts: `oak` (host), `ash`, `misty`, `brock`, … — password `pallet-town-1`.
 
-Without `RESEND_API_KEY` emails are logged to the console; without `UPLOADTHING_TOKEN` image uploads are disabled; without `CARD_CATALOG_URL` decks are saved without card art (run `pnpm tsx scripts/backfill-card-images.ts` once it is set). For production point `DATABASE_URL` / `DATABASE_AUTH_TOKEN` at Turso and set `APP_URL` so QR codes and share images use your domain.
+Without `RESEND_API_KEY` emails are logged to the console; without `UPLOADTHING_TOKEN` image uploads are disabled; without `CARD_CATALOG_URL` decks are saved without card art (run `pnpm tsx scripts/backfill-card-images.ts` once it is set). For production point `DATABASE_URL` / `DATABASE_AUTH_TOKEN` at Turso and set `APP_URL` so QR codes and share images use your domain. On Vercel, `pnpm vercel-build` applies pending migrations before building, on production deploys only (previews skip them).
 
 ## Scripts
 
