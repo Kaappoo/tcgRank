@@ -14,7 +14,7 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Best of** | An event setting chosen by the host: the most games a match can have (1, 3 or 5). A player who wins a majority of them (1, 2 or 3) wins the match. | |
 | **Incomplete report** | A report in which neither player reached a majority of the best-of, e.g. 1–0 or 1–1 in a best of three. Allowed after a warning; the player with more games wins, equal games is a tie. | |
 | **Pairing system** | How an event builds its rounds: **Swiss**, **round robin** (everyone plays everyone once) or **single elimination** (losers are out). Chosen by the host. | |
-| **Top cut** | A single-elimination bracket of the best-ranked players after an event's Swiss rounds, as at League Cups. | |
+| **Top cut** | A single-elimination bracket of the best-ranked players who haven't dropped, played after the Swiss rounds of an event the host set up with one, as at League Cups. Its size (top 2, 4 or 8) follows attendance unless the host changes it when cutting. | |
 | **Pairing** | The assignment of players to tables for a round, produced by `pairRound`. | `domain/swiss.ts` |
 | **Bye** | Free win (3 points) for the odd player out. Goes to the lowest-ranked active player who has not had one. | `outcome = 'bye'` |
 | **Report** | A player (or host) submitting a game score. A player report is **pending** until confirmed. | `reportedById`, `reportedAt` |
