@@ -40,6 +40,10 @@ pnpm review              # fallow + react-doctor + impeccable detect
 
 ## Agent skills
 
+### Git workflow
+
+Branches are `<type>/<kebab-description>` off `main` (e.g. `fix/migrate-on-vercel-deploy`), commits and PR titles follow Conventional Commits, PRs are squash-merged. Never use generated branch names (`ccr-…`, `claude/…`). See `docs/agents/git-workflow.md`.
+
 ### Issue tracker
 
 Issues live in GitHub Issues for this repo (`gh` CLI). See `docs/agents/issue-tracker.md`.
