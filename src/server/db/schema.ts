@@ -196,7 +196,10 @@ export const decks = sqliteTable(
     /** Raw PTCG Live export. Parsed on read so the source of truth stays editable. */
     list: text('list').notNull(),
     cardCount: integer('card_count').notNull().default(0),
+    /** Legacy uploaded cover photo. No longer read or written; covers are cards now (`coverCard`). */
     coverImageUrl: text('cover_image_url'),
+    /** The printing on the deck's cover, by `cardArtKey` ("TWM 130"). Null: the featured Pokémon. */
+    coverCard: text('cover_card'),
     /** Card art by `cardArtKey` ("TWM 130" → image URL), resolved through the card catalog when the deck is saved. */
     cardImages: text('card_images', { mode: 'json' }).$type<Record<string, string>>().notNull().default({}),
     isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(true),

@@ -13,9 +13,6 @@ export const uploadRouter = {
   avatar: f({ image: { maxFileSize: '2MB', maxFileCount: 1 } })
     .middleware(requireSession)
     .onUploadComplete(({ file, metadata }) => ({ url: file.ufsUrl, userId: metadata.userId })),
-  deckCover: f({ image: { maxFileSize: '4MB', maxFileCount: 1 } })
-    .middleware(requireSession)
-    .onUploadComplete(({ file, metadata }) => ({ url: file.ufsUrl, userId: metadata.userId })),
 } satisfies FileRouter
 
 export type UploadRouter = typeof uploadRouter

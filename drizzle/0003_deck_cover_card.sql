@@ -1,0 +1,1 @@
+ALTER TABLE `decks` ADD `cover_card` text;

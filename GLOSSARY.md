@@ -23,4 +23,5 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Registered deck** | The deck a player enters an event with. Can be changed until round 1 starts, then it is locked. Only the player and the host see it until the event ends. | `event_players.deckId` |
 | **Deck required** | An event setting chosen by the host: players must register a 60-card deck in the event's format to enter. Without it, players may skip registering a deck. | `events.deckRequired` |
 | **Deck list** | A PTCG Live / Limitless export. Stored raw, parsed on read into Pokémon / Trainer / Energy sections. | `domain/deck-list.ts` |
+| **Cover card** | The card from a deck's own list that the owner picks as the deck's face. Without a pick, the deck's most-played Pokémon. | `decks.coverCard` |
 | **Store screen** | Full-screen projector view for the store TV: QR, clock and an alphabetical pairing list. | `/events/$eventId/screen` |

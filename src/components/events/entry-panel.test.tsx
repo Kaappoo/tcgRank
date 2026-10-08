@@ -18,7 +18,7 @@ const deck: DeckView = {
   archetype: null,
   list: '4 Dreepy TWM 128',
   cardCount: 60,
-  coverImageUrl: null,
+  coverCard: null,
   cardImages: {},
   isPublic: true,
   updatedAt: 0,

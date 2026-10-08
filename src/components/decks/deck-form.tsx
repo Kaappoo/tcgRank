@@ -1,18 +1,18 @@
 import { useDebouncedValue } from '@tanstack/react-pacer'
-import { ImagePlus, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import { Switch } from '#/components/ui/switch.tsx'
 import { Textarea } from '#/components/ui/textarea.tsx'
-import { toast } from '#/components/ui/toast.tsx'
-import { useUploadThing } from '#/lib/uploadthing.ts'
 import type { EventFormat } from '#/server/db/schema.ts'
 import { deckInput, type DeckInput } from '#/shared/schemas.ts'
+import { CoverPicker } from './cover-picker.tsx'
 import { DeckListView } from './deck-list-view.tsx'
 import { SubmitButton } from '#/components/ui/submit-button.tsx'
 import { fieldErrors } from '#/lib/form-errors.ts'
 import { FormatField } from '#/components/forms/format-select.tsx'
+
+const NO_IMAGES: Readonly<Record<string, string>> = {}
 
 export interface DeckFormProps {
   readonly initial?: Partial<DeckInput>
@@ -27,17 +27,10 @@ export function DeckForm({ initial, cardImages, submitLabel, pending, onSubmit }
   const [list, setList] = useState(initial?.list ?? '')
   const [format, setFormat] = useState<EventFormat>(initial?.format ?? 'standard')
   const [isPublic, setIsPublic] = useState(initial?.isPublic ?? true)
-  const [cover, setCover] = useState<string | null>(initial?.coverImageUrl ?? null)
+  const [cover, setCover] = useState<string | null>(initial?.coverCard ?? null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   // Parsing on every keystroke is cheap, but re-rendering the preview is not — wait for a pause.
   const [previewList] = useDebouncedValue(list, { wait: 300 })
-
-  const { startUpload, isUploading } = useUploadThing('deckCover', {
-    onClientUploadComplete: (files) => setCover(files[0]?.ufsUrl ?? null),
-    onUploadError: (error) => {
-      toast.error('Upload failed', error.message)
-    },
-  })
 
   return (
     <form
@@ -52,7 +45,7 @@ export function DeckForm({ initial, cardImages, submitLabel, pending, onSubmit }
           list,
           format,
           isPublic,
-          coverImageUrl: cover,
+          coverCard: cover,
         })
         if (!parsed.success) {
           setErrors(fieldErrors(parsed.error))
@@ -88,22 +81,7 @@ export function DeckForm({ initial, cardImages, submitLabel, pending, onSubmit }
           <FieldDescription>Paste the export from Pokémon TCG Live or Limitless.</FieldDescription>
           <FieldError>{errors.list}</FieldError>
         </Field>
-        <div className="flex flex-wrap items-center gap-4">
-          <label className="inline-flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-line-strong px-4 py-3 text-sm font-semibold transition-colors hover:border-orange">
-            {isUploading ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
-            {cover ? 'Replace cover photo' : 'Add a cover photo'}
-            <input
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) void startUpload([file])
-              }}
-            />
-          </label>
-          {cover ? <img src={cover} alt="Deck cover" className="h-14 w-10 rounded object-cover" /> : null}
-        </div>
+        <CoverPicker list={previewList} cardImages={cardImages ?? NO_IMAGES} value={cover} onChange={setCover} />
         <label className="flex items-center justify-between gap-4 rounded-lg border border-line px-4 py-3">
           <span className="flex flex-col">
             <span className="text-sm font-semibold">Show on my profile</span>
@@ -111,7 +89,7 @@ export function DeckForm({ initial, cardImages, submitLabel, pending, onSubmit }
           </span>
           <Switch checked={isPublic} onCheckedChange={setIsPublic} />
         </label>
-        <SubmitButton size="xl" disabled={pending || isUploading}>
+        <SubmitButton size="xl" disabled={pending}>
           {pending ? 'Saving…' : submitLabel}
         </SubmitButton>
       </div>

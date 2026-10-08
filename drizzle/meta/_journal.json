@@ -22,6 +22,13 @@
       "when": 1791478442593,
       "tag": "0002_event_deck_required",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791479064873,
+      "tag": "0003_deck_cover_card",
+      "breakpoints": true
     }
   ]
 }

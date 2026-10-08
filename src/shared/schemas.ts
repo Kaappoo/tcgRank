@@ -62,7 +62,8 @@ export const deckInput = z.object({
   format: eventFormat,
   archetype: z.string().trim().max(60).optional(),
   list: z.string().trim().min(1, 'Paste your deck list').max(10_000),
-  coverImageUrl: z.url().nullable().optional(),
+  /** `cardArtKey` of the cover printing ("TWM 130"); null for the featured Pokémon. */
+  coverCard: z.string().trim().max(24).nullable().optional(),
   isPublic: z.boolean().default(true),
 })
 export type DeckInput = z.infer<typeof deckInput>
