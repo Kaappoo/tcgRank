@@ -38,6 +38,14 @@ pnpm review              # fallow + react-doctor + impeccable detect
 - Colours only through tokens (`bg-orange`, `text-paper-dim`, …). No new accent colours; see DESIGN.md "Refused".
 - Run `pnpm typecheck && pnpm test` before committing; run `pnpm review` for UI work.
 
+## Git
+
+- `main` is the default branch. Branch from it and open PRs against it.
+- Follow [Conventional Commits](https://www.conventionalcommits.org/) everywhere:
+  - Commits: `type(scope): summary`, e.g. `feat(decks): pick any card as the deck cover`. Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `build`, `ci`, `chore`, `revert`. Scope is optional (`events`, `decks`, `profile`, `auth`, `db`, …). Breaking changes get `!` after the type/scope and a `BREAKING CHANGE:` footer.
+  - PR titles: the same format, since the title becomes the squash-merge commit on `main`.
+  - Branch names: `type/short-kebab-description`, e.g. `feat/deck-covers`, `fix/join-qr-redirect`.
+
 ## Agent skills
 
 ### Issue tracker
