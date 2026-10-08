@@ -308,3 +308,62 @@
     }
   }
 }
+
+/* Card zoom (components/decks/card-zoom.tsx): only the card morphs; the page holds still. */
+html:has(dialog.card-zoom[open]) {
+  overflow: hidden;
+}
+html[data-card-zoom]::view-transition-old(root),
+html[data-card-zoom]::view-transition-new(root) {
+  animation: none;
+}
+/* The header has its own layer for route changes; here it would float undimmed above the backdrop. */
+html[data-card-zoom] header[style*='site-header'] {
+  view-transition-name: none !important;
+}
+::view-transition-group(card-zoom) {
+  animation-duration: 460ms;
+  animation-timing-function: var(--ease-out-expo);
+}
+/* Opening from a card with no thumbnail on screen (list view): rise in from the middle instead. */
+::view-transition-new(card-zoom):only-child {
+  animation: 380ms var(--ease-out-expo) both zoom-rise;
+}
+::view-transition-old(card-zoom):only-child {
+  animation: 200ms var(--ease-in-quick) both zoom-sink;
+}
+@keyframes zoom-rise {
+  from {
+    opacity: 0;
+    scale: 0.82;
+    translate: 0 24px;
+  }
+}
+@keyframes zoom-sink {
+  to {
+    opacity: 0;
+    scale: 0.9;
+  }
+}
+@keyframes zoom-backdrop {
+  from {
+    opacity: 0;
+  }
+}
+/* Arrow keys and swipes: the next card slides in from the side it came from. */
+@keyframes zoom-step {
+  from {
+    opacity: 0;
+    translate: calc(var(--step, 1) * 40px) 0;
+    rotate: calc(var(--step, 1) * 2deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(card-zoom) {
+    animation: none;
+  }
+  ::view-transition-new(card-zoom),
+  ::view-transition-old(card-zoom) {
+    animation: 120ms linear both fade-only;
+  }
+}

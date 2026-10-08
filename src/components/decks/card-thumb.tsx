@@ -6,12 +6,25 @@ import { cn } from '#/lib/utils.ts'
  * A card image with its copy count. Without art (the catalog doesn't know the
  * printing) or when the image fails to load, shows a typographic placeholder.
  */
-export function CardThumb({ card, image, className }: { card: DeckCard; image?: string | null; className?: string }) {
+export function CardThumb({
+  card,
+  image,
+  className,
+  transitionName,
+}: {
+  card: DeckCard
+  image?: string | null
+  className?: string
+  /** `view-transition-name` for the art, so a zoom can morph it into the enlarged card. */
+  transitionName?: string | undefined
+}) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const showImage = Boolean(image) && failedSrc !== image
   return (
     <figure className={cn('group relative', className)}>
-      <div className="relative aspect-[63/88] overflow-hidden rounded-[6%] border border-line bg-surface-raised transition-transform duration-300 ease-out-expo group-hover:-translate-y-1 group-hover:rotate-[-1.5deg]">
+      <div
+        style={transitionName ? { viewTransitionName: transitionName } : undefined}
+        className="relative aspect-[63/88] overflow-hidden rounded-[6%] border border-line bg-surface-raised transition-transform duration-300 ease-out-expo group-hover:-translate-y-1 group-hover:rotate-[-1.5deg]">
         {showImage && image ? (
           <img
             src={image}

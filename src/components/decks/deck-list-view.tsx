@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { cardArtKey, parseDeckList, type DeckCard, type DeckSection } from '#/domain/deck-list.ts'
 import { cn } from '#/lib/utils.ts'
 import { CardThumb } from './card-thumb.tsx'
+import { CardZoom, useCardZoom, type ZoomItem } from './card-zoom.tsx'
 
 /** Same name can appear twice from different printings, so include set and number. */
 const cardKey = (card: DeckCard) => `${card.section}:${card.name}:${card.setCode}:${card.number}`
@@ -26,6 +27,13 @@ export function DeckListView({
 }) {
   const deck = useMemo(() => parseDeckList(list), [list])
   const [mode, setMode] = useState(defaultMode)
+  // Every card in list order, so arrow keys in the zoom walk the whole deck across sections.
+  const zoomItems = useMemo<ReadonlyArray<ZoomItem>>(
+    () => deck.cards.map((card) => ({ key: cardKey(card), card, image: cardImages[cardArtKey(card) ?? ''] })),
+    [deck.cards, cardImages],
+  )
+  const zoomIndex = useMemo(() => new Map(zoomItems.map((item, i) => [item.key, i])), [zoomItems])
+  const zoom = useCardZoom(zoomItems.length)
 
   return (
     <div className="flex flex-col gap-6">
@@ -84,7 +92,13 @@ export function DeckListView({
                 {cards.map((card) => (
                   <li key={cardKey(card)} className="flex items-baseline gap-3 border-b border-line/50 py-1.5 text-sm">
                     <span className="font-numerals w-5 text-right text-lg text-orange">{card.count}</span>
-                    <span className="flex-1 truncate">{card.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => zoom.openAt(zoomIndex.get(cardKey(card)) ?? 0)}
+                      className="flex-1 cursor-pointer truncate text-left transition-colors hover:text-orange"
+                    >
+                      {card.name}
+                    </button>
                     {card.setCode ? (
                       <span className="tabular text-xs text-paper-dim">
                         {card.setCode} {card.number}
@@ -95,14 +109,30 @@ export function DeckListView({
               </ul>
             ) : (
               <div className="grid grid-cols-3 gap-4 pt-2 pr-2 sm:grid-cols-5 lg:grid-cols-7">
-                {cards.map((card) => (
-                  <CardThumb key={cardKey(card)} card={card} image={cardImages[cardArtKey(card) ?? '']} />
-                ))}
+                {cards.map((card) => {
+                  const index = zoomIndex.get(cardKey(card)) ?? 0
+                  return (
+                    <button
+                      key={cardKey(card)}
+                      type="button"
+                      aria-label={`Enlarge ${card.name}`}
+                      onClick={() => zoom.openAt(index)}
+                      className="cursor-zoom-in rounded-[6%] text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange"
+                    >
+                      <CardThumb
+                        card={card}
+                        image={cardImages[cardArtKey(card) ?? '']}
+                        transitionName={zoom.thumbTransition(index)}
+                      />
+                    </button>
+                  )
+                })}
               </div>
             )}
           </section>
         )
       })}
+      <CardZoom items={zoomItems} zoom={zoom} />
     </div>
   )
 }
