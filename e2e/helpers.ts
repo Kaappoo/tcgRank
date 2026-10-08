@@ -11,8 +11,6 @@ export async function signedInPage(browser: Browser, name: string, options: Brow
   })
   expect(response.ok(), await response.text()).toBeTruthy()
   const page = await context.newPage()
-  // Card art comes from a third-party API; keep e2e hermetic.
-  await page.route('https://api.pokemontcg.io/**', (route) => route.fulfill({ json: { data: [] } }))
   return { context, page, handle }
 }
 

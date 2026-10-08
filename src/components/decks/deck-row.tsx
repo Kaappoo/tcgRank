@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
 import { Badge } from '#/components/ui/badge.tsx'
-import { featuredPokemon, parseDeckList } from '#/domain/deck-list.ts'
+import { cardArtKey, featuredPokemon, parseDeckList } from '#/domain/deck-list.ts'
 import { formatLabel } from '#/lib/format.ts'
 import type { DeckView } from '#/server/decks/service.ts'
 import { CardThumb } from './card-thumb.tsx'
@@ -22,7 +22,11 @@ export function DeckRow({ deck }: { deck: DeckView }) {
           loading="lazy"
         />
       ) : featured ? (
-        <CardThumb card={featured} className="[&_figcaption]:hidden" />
+        <CardThumb
+          card={featured}
+          image={deck.cardImages[cardArtKey(featured) ?? '']}
+          className="[&_figcaption]:hidden"
+        />
       ) : (
         <div className="aspect-[63/88] rounded-[6%] bg-surface-raised" />
       )}

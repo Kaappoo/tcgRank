@@ -1,0 +1,1 @@
+ALTER TABLE `decks` ADD `card_images` text DEFAULT '{}' NOT NULL;

@@ -1,6 +1,6 @@
 import { AlertTriangle } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { parseDeckList, type DeckCard, type DeckSection } from '#/domain/deck-list.ts'
+import { cardArtKey, parseDeckList, type DeckCard, type DeckSection } from '#/domain/deck-list.ts'
 import { cn } from '#/lib/utils.ts'
 import { CardThumb } from './card-thumb.tsx'
 
@@ -9,8 +9,21 @@ const cardKey = (card: DeckCard) => `${card.section}:${card.name}:${card.setCode
 
 const SECTION_LABELS: Record<DeckSection, string> = { pokemon: 'Pokémon', trainer: 'Trainer', energy: 'Energy' }
 
-/** Renders a PTCG Live list as sections, as text rows or as a card-image grid. */
-export function DeckListView({ list, defaultMode = 'list' }: { list: string; defaultMode?: 'list' | 'visual' }) {
+const NO_IMAGES: Readonly<Record<string, string>> = {}
+
+/**
+ * Renders a PTCG Live list as sections, as text rows or as a card-image grid.
+ * `cardImages` is the deck's stored art (see `cardArtKey`); cards without art show placeholders.
+ */
+export function DeckListView({
+  list,
+  cardImages = NO_IMAGES,
+  defaultMode = 'list',
+}: {
+  list: string
+  cardImages?: Readonly<Record<string, string>>
+  defaultMode?: 'list' | 'visual'
+}) {
   const deck = useMemo(() => parseDeckList(list), [list])
   const [mode, setMode] = useState(defaultMode)
 
@@ -83,7 +96,7 @@ export function DeckListView({ list, defaultMode = 'list' }: { list: string; def
             ) : (
               <div className="grid grid-cols-3 gap-4 pt-2 pr-2 sm:grid-cols-5 lg:grid-cols-7">
                 {cards.map((card) => (
-                  <CardThumb key={cardKey(card)} card={card} />
+                  <CardThumb key={cardKey(card)} card={card} image={cardImages[cardArtKey(card) ?? '']} />
                 ))}
               </div>
             )}

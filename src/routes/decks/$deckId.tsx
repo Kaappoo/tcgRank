@@ -61,6 +61,7 @@ function DeckPage() {
         <PageHeader title={`Edit ${deck.name}`} />
         <DeckForm
           initial={{ ...deck, archetype: deck.archetype ?? undefined }}
+          cardImages={deck.cardImages}
           submitLabel="Save changes"
           pending={save.isPending}
           onSubmit={(input) => save.mutate({ deckId, ...input })}
@@ -130,7 +131,7 @@ function DeckPage() {
         }
       />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem]">
-        <DeckListView list={deck.list} defaultMode="visual" />
+        <DeckListView list={deck.list} cardImages={deck.cardImages} defaultMode="visual" />
         {deck.coverImageUrl ? (
           <img
             src={deck.coverImageUrl}

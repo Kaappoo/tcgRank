@@ -16,12 +16,14 @@ import { FormatField } from '#/components/forms/format-select.tsx'
 
 export interface DeckFormProps {
   readonly initial?: Partial<DeckInput>
+  /** Art already stored for the deck being edited, so the preview shows it. */
+  readonly cardImages?: Readonly<Record<string, string>>
   readonly submitLabel: string
   readonly pending?: boolean
   readonly onSubmit: (input: DeckInput) => void
 }
 
-export function DeckForm({ initial, submitLabel, pending, onSubmit }: DeckFormProps) {
+export function DeckForm({ initial, cardImages, submitLabel, pending, onSubmit }: DeckFormProps) {
   const [list, setList] = useState(initial?.list ?? '')
   const [format, setFormat] = useState<EventFormat>(initial?.format ?? 'standard')
   const [isPublic, setIsPublic] = useState(initial?.isPublic ?? true)
@@ -117,7 +119,7 @@ export function DeckForm({ initial, submitLabel, pending, onSubmit }: DeckFormPr
         <h2 className="font-display text-xl">Preview</h2>
         <div className="rounded-xl border border-line bg-surface p-5">
           {previewList.trim() ? (
-            <DeckListView list={previewList} />
+            <DeckListView list={previewList} cardImages={cardImages} />
           ) : (
             <p className="py-10 text-center text-sm text-paper-dim">Your list shows up here as you paste it.</p>
           )}

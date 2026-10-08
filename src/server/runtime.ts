@@ -1,4 +1,5 @@
 import { Layer, ManagedRuntime } from 'effect'
+import { CardCatalog } from './catalog/card-catalog.ts'
 import { Db } from './db/client.ts'
 import { database } from './db/index.ts'
 import { DecksService } from './decks/service.ts'
@@ -7,7 +8,7 @@ import { EventsService } from './events/service.ts'
 import { ProfilesService } from './profiles/service.ts'
 
 const AppLayer = Layer.mergeAll(EventsService.layer, DecksService.layer, ProfilesService.layer).pipe(
-  Layer.provideMerge(Layer.mergeAll(Db.fromDatabase(database), Mailer.layer)),
+  Layer.provideMerge(Layer.mergeAll(Db.fromDatabase(database), Mailer.layer, CardCatalog.layer)),
   Layer.orDie,
 )
 

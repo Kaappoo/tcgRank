@@ -195,6 +195,8 @@ export const decks = sqliteTable(
     list: text('list').notNull(),
     cardCount: integer('card_count').notNull().default(0),
     coverImageUrl: text('cover_image_url'),
+    /** Card art by `cardArtKey` ("TWM 130" → image URL), resolved through the card catalog when the deck is saved. */
+    cardImages: text('card_images', { mode: 'json' }).$type<Record<string, string>>().notNull().default({}),
     isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(true),
     ...timestamps,
   },
