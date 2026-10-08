@@ -16,6 +16,7 @@ test.describe('league night', () => {
     const misty = await signedInPage(browser, 'Misty Waterflower', phone)
     for (const player of [ash, misty]) {
       await visit(player.page, `/join/${code}`)
+      await player.page.getByText('Skip — enter without a deck').click()
       await player.page.getByRole('button', { name: /^Join E2E League Challenge/ }).click()
       await player.page.waitForURL(url)
       await expect(player.page.getByRole('heading', { name: "You're registered" })).toBeVisible()

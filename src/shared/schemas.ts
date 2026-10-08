@@ -17,6 +17,7 @@ export const createEventInput = z.object({
   plannedRounds: z.coerce.number().int().min(0).max(12),
   roundMinutes: z.coerce.number().int().min(10, 'Rounds need at least 10 minutes').max(120),
   startsAt: z.coerce.date(),
+  deckRequired: z.boolean().default(false),
 })
 export type CreateEventInput = z.infer<typeof createEventInput>
 
@@ -26,6 +27,11 @@ export const joinCodeInput = z.object({ code: z.string().trim().min(4).max(12) }
 export const joinEventInput = z.object({
   eventId: z.string().min(1),
   deckId: z.string().min(1).nullable().optional(),
+})
+
+export const deckRequiredInput = z.object({
+  eventId: z.string().min(1),
+  deckRequired: z.boolean(),
 })
 
 export const reportResultInput = z

@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `deck_required` integer DEFAULT false NOT NULL;

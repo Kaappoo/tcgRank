@@ -98,6 +98,8 @@ export const events = sqliteTable(
     /** 0 means "pick the recommended Swiss round count when the event starts". */
     plannedRounds: integer('planned_rounds').notNull().default(0),
     roundMinutes: integer('round_minutes').notNull().default(50),
+    /** Players must register a 60-card deck in the event's format to enter. */
+    deckRequired: integer('deck_required', { mode: 'boolean' }).notNull().default(false),
     currentRound: integer('current_round').notNull().default(0),
     startsAt: integer('starts_at', { mode: 'timestamp_ms' }).notNull(),
     finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),

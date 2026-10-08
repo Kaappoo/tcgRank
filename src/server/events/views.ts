@@ -53,6 +53,7 @@ export interface EventSummary {
   readonly startsAt: number
   readonly currentRound: number
   readonly plannedRounds: number
+  readonly deckRequired: boolean
   readonly playerCount: number
   readonly host: PlayerRef
 }

@@ -2,10 +2,11 @@ import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
 import { CalendarDays, Store, Users } from 'lucide-react'
 import { useState } from 'react'
+import { z } from 'zod'
+import { DeckPicker, SKIP_DECK } from '#/components/decks/deck-picker.tsx'
 import { Page } from '#/components/layout/page.tsx'
 import { Badge } from '#/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#/components/ui/button.tsx'
-import { Select } from '#/components/ui/select.tsx'
 import { useEventActions } from '#/hooks/use-event-actions.ts'
 import { useHydrated } from '#/hooks/use-hydrated.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
@@ -13,15 +14,18 @@ import { formatLabel, statusLabel } from '#/lib/format.ts'
 import { eventByCodeQuery, eventQuery, myDecksQuery } from '#/lib/queries.ts'
 
 export const Route = createFileRoute('/join/$code')({
+  /** `deck`: a deck just created from this page, to preselect. */
+  validateSearch: z.object({ deck: z.string().optional() }),
+  loaderDeps: ({ search }) => ({ deck: search.deck }),
   beforeLoad: ({ context, location }) => {
     // Scanning the QR while signed out: sign in first, then land right back here.
     if (!context.user) throw redirect({ to: '/sign-up', search: { redirect: location.href } })
   },
-  loader: async ({ context, params }) => {
+  loader: async ({ context, params, deps }) => {
     const summary = await context.queryClient.ensureQueryData(eventByCodeQuery(params.code.toUpperCase()))
     const detail = await context.queryClient.ensureQueryData(eventQuery(summary.id))
     if (detail.viewer?.entry && detail.viewer.entry.droppedAtRound === null) {
-      throw redirect({ to: '/events/$eventId', params: { eventId: summary.id } })
+      throw redirect({ to: '/events/$eventId', params: { eventId: summary.id }, search: { deck: deps.deck } })
     }
     return summary
   },
@@ -35,7 +39,8 @@ function ConfirmJoin() {
   const { data: event } = useSuspenseQuery(eventByCodeQuery(code.toUpperCase()))
   const { data: decks } = useQuery(myDecksQuery)
   const actions = useEventActions(event.id)
-  const [deckId, setDeckId] = useState('none')
+  const { deck: createdDeck } = Route.useSearch()
+  const [choice, setChoice] = useState<string | null>(createdDeck ?? null)
   const hydrated = useHydrated()
 
   return (
@@ -73,22 +78,19 @@ function ConfirmJoin() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <label className="flex flex-col gap-2 text-sm font-semibold">
-            Deck you&apos;re playing
-            <Select
-              value={deckId}
-              onValueChange={(v) => v && setDeckId(v)}
-              options={[
-                { value: 'none', label: 'Decide later' },
-                ...(decks ?? []).map((d) => ({ value: d.id, label: d.name })),
-              ]}
-            />
-          </label>
+          <DeckPicker
+            decks={decks}
+            eventFormat={event.format}
+            required={event.deckRequired}
+            value={choice}
+            onChange={setChoice}
+            joinCode={code.toUpperCase()}
+          />
           <Button
             size="xl"
-            disabled={!hydrated || actions.join.isPending}
+            disabled={!hydrated || actions.join.isPending || choice === null}
             onClick={() =>
-              actions.join.mutate(deckId === 'none' ? null : deckId, {
+              actions.join.mutate(choice === SKIP_DECK ? null : choice, {
                 onSuccess: () => navigate({ to: '/events/$eventId', params: { eventId: event.id } }),
               })
             }
@@ -96,7 +98,11 @@ function ConfirmJoin() {
             {actions.join.isPending ? 'Joining…' : `Join ${event.name}`}
           </Button>
           <p className="text-center text-xs text-paper-dim">
-            {event.status === 'running'
+            {choice === null
+              ? event.deckRequired
+                ? 'Choose the deck you are registering to join.'
+                : 'Choose your deck, or skip it, to join.'
+              : event.status === 'running'
               ? 'Rounds are already underway — you will be paired from the next round.'
               : 'You can switch decks until the first round starts.'}
           </p>

@@ -69,6 +69,7 @@ const program = Effect.gen(function* () {
         plannedRounds: 3,
         roundMinutes: 50,
         startsAt: new Date(),
+        deckRequired: false,
       }),
     )
     for (const p of players) yield* as(p, events.join(id))

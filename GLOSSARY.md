@@ -20,5 +20,7 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **OOMW%** | Opponents' opponents' match-win percentage. Second tiebreaker. | `opponentOpponentWinPercentage` |
 | **Match clock** | Round countdown stored as `endsAt` (running) or `pausedRemainingMs` (paused) so every phone shows the same time. | `domain/match-clock.ts` |
 | **Time** | When the clock hits zero: current turn is turn 0, then three more turns. The clock shows overtime as `+mm:ss`. | `clockPhase = 'overtime'` |
+| **Registered deck** | The deck a player enters an event with. Can be changed until round 1 starts, then it is locked. Only the player and the host see it until the event ends. | `event_players.deckId` |
+| **Deck required** | An event setting chosen by the host: players must register a 60-card deck in the event's format to enter. Without it, players may skip registering a deck. | `events.deckRequired` |
 | **Deck list** | A PTCG Live / Limitless export. Stored raw, parsed on read into Pokémon / Trainer / Energy sections. | `domain/deck-list.ts` |
 | **Store screen** | Full-screen projector view for the store TV: QR, clock and an alphabetical pairing list. | `/events/$eventId/screen` |

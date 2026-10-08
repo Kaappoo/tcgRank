@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm'
 import { Clock, Context, Effect, Layer } from 'effect'
 import { newId, newJoinCode, normalizeJoinCode } from '#/domain/ids.ts'
+import { deckIneligibility } from '#/domain/registration.ts'
 import { adjustClock, pauseClock, resumeClock, startClock } from '#/domain/match-clock.ts'
 import { computeStandings, type Outcome } from '#/domain/standings.ts'
 import { pairRound, recommendedRounds } from '#/domain/swiss.ts'
@@ -108,6 +109,7 @@ const make = Effect.gen(function* () {
       startsAt: r.startsAt.getTime(),
       currentRound: r.currentRound,
       plannedRounds: r.plannedRounds,
+      deckRequired: r.deckRequired,
       playerCount: countByEvent.get(r.id) ?? 0,
       host: hosts.get(r.hostId) ?? unknownPlayer(r.hostId),
     }))
@@ -259,6 +261,7 @@ const make = Effect.gen(function* () {
         plannedRounds: input.plannedRounds,
         roundMinutes: input.roundMinutes,
         startsAt: input.startsAt,
+        deckRequired: input.deckRequired,
         joinCode,
       }),
     )
@@ -273,17 +276,33 @@ const make = Effect.gen(function* () {
     return deck
   })
 
+  /**
+   * Enters the event, or changes the entry's registered deck. `undefined` keeps
+   * the current deck; `null` registers none, which events that require a deck
+   * refuse. Once round 1 starts a registered deck is locked.
+   */
   const join = Effect.fn('EventsService.join')(function* (eventId: string, deckId?: string | null) {
     const me = yield* requireUser
     const event = yield* loadEvent(eventId)
     if (event.status === 'finished') return yield* new InvalidState({ reason: 'This event has already finished' })
-    if (deckId) yield* ownDeck(me.id, deckId)
+    if (deckId) {
+      const deck = yield* ownDeck(me.id, deckId)
+      const ineligible = event.deckRequired ? deckIneligibility(deck, event.format) : null
+      if (ineligible) return yield* new InvalidState({ reason: `${deck.name} can't be registered: ${ineligible}` })
+    }
 
     const existing = yield* db.query((d) =>
       d.query.eventPlayers.findFirst({
         where: and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.userId, me.id)),
       }),
     )
+    const registered = deckId !== undefined ? deckId : (existing?.deckId ?? null)
+    if (event.deckRequired && registered === null) {
+      return yield* new InvalidState({ reason: 'This event requires a registered deck' })
+    }
+    if (existing?.deckId && event.status !== 'registration' && registered !== existing.deckId) {
+      return yield* new InvalidState({ reason: 'Registered decks are locked once round 1 starts' })
+    }
     if (existing) {
       yield* db.query((d) =>
         d
@@ -296,6 +315,18 @@ const make = Effect.gen(function* () {
     yield* db.query((d) =>
       d.insert(eventPlayers).values({ id: newId(), eventId, userId: me.id, deckId: deckId ?? null }),
     )
+  })
+
+  /** Host-only: whether entering needs a registered deck. Fixed once round 1 starts. */
+  const setDeckRequired = Effect.fn('EventsService.setDeckRequired')(function* (
+    eventId: string,
+    deckRequired: boolean,
+  ) {
+    const event = yield* loadHostedEvent(eventId)
+    if (event.status !== 'registration') {
+      return yield* new InvalidState({ reason: 'Deck registration can only change before round 1' })
+    }
+    yield* db.query((d) => d.update(events).set({ deckRequired }).where(eq(events.id, eventId)))
   })
 
   const leave = Effect.fn('EventsService.leave')(function* (eventId: string) {
@@ -538,6 +569,7 @@ const make = Effect.gen(function* () {
     detail,
     findByJoinCode,
     join,
+    setDeckRequired,
     leave,
     startNextRound,
     finishEvent,

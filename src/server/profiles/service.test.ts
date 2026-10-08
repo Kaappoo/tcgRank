@@ -34,6 +34,7 @@ describe('ProfilesService', () => {
           plannedRounds: 1,
           roundMinutes: 50,
           startsAt: new Date(),
+          deckRequired: false,
         })
         .pipe(asUser(host))
       yield* events.join(id).pipe(asUser(ash))

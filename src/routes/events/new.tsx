@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { Page, PageHeader } from '#/components/layout/page.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
+import { Switch } from '#/components/ui/switch.tsx'
 import { Textarea } from '#/components/ui/textarea.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { recommendedRounds } from '#/domain/swiss.ts'
@@ -39,6 +40,7 @@ function NewEvent() {
   const create = useServerFn(createEvent)
   const [format, setFormat] = useState<EventFormat>('standard')
   const [roundMinutes, setRoundMinutes] = useState(50)
+  const [deckRequired, setDeckRequired] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const mutation = useMutation({
@@ -67,6 +69,7 @@ function NewEvent() {
             ...Object.fromEntries(form),
             format,
             roundMinutes,
+            deckRequired,
             startsAt: new Date(String(form.get('startsAt'))),
           })
           if (!parsed.success) {
@@ -135,6 +138,15 @@ function NewEvent() {
           </p>
           <FieldError>{errors.roundMinutes}</FieldError>
         </fieldset>
+        <label className="flex items-center justify-between gap-4 rounded-lg border border-line px-4 py-3">
+          <span className="flex flex-col">
+            <span className="text-sm font-semibold">Require a deck</span>
+            <span className="text-xs text-paper-dim">
+              Players must register a 60-card deck in this format to join. Otherwise they can skip it.
+            </span>
+          </span>
+          <Switch checked={deckRequired} onCheckedChange={setDeckRequired} />
+        </label>
         <Field>
           <FieldLabel>Notes for players</FieldLabel>
           <Textarea name="description" placeholder="Entry fee, prizes, deck registration deadline…" />
