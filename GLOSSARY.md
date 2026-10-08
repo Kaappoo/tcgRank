@@ -16,6 +16,7 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Elimination round** | A round of a top cut or a single-elimination event: a match's loser is out, so a match can't end in a tie. | |
 | **Pairing system** | How an event builds its rounds: **Swiss**, **round robin** (everyone plays everyone once) or **single elimination** (losers are out). Chosen by the host. | |
 | **Top cut** | A single-elimination bracket of the best-ranked players who haven't dropped, played after the Swiss rounds of an event the host set up with one, as at League Cups. Its size (top 2, 4 or 8) follows attendance unless the host changes it when cutting. | |
+| **Seed** | A player's starting position in a bracket, 1 being the strongest. Top cut seeds come from Swiss rank; single-elimination seeds are drawn at random. The highest seeds receive any byes. | |
 | **Pairing** | The assignment of players to tables for a round, produced by `pairRound`. | `domain/swiss.ts` |
 | **Bye** | Free win (3 points) for the odd player out. Goes to the lowest-ranked active player who has not had one. | `outcome = 'bye'` |
 | **Report** | A player (or host) submitting a game score. A player report is **pending** until confirmed. | `reportedById`, `reportedAt` |
