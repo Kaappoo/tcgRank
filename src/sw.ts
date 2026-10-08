@@ -37,15 +37,11 @@ const serwist = new Serwist({
       handler: new NetworkOnly(),
     },
     {
-      matcher: ({ url }) => url.hostname === 'images.pokemontcg.io' || url.hostname.endsWith('.ufs.sh'),
+      matcher: ({ url }) => url.hostname === 'assets.tcgdex.net' || url.hostname.endsWith('.ufs.sh'),
       handler: new CacheFirst({
         cacheName: 'card-images',
         plugins: [new ExpirationPlugin({ maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 60 })],
       }),
-    },
-    {
-      matcher: ({ url }) => url.hostname === 'api.pokemontcg.io',
-      handler: new StaleWhileRevalidate({ cacheName: 'card-lookups' }),
     },
     {
       matcher: ({ url }) => url.pathname.startsWith('/api/og/'),

@@ -1,8 +1,9 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { Context, Effect, Layer } from 'effect'
-import { parseDeckList } from '#/domain/deck-list.ts'
+import { cardArtKey, parseDeckList } from '#/domain/deck-list.ts'
 import { newId } from '#/domain/ids.ts'
 import type { DeckInput } from '#/shared/schemas.ts'
+import { CardCatalog } from '../catalog/card-catalog.ts'
 import { optionalUser, requireUser } from '../current-user.ts'
 import { Db } from '../db/client.ts'
 import { decks, user, type DeckRow } from '../db/schema.ts'
@@ -16,6 +17,8 @@ export interface DeckView {
   readonly list: string
   readonly cardCount: number
   readonly coverImageUrl: string | null
+  /** Card art by `cardArtKey` ("TWM 130"). Cards the catalog doesn't know are missing. */
+  readonly cardImages: Readonly<Record<string, string>>
   readonly isPublic: boolean
   readonly updatedAt: number
   readonly owner: { readonly id: string; readonly name: string; readonly username: string | null }
@@ -23,6 +26,7 @@ export interface DeckView {
 
 const make = Effect.gen(function* () {
   const db = yield* Db
+  const catalog = yield* CardCatalog
 
   const select = () =>
     db.drizzle
@@ -38,6 +42,7 @@ const make = Effect.gen(function* () {
     list: deck.list,
     cardCount: deck.cardCount,
     coverImageUrl: deck.coverImageUrl,
+    cardImages: deck.cardImages,
     isPublic: deck.isPublic,
     updatedAt: deck.updatedAt.getTime(),
     owner,
@@ -85,17 +90,59 @@ const make = Effect.gen(function* () {
     isPublic: input.isPublic,
   })
 
+  /**
+   * Art for every printing in the list. Printings already resolved are kept
+   * without asking the catalog again; the rest (new cards, or ones the catalog
+   * couldn't answer for last time) are looked up.
+   */
+  const resolveCardImages = Effect.fn('DecksService.resolveCardImages')(function* (
+    list: string,
+    known: Readonly<Record<string, string>> = {},
+  ) {
+    const refs = new Map<string, { setCode: string; number: string }>()
+    for (const card of parseDeckList(list).cards) {
+      const key = cardArtKey(card)
+      if (key && card.setCode && card.number) refs.set(key, { setCode: card.setCode, number: card.number })
+    }
+    const kept = Object.fromEntries([...refs.keys()].flatMap((key) => (known[key] ? [[key, known[key]]] : [])))
+    const missing = [...refs].filter(([key]) => !kept[key]).map(([, ref]) => ref)
+    return { ...kept, ...(yield* catalog.lookup(missing)) }
+  })
+
   const create = Effect.fn('DecksService.create')(function* (input: DeckInput) {
     const me = yield* requireUser
     const id = newId()
-    yield* db.query((d) => d.insert(decks).values({ id, userId: me.id, ...fields(input) }))
+    const cardImages = yield* resolveCardImages(input.list)
+    yield* db.query((d) => d.insert(decks).values({ id, userId: me.id, ...fields(input), cardImages }))
     return { id }
   })
 
   const update = Effect.fn('DecksService.update')(function* (deckId: string, input: DeckInput) {
-    yield* loadOwned(deckId)
-    yield* db.query((d) => d.update(decks).set(fields(input)).where(eq(decks.id, deckId)))
+    const deck = yield* loadOwned(deckId)
+    const cardImages = yield* resolveCardImages(input.list, deck.cardImages)
+    yield* db.query((d) => d.update(decks).set({ ...fields(input), cardImages }).where(eq(decks.id, deckId)))
     return { id: deckId }
+  })
+
+  /** Fills in art missing from existing decks (decks saved before art lookups, or while the catalog was down). */
+  const backfillCardImages = Effect.fn('DecksService.backfillCardImages')(function* () {
+    const rows = yield* db.query((d) =>
+      d.select({ id: decks.id, list: decks.list, cardImages: decks.cardImages, updatedAt: decks.updatedAt }).from(decks),
+    )
+    let updated = 0
+    for (const row of rows) {
+      const cardImages = yield* resolveCardImages(row.list, row.cardImages)
+      const unchanged =
+        Object.keys(cardImages).length === Object.keys(row.cardImages).length &&
+        Object.entries(cardImages).every(([key, url]) => row.cardImages[key] === url)
+      if (unchanged) continue
+      // Keep updatedAt: filling in art isn't an edit, and deck lists sort by it.
+      yield* db.query((d) =>
+        d.update(decks).set({ cardImages, updatedAt: row.updatedAt }).where(eq(decks.id, row.id)),
+      )
+      updated++
+    }
+    return { decks: rows.length, updated }
   })
 
   const remove = Effect.fn('DecksService.remove')(function* (deckId: string) {
@@ -103,7 +150,7 @@ const make = Effect.gen(function* () {
     yield* db.query((d) => d.delete(decks).where(eq(decks.id, deckId)))
   })
 
-  return { listMine, listPublic, get, create, update, remove }
+  return { listMine, listPublic, get, create, update, remove, backfillCardImages }
 })
 
 export class DecksService extends Context.Service<DecksService, Effect.Success<typeof make>>()(

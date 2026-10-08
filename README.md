@@ -17,7 +17,7 @@
 - Pairing card with opponent, records and table number; live clock synced to the server
 - Report best-of-three results in two taps; opponent confirms (or reports the same score)
 - Profile: lifetime record, win rate, best finish, results-by-event chart, virtualized match history
-- Deck library: paste a PTCG Live/Limitless export, live parsing with legality warnings, card art from the Pokémon TCG API, cover photos, public/private
+- Deck library: paste a PTCG Live/Limitless export, live parsing with legality warnings, card art from the Poké Cards catalog (looked up on save), cover photos, public/private
 - Share links unfurl with generated images (WhatsApp, Discord, X) for events and players
 - Installable PWA; pairings, decks and profiles stay readable offline
 
@@ -51,7 +51,7 @@ pnpm dev                        # http://localhost:3000
 
 Seeded accounts: `oak` (host), `ash`, `misty`, `brock`, … — password `pallet-town-1`.
 
-Without `RESEND_API_KEY` emails are logged to the console; without `UPLOADTHING_TOKEN` image uploads are disabled. For production point `DATABASE_URL` / `DATABASE_AUTH_TOKEN` at Turso and set `APP_URL` so QR codes and share images use your domain.
+Without `RESEND_API_KEY` emails are logged to the console; without `UPLOADTHING_TOKEN` image uploads are disabled; without `CARD_CATALOG_URL` decks are saved without card art (run `pnpm tsx scripts/backfill-card-images.ts` once it is set). For production point `DATABASE_URL` / `DATABASE_AUTH_TOKEN` at Turso and set `APP_URL` so QR codes and share images use your domain.
 
 ## Scripts
 

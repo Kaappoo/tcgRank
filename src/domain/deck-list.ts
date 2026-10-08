@@ -23,6 +23,13 @@ export class DeckCard extends Schema.Class<DeckCard>('tcgrank/DeckCard')({
   section: DeckSection,
 }) {}
 
+/**
+ * Key of a printing in a deck's stored card art ("TWM 130"). Set codes are
+ * case-insensitive in PTCG Live exports. Null for lines without set and number.
+ */
+export const cardArtKey = (card: { readonly setCode: string | null; readonly number: string | null }): string | null =>
+  card.setCode && card.number ? `${card.setCode.toUpperCase()} ${card.number}` : null
+
 const DeckIssueKind = Schema.Literals(['unrecognized-line', 'wrong-total', 'too-many-copies', 'empty'])
 
 class DeckIssue extends Schema.Class<DeckIssue>('tcgrank/DeckIssue')({

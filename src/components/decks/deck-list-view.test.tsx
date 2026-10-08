@@ -14,10 +14,11 @@ describe('DeckListView', () => {
     expect(screen.getByText(/Deck has 7 cards/)).toBeInTheDocument()
   })
 
-  it('switches to the visual grid and loads card art', async () => {
-    renderWithQuery(<DeckListView list={LIST} />)
+  it('switches to the visual grid with the stored card art', async () => {
+    renderWithQuery(<DeckListView list={LIST} cardImages={{ 'SVI 166': 'https://assets.test/sv01/166/low.webp' }} />)
     await userEvent.click(screen.getByRole('button', { name: 'visual' }))
-    expect(await screen.findByRole('img', { name: 'Arven' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Arven' })).toHaveAttribute('src', 'https://assets.test/sv01/166/low.webp')
+    expect(screen.queryByRole('img', { name: 'Dragapult ex' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'visual' })).toHaveAttribute('aria-pressed', 'true')
   })
 })
