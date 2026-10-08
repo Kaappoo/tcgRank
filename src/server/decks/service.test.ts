@@ -34,6 +34,17 @@ describe('DecksService', () => {
     }).pipe(Effect.provide(TestLayer)),
   )
 
+  it.effect('stores the card picked for the cover', () =>
+    Effect.gen(function* () {
+      const decks = yield* DecksService
+      const me = yield* insertUser('Cynthia')
+      const { id } = yield* decks.create({ ...deck, coverCard: 'TWM 130' }).pipe(asUser(me))
+      expect((yield* decks.get(id)).coverCard).toBe('TWM 130')
+      yield* decks.update(id, { ...deck, coverCard: null }).pipe(asUser(me))
+      expect((yield* decks.get(id)).coverCard).toBeNull()
+    }).pipe(Effect.provide(TestLayer)),
+  )
+
   it.effect('hides private decks from everyone but the owner', () =>
     Effect.gen(function* () {
       const decks = yield* DecksService

@@ -1,10 +1,10 @@
 import { Link } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
 import { Badge } from '#/components/ui/badge.tsx'
-import { cardArtKey, featuredPokemon, parseDeckList } from '#/domain/deck-list.ts'
+import { featuredPokemon, parseDeckList } from '#/domain/deck-list.ts'
 import { formatLabel } from '#/lib/format.ts'
 import type { DeckView } from '#/server/decks/service.ts'
-import { CardThumb } from './card-thumb.tsx'
+import { DeckCover } from './deck-cover.tsx'
 
 export function DeckRow({ deck }: { deck: DeckView }) {
   const featured = featuredPokemon(parseDeckList(deck.list).cards)
@@ -14,22 +14,7 @@ export function DeckRow({ deck }: { deck: DeckView }) {
       params={{ deckId: deck.id }}
       className="group grid grid-cols-[3.5rem_1fr_auto] items-center gap-4 rounded-xl border border-transparent px-3 py-3 transition-[background-color,border-color] duration-200 hover:border-line hover:bg-surface sm:grid-cols-[4rem_1fr_auto] sm:px-4"
     >
-      {deck.coverImageUrl ? (
-        <img
-          src={deck.coverImageUrl}
-          alt=""
-          className="aspect-[63/88] w-full rounded-[6%] object-cover"
-          loading="lazy"
-        />
-      ) : featured ? (
-        <CardThumb
-          card={featured}
-          image={deck.cardImages[cardArtKey(featured) ?? '']}
-          className="[&_figcaption]:hidden"
-        />
-      ) : (
-        <div className="aspect-[63/88] rounded-[6%] bg-surface-raised" />
-      )}
+      <DeckCover deck={deck} />
       <div className="flex min-w-0 flex-col gap-1">
         <h3 className="truncate font-display text-lg">{deck.name}</h3>
         <p className="truncate text-sm text-paper-dim">{deck.archetype ?? featured?.name ?? 'No Pokémon listed yet'}</p>

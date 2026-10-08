@@ -1,7 +1,9 @@
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { CalendarDays, LogIn, MonitorPlay, Share2, Store, Trophy, Users } from 'lucide-react'
+import { CalendarDays, MonitorPlay, Share2, Store, Trophy, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { z } from 'zod'
+import { EntryPanel } from '#/components/events/entry-panel.tsx'
 import { DeleteEventButton } from '#/components/events/delete-event.tsx'
 import { HostDesk } from '#/components/events/host-desk.tsx'
 import { JoinQrCard } from '#/components/events/join-qr.tsx'
@@ -14,18 +16,19 @@ import { Page } from '#/components/layout/page.tsx'
 import { Avatar } from '#/components/ui/avatar.tsx'
 import { Badge, LiveDot } from '#/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#/components/ui/button.tsx'
-import { Select } from '#/components/ui/select.tsx'
 import { Tabs, TabsList, TabsPanel, TabsTab } from '#/components/ui/tabs.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { useEventActions } from '#/hooks/use-event-actions.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
 import { formatLabel, statusLabel } from '#/lib/format.ts'
-import { eventQuery, myDecksQuery } from '#/lib/queries.ts'
+import { eventQuery } from '#/lib/queries.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
 import { cn } from '#/lib/utils.ts'
 import type { EventDetail, StandingView } from '#/server/events/views.ts'
 
 export const Route = createFileRoute('/events/$eventId/')({
+  /** `deck`: a deck just created while joining, to preselect. */
+  validateSearch: z.object({ deck: z.string().optional() }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(eventQuery(params.eventId)),
   head: ({ loaderData, params }) => ({
     meta: loaderData
@@ -42,6 +45,7 @@ export const Route = createFileRoute('/events/$eventId/')({
 function EventHub() {
   const { eventId } = Route.useParams()
   const { user } = Route.useRouteContext()
+  const { deck: createdDeck } = Route.useSearch()
   const { data: detail, dataUpdatedAt } = useSuspenseQuery(eventQuery(eventId))
   const actions = useEventActions(eventId)
   const offsetMs = detail.serverNow - dataUpdatedAt
@@ -119,6 +123,7 @@ function EventHub() {
             onStartRound={() => actions.startRound.mutate()}
             onFinish={() => actions.finish.mutate()}
             onClock={(action, deltaMinutes) => actions.clock.mutate({ action, deltaMinutes })}
+            onDeckRequired={(required) => actions.deckRequired.mutate(required)}
           />
         ) : null}
 
@@ -153,7 +158,13 @@ function EventHub() {
 
         {event.status === 'finished' ? <Podium standings={detail.standings} /> : null}
 
-        <EntryPanel detail={detail} signedIn={Boolean(user)} busy={busy} actions={actions} />
+        <EntryPanel
+          detail={detail}
+          signedIn={Boolean(user)}
+          busy={busy}
+          actions={actions}
+          createdDeck={createdDeck}
+        />
 
         {isHost && event.status !== 'finished' ? (
           <JoinQrCard code={event.joinCode} eventName={event.name} origin={origin} />
@@ -165,90 +176,6 @@ function EventHub() {
         />
       </div>
     </Page>
-  )
-}
-
-function EntryPanel({
-  detail,
-  signedIn,
-  busy,
-  actions,
-}: {
-  detail: EventDetail
-  signedIn: boolean
-  busy: boolean
-  actions: ReturnType<typeof useEventActions>
-}) {
-  const { event, viewer } = detail
-  const entry = viewer?.entry ?? null
-  const { data: decks } = useQuery({ ...myDecksQuery, enabled: signedIn && event.status !== 'finished' })
-  const [deckId, setDeckId] = useState<string>(entry?.deckId ?? 'none')
-
-  if (event.status === 'finished' || (viewer?.isHost && !entry)) return null
-
-  if (!signedIn) {
-    return (
-      <section className="flex flex-col gap-4 rounded-2xl border border-orange/40 bg-orange/[0.06] p-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-display text-2xl">Playing tonight?</h2>
-          <p className="text-paper-dim">Sign in to join and get your pairings on this screen.</p>
-        </div>
-        <Link to="/sign-in" search={{ redirect: `/join/${event.joinCode}` }} className={buttonVariants({ size: 'lg' })}>
-          <LogIn /> Sign in to join
-        </Link>
-      </section>
-    )
-  }
-
-  if (entry && entry.droppedAtRound === null && event.status === 'running') {
-    return (
-      <div className="flex justify-end">
-        <Button variant="ghost" size="sm" disabled={busy} onClick={() => actions.leave.mutate()}>
-          Drop from event
-        </Button>
-      </div>
-    )
-  }
-
-  const deckOptions = [
-    { value: 'none', label: 'Decide later' },
-    ...(decks ?? []).map((d) => ({ value: d.id, label: d.name })),
-  ]
-
-  return (
-    <section className="flex flex-col gap-5 rounded-2xl border border-line bg-surface p-6 lg:flex-row lg:items-end lg:justify-between">
-      <div className="flex flex-col gap-1">
-        <h2 className="font-display text-2xl">
-          {entry && entry.droppedAtRound === null ? "You're registered" : 'Join this event'}
-        </h2>
-        <p className="text-sm text-paper-dim">
-          {entry && entry.droppedAtRound === null
-            ? 'Your pairing appears here as soon as the host starts the round.'
-            : 'Pick the deck you are registering — only you and the host see it until the event ends.'}
-        </p>
-      </div>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Select value={deckId} onValueChange={(v) => v && setDeckId(v)} options={deckOptions} className="sm:w-60" />
-        {entry && entry.droppedAtRound === null ? (
-          <>
-            <Button
-              variant="secondary"
-              disabled={busy}
-              onClick={() => actions.join.mutate(deckId === 'none' ? null : deckId)}
-            >
-              Update deck
-            </Button>
-            <Button variant="ghost" disabled={busy} onClick={() => actions.leave.mutate()}>
-              Leave
-            </Button>
-          </>
-        ) : (
-          <Button size="lg" disabled={busy} onClick={() => actions.join.mutate(deckId === 'none' ? null : deckId)}>
-            {entry ? 'Rejoin event' : 'Join event'}
-          </Button>
-        )}
-      </div>
-    </section>
   )
 }
 
@@ -383,6 +310,10 @@ function EventTabs({
                 {p.droppedAtRound !== null ? (
                   <Badge variant="muted" className="ml-auto">
                     Dropped
+                  </Badge>
+                ) : viewer?.isHost && event.deckRequired && p.deckId === null && event.status !== 'finished' ? (
+                  <Badge variant="loss" className="ml-auto">
+                    No deck
                   </Badge>
                 ) : null}
                 {p.finalRank ? (

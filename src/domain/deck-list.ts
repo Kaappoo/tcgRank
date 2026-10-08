@@ -158,3 +158,10 @@ export const formatDeckList = (cards: ReadonlyArray<DeckCard>): string => {
 /** The headline Pokémon: the most-played Pokémon line, used as the deck's face. */
 export const featuredPokemon = (cards: ReadonlyArray<DeckCard>): DeckCard | null =>
   [...cards].filter((c) => c.section === 'pokemon').sort((a, b) => b.count - a.count)[0] ?? null
+
+/**
+ * The card on a deck's cover: the printing the owner picked (by `cardArtKey`)
+ * while it is still in the list, else the featured Pokémon.
+ */
+export const coverCard = (cards: ReadonlyArray<DeckCard>, chosen: string | null): DeckCard | null =>
+  (chosen ? cards.find((c) => cardArtKey(c) === chosen) : undefined) ?? featuredPokemon(cards)

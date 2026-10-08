@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import {
   clockInput,
   createEventInput,
+  deckRequiredInput,
   eventIdInput,
   joinCodeInput,
   joinEventInput,
@@ -31,6 +32,12 @@ export const createEvent = createServerFn({ method: 'POST' })
 export const joinEvent = createServerFn({ method: 'POST' })
   .validator(joinEventInput)
   .handler(({ data }) => runServerEffect(EventsService.use((s) => s.join(data.eventId, data.deckId))))
+
+export const setDeckRequired = createServerFn({ method: 'POST' })
+  .validator(deckRequiredInput)
+  .handler(({ data }) =>
+    runServerEffect(EventsService.use((s) => s.setDeckRequired(data.eventId, data.deckRequired))),
+  )
 
 export const leaveEvent = createServerFn({ method: 'POST' })
   .validator(eventIdInput)

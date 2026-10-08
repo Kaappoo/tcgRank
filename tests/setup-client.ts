@@ -9,3 +9,6 @@ afterEach(() => {
   cleanup()
 })
 afterAll(() => server.close())
+
+// jsdom has no layout; the router restores scroll on every navigation.
+window.scrollTo = () => {}

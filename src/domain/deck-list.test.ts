@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@effect/vitest'
-import { featuredPokemon, formatDeckList, isBasicEnergy, parseDeckList } from './deck-list.ts'
+import { coverCard, featuredPokemon, formatDeckList, isBasicEnergy, parseDeckList } from './deck-list.ts'
 
 const DRAGAPULT = `Pokémon: 16
 4 Dreepy TWM 128
@@ -93,5 +93,19 @@ describe('isBasicEnergy', () => {
   })
   it.each(['Jet Energy', 'Double Turbo Energy', 'Reversal Energy'])('%s is special', (name) => {
     expect(isBasicEnergy(name)).toBe(false)
+  })
+})
+
+describe('coverCard', () => {
+  const { cards } = parseDeckList(DRAGAPULT)
+
+  it('uses the chosen printing, case-insensitive on the set code', () => {
+    expect(coverCard(cards, 'TWM 130')?.name).toBe('Dragapult ex')
+    expect(coverCard(cards, 'SVI 166')?.name).toBe('Arven')
+  })
+
+  it('falls back to the featured Pokémon when nothing is chosen or the card left the list', () => {
+    expect(coverCard(cards, null)).toEqual(featuredPokemon(cards))
+    expect(coverCard(cards, 'XYZ 1')).toEqual(featuredPokemon(cards))
   })
 })

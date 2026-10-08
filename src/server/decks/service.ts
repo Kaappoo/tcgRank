@@ -16,7 +16,8 @@ export interface DeckView {
   readonly archetype: string | null
   readonly list: string
   readonly cardCount: number
-  readonly coverImageUrl: string | null
+  /** The printing picked for the cover, by `cardArtKey`; null shows the featured Pokémon (see `coverCard`). */
+  readonly coverCard: string | null
   /** Card art by `cardArtKey` ("TWM 130"). Cards the catalog doesn't know are missing. */
   readonly cardImages: Readonly<Record<string, string>>
   readonly isPublic: boolean
@@ -41,7 +42,7 @@ const make = Effect.gen(function* () {
     archetype: deck.archetype,
     list: deck.list,
     cardCount: deck.cardCount,
-    coverImageUrl: deck.coverImageUrl,
+    coverCard: deck.coverCard,
     cardImages: deck.cardImages,
     isPublic: deck.isPublic,
     updatedAt: deck.updatedAt.getTime(),
@@ -86,7 +87,7 @@ const make = Effect.gen(function* () {
     archetype: input.archetype || null,
     list: input.list,
     cardCount: parseDeckList(input.list).total,
-    coverImageUrl: input.coverImageUrl ?? null,
+    coverCard: input.coverCard ?? null,
     isPublic: input.isPublic,
   })
 

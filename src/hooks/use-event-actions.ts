@@ -9,6 +9,7 @@ import {
   joinEvent,
   leaveEvent,
   reportResult,
+  setDeckRequired,
   startNextRound,
 } from '#/server/functions/events.ts'
 
@@ -31,6 +32,7 @@ export function useEventActions(eventId: string) {
   const clock = useServerFn(controlClock)
   const join = useServerFn(joinEvent)
   const leave = useServerFn(leaveEvent)
+  const deckRule = useServerFn(setDeckRequired)
 
   return {
     report: useMutation({
@@ -70,6 +72,11 @@ export function useEventActions(eventId: string) {
       mutationFn: (deckId?: string | null) => join({ data: { eventId, deckId } }),
       onSuccess: () =>
         refresh().then(() => toast.success("You're in", 'Pairings will show up here when the round starts.')),
+      onError,
+    }),
+    deckRequired: useMutation({
+      mutationFn: (deckRequired: boolean) => deckRule({ data: { eventId, deckRequired } }),
+      onSuccess: refresh,
       onError,
     }),
     leave: useMutation({

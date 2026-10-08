@@ -4,6 +4,7 @@ import { useServerFn } from '@tanstack/react-start'
 import { Copy, PencilLine, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
+import { DeckCover } from '#/components/decks/deck-cover.tsx'
 import { DeckForm } from '#/components/decks/deck-form.tsx'
 import { DeckListView } from '#/components/decks/deck-list-view.tsx'
 import { Page, PageHeader } from '#/components/layout/page.tsx'
@@ -132,13 +133,7 @@ function DeckPage() {
       />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <DeckListView list={deck.list} cardImages={deck.cardImages} defaultMode="visual" />
-        {deck.coverImageUrl ? (
-          <img
-            src={deck.coverImageUrl}
-            alt={`${deck.name} cover`}
-            className="hidden w-full rounded-xl border border-line object-cover lg:block"
-          />
-        ) : null}
+        <DeckCover deck={deck} className="hidden self-start lg:block" />
       </div>
     </Page>
   )
