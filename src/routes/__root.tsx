@@ -19,7 +19,9 @@ interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: async ({ context }) => {
-    const user = await context.queryClient.ensureQueryData(sessionQuery)
+    // fetchQuery (not ensureQueryData) so an invalidated session — after sign-in, sign-up or a
+    // profile edit — is refetched here instead of serving the stale cached user.
+    const user = await context.queryClient.fetchQuery(sessionQuery)
     return { user }
   },
   head: () => ({
