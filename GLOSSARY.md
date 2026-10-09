@@ -15,7 +15,8 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Incomplete report** | A report in which neither player reached a majority of the best-of, e.g. 1–0 or 1–1 in a best of three. Allowed after a warning; the player with more games wins, equal games is a tie. | |
 | **Elimination round** | A round of a top cut or a single-elimination event: a match's loser is out, so a match can't end in a tie. | |
 | **Pairing system** | How an event builds its rounds: **Swiss**, **round robin** (everyone plays everyone once) or **single elimination** (losers are out). Chosen by the host. | |
-| **Top cut** | A single-elimination bracket of the best-ranked players who haven't dropped, played after the Swiss rounds of an event the host set up with one, as at League Cups. Its size (top 2, 4 or 8) follows attendance unless the host changes it when cutting. | |
+| **Event setup** | The settings that shape how an event is played: its **pairing system**, **top cut**, **best of** and **deck required**. The host can change them during registration; they are fixed once round 1 is paired. | |
+| **Top cut** | A single-elimination bracket of the best-ranked players who haven't dropped, played after the Swiss rounds of an event the host set up with one, as at League Cups. Only Swiss events can have one. Its size (top 2, 4 or 8) follows attendance unless the host changes it when cutting. | |
 | **Seed** | A player's starting position in a bracket, 1 being the strongest. Top cut seeds come from Swiss rank; single-elimination seeds are drawn at random. The highest seeds receive any byes. | |
 | **Schedule** | In round robin, which round each pair of players meets in. Drawn at random when round 1 is paired and fixed from then on; entries close at that point. | |
 | **Pairing** | The assignment of players to tables for a round, produced by `pairRound`. | `domain/swiss.ts` |
