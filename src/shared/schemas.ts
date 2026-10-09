@@ -29,6 +29,17 @@ export const joinEventInput = z.object({
   deckId: z.string().min(1).nullable().optional(),
 })
 
+export const guestNameInput = z.string().trim().min(2, 'Give the player a name of at least 2 characters').max(40)
+
+/** Host adds a player without an account: a new guest by name, or one from their guest list. */
+export const addGuestInput = z.object({
+  eventId: z.string().min(1),
+  guest: z.union([z.object({ name: guestNameInput }), z.object({ guestId: z.string().min(1) })]),
+})
+
+export const removeGuestInput = z.object({ eventId: z.string().min(1), guestId: z.string().min(1) })
+export const claimCodeInput = z.object({ code: z.string().trim().min(16).max(64) })
+
 export const deckRequiredInput = z.object({
   eventId: z.string().min(1),
   deckRequired: z.boolean(),

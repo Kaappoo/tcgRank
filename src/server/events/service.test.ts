@@ -360,3 +360,135 @@ describe('EventsService layer', () => {
     )
   })
 })
+
+describe('Guests', () => {
+  it.effect('the host adds a guest by name; nobody else can', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* setup(1)
+        const forbidden = yield* Effect.flip(events.addGuest(eventId, { name: 'Gary' }).pipe(asUser(players[0]!)))
+        expect(forbidden._tag).toBe('Forbidden')
+
+        const { guestId } = yield* events.addGuest(eventId, { name: '  Gary  ' }).pipe(asUser(host))
+        const detail = yield* events.detail(eventId)
+        const guest = detail.players.find((p) => p.id === guestId)
+        expect(guest).toMatchObject({ name: 'Gary', username: null, isGuest: true })
+        expect(detail.players.find((p) => p.id === players[0]!.id)?.isGuest).toBe(false)
+      }),
+    ),
+  )
+
+  it.effect('a guest can be added again to the next event from the host’s guest list', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* setup(0)
+        const { guestId } = yield* events.addGuest(eventId, { name: 'Gary' }).pipe(asUser(host))
+        const again = yield* Effect.flip(events.addGuest(eventId, { guestId }).pipe(asUser(host)))
+        expect(again).toMatchObject({ reason: 'Gary is already in this event' })
+        const sameName = yield* Effect.flip(events.addGuest(eventId, { name: 'gary' }).pipe(asUser(host)))
+        expect(sameName._tag).toBe('InvalidState')
+
+        const { id: nextWeek } = yield* events.create(newEvent).pipe(asUser(host))
+        const list = yield* events.guests().pipe(asUser(host))
+        expect(list).toEqual([expect.objectContaining({ id: guestId, name: 'Gary', eventCount: 1 })])
+        yield* events.addGuest(nextWeek, { guestId }).pipe(asUser(host))
+        expect((yield* events.detail(nextWeek)).players.map((p) => p.id)).toEqual([guestId])
+
+        // Another host can't enter someone else's guest.
+        const otherHost = yield* insertUser('Professor Elm')
+        const { id: elmEvent } = yield* events.create(newEvent).pipe(asUser(otherHost))
+        const notYours = yield* Effect.flip(events.addGuest(elmEvent, { guestId }).pipe(asUser(otherHost)))
+        expect(notYours._tag).toBe('NotFound')
+        expect(yield* events.guests().pipe(asUser(otherHost))).toEqual([])
+      }),
+    ),
+  )
+
+  it.effect('guests enter events that require a deck, but not finished ones', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* setup(1)
+        yield* events.setDeckRequired(eventId, true).pipe(asUser(host))
+        const { guestId } = yield* events.addGuest(eventId, { name: 'Gary' }).pipe(asUser(host))
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        for (const m of (yield* events.detail(eventId)).matches) yield* events.reportResult(m.id, 2, 0).pipe(asUser(host))
+        yield* events.finishEvent(eventId).pipe(asUser(host))
+        const late = yield* Effect.flip(events.addGuest(eventId, { name: 'Brock' }).pipe(asUser(host)))
+        expect(late).toMatchObject({ reason: 'This event has already finished' })
+        expect((yield* events.detail(eventId)).players.some((p) => p.id === guestId)).toBe(true)
+      }),
+    ),
+  )
+
+  it.effect('the opponent of a guest reports and the result counts straight away', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* setup(1)
+        const { guestId } = yield* events.addGuest(eventId, { name: 'Gary' }).pipe(asUser(host))
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const [match] = (yield* events.detail(eventId)).matches
+        expect([match!.player1.id, match!.player2?.id].sort()).toEqual([guestId, players[0]!.id].sort())
+
+        const p1Wins = match!.player1.id === players[0]!.id
+        const result = yield* events.reportResult(match!.id, p1Wins ? 2 : 1, p1Wins ? 1 : 2).pipe(asUser(players[0]!))
+        expect(result.status).toBe('confirmed')
+        // Nothing is left waiting on the guest: the host can close the event.
+        yield* events.finishEvent(eventId).pipe(asUser(host))
+      }),
+    ),
+  )
+
+  it.effect('the host removes a guest before round 1 and drops one after', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* setup(2)
+        const { guestId: gary } = yield* events.addGuest(eventId, { name: 'Gary' }).pipe(asUser(host))
+        const { guestId: brock } = yield* events.addGuest(eventId, { name: 'Brock' }).pipe(asUser(host))
+        yield* events.removeGuest(eventId, gary).pipe(asUser(host))
+        expect((yield* events.detail(eventId)).players.some((p) => p.id === gary)).toBe(false)
+
+        const notAGuest = yield* Effect.flip(events.removeGuest(eventId, players[0]!.id).pipe(asUser(host)))
+        expect(notAGuest._tag).toBe('NotFound')
+
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        yield* events.removeGuest(eventId, brock).pipe(asUser(host))
+        expect((yield* events.detail(eventId)).players.find((p) => p.id === brock)?.droppedAtRound).toBe(1)
+      }),
+    ),
+  )
+
+  it.effect('a player claims a guest’s results into their account', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* setup(1)
+        const { guestId } = yield* events.addGuest(eventId, { name: 'Gary' }).pipe(asUser(host))
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const [match] = (yield* events.detail(eventId)).matches
+        yield* events.reportResult(match!.id, 2, 0).pipe(asUser(host))
+
+        const { claimCode } = (yield* events.guests().pipe(asUser(host)))[0]!
+        const preview = yield* events.claimPreview(claimCode)
+        expect(preview).toEqual({ name: 'Gary', hostName: 'Professor Oak', eventCount: 1 })
+
+        const ownGuest = yield* Effect.flip(events.claimGuest(claimCode).pipe(asUser(host)))
+        expect(ownGuest._tag).toBe('InvalidState')
+        const unknown = yield* Effect.flip(events.claimGuest('not-a-code').pipe(asUser(players[0]!)))
+        expect(unknown._tag).toBe('NotFound')
+        // Gary's opponent is already in that event, so the histories can't merge.
+        const clash = yield* Effect.flip(events.claimGuest(claimCode).pipe(asUser(players[0]!)))
+        expect(clash._tag).toBe('InvalidState')
+
+        const gary = yield* insertUser('Gary Oak')
+        const claimed = yield* events.claimGuest(claimCode).pipe(asUser(gary))
+        expect(claimed).toEqual({ eventCount: 1 })
+        const detail = yield* events.detail(eventId)
+        expect(detail.players.map((p) => p.id)).toContain(gary.id)
+        expect(detail.players.map((p) => p.id)).not.toContain(guestId)
+        const moved = detail.matches[0]!
+        expect([moved.player1.id, moved.player2?.id]).toContain(gary.id)
+        expect(yield* events.guests().pipe(asUser(host))).toEqual([])
+        expect((yield* Effect.flip(events.claimPreview(claimCode)))._tag).toBe('NotFound')
+      }),
+    ),
+  )
+})
