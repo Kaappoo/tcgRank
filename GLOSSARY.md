@@ -28,6 +28,7 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Head-to-head** | In round robin, the result of the match between two players tied on match points; the winner ranks higher. Only breaks a tie between exactly two players. | |
 | **OMW%** | Opponents' match-win percentage. Each opponent's win % is floored at 25%; byes are excluded. First tiebreaker. | `opponentWinPercentage` |
 | **OOMW%** | Opponents' opponents' match-win percentage. Second tiebreaker. | `opponentOpponentWinPercentage` |
+| **Placement** | A player's final position in a finished event. Players who reached an elimination round rank by how far they got. In a top cut, players knocked out in the same round are ordered by Swiss rank, and players who missed the cut follow in Swiss order. In single elimination, players knocked out in the same round share a placement (1, 2, 3, 3, 5…). A player who drops in an elimination round is placed as if they lost that round. _Avoid_: "rank" for the final result. | `finalRank` |
 | **Match clock** | Round countdown stored as `endsAt` (running) or `pausedRemainingMs` (paused) so every phone shows the same time. | `domain/match-clock.ts` |
 | **Time** | When the clock hits zero: current turn is turn 0, then three more turns. The clock shows overtime as `+mm:ss`. | `clockPhase = 'overtime'` |
 | **Registered deck** | The deck a player enters an event with. Can be changed until round 1 starts, then it is locked. Only the player and the host see it until the event ends. | `event_players.deckId` |
