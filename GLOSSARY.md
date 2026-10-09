@@ -17,12 +17,14 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Pairing system** | How an event builds its rounds: **Swiss**, **round robin** (everyone plays everyone once) or **single elimination** (losers are out). Chosen by the host. | |
 | **Top cut** | A single-elimination bracket of the best-ranked players who haven't dropped, played after the Swiss rounds of an event the host set up with one, as at League Cups. Its size (top 2, 4 or 8) follows attendance unless the host changes it when cutting. | |
 | **Seed** | A player's starting position in a bracket, 1 being the strongest. Top cut seeds come from Swiss rank; single-elimination seeds are drawn at random. The highest seeds receive any byes. | |
+| **Schedule** | In round robin, which round each pair of players meets in. Drawn at random when round 1 is paired and fixed from then on; entries close at that point. | |
 | **Pairing** | The assignment of players to tables for a round, produced by `pairRound`. | `domain/swiss.ts` |
-| **Bye** | Free win (3 points) for the odd player out. Goes to the lowest-ranked active player who has not had one. | `outcome = 'bye'` |
+| **Bye** | Free win (3 points) for a player with no opponent this round. In Swiss it goes to the lowest-ranked active player who has not had one; in round robin the schedule gives each player of an odd field exactly one; an opponent who dropped also gives one. In an elimination round a bye only advances the player. | `outcome = 'bye'` |
 | **Report** | A player (or host) submitting a game score. A player report is **pending** until confirmed. | `reportedById`, `reportedAt` |
 | **Confirm** | The opponent agreeing with a report (or reporting the same score). Host reports are confirmed immediately. Only confirmed matches count. | `confirmedAt` |
-| **Drop** | A player leaving mid-event. They keep their results but are not paired again. | `droppedAtRound` |
+| **Drop** | A player leaving mid-event. They keep their results but are not paired again; in round robin their remaining matches become byes for those opponents, and they can't rejoin. | `droppedAtRound` |
 | **Match points** | Win 3, tie 1, loss 0, bye 3. | `domain/standings.ts` |
+| **Head-to-head** | In round robin, the result of the match between two players tied on match points; the winner ranks higher. Only breaks a tie between exactly two players. | |
 | **OMW%** | Opponents' match-win percentage. Each opponent's win % is floored at 25%; byes are excluded. First tiebreaker. | `opponentWinPercentage` |
 | **OOMW%** | Opponents' opponents' match-win percentage. Second tiebreaker. | `opponentOpponentWinPercentage` |
 | **Match clock** | Round countdown stored as `endsAt` (running) or `pausedRemainingMs` (paused) so every phone shows the same time. | `domain/match-clock.ts` |
