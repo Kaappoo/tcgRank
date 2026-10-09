@@ -3,6 +3,8 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { CalendarDays, MonitorPlay, Share2, Store, Trophy, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { z } from 'zod'
+import { PHONE_VARIANTS } from '#/components/events/bracket.prototype.tsx'
+import { PrototypeSwitcher } from '#/components/prototype-switcher.tsx'
 import { EntryPanel } from '#/components/events/entry-panel.tsx'
 import { DeleteEventButton } from '#/components/events/delete-event.tsx'
 import { HostDesk } from '#/components/events/host-desk.tsx'
@@ -28,7 +30,8 @@ import type { EventDetail, StandingView } from '#/server/events/views.ts'
 
 export const Route = createFileRoute('/events/$eventId/')({
   /** `deck`: a deck just created while joining, to preselect. */
-  validateSearch: z.object({ deck: z.string().optional() }),
+  /** `bracket`: PROTOTYPE (#17) — swaps the Pairings tab for a bracket variant. */
+  validateSearch: z.object({ deck: z.string().optional(), bracket: z.enum(['A', 'B', 'C']).optional() }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(eventQuery(params.eventId)),
   head: ({ loaderData, params }) => ({
     meta: loaderData
@@ -228,12 +231,30 @@ function EventTabs({
   const [roundNumber, setRoundNumber] = useState(event.currentRound)
   const shownRound = roundNumber || event.currentRound
   const roundMatches = matches.filter((m) => m.roundNumber === shownRound)
-  const defaultTab = event.status === 'finished' ? 'standings' : event.currentRound > 0 ? 'pairings' : 'players'
+  const { bracket } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const BracketVariant = PHONE_VARIANTS.find((v) => v.key === bracket)?.Component
+  const defaultTab = BracketVariant
+    ? 'pairings'
+    : event.status === 'finished'
+      ? 'standings'
+      : event.currentRound > 0
+        ? 'pairings'
+        : 'players'
 
   return (
     <Tabs key={defaultTab} defaultValue={defaultTab} className="mt-4">
+      {BracketVariant ? (
+        <PrototypeSwitcher
+          variants={PHONE_VARIANTS}
+          current={bracket!}
+          onChange={(key) =>
+            navigate({ search: (s) => ({ ...s, bracket: key as 'A' | 'B' | 'C' }), replace: true, resetScroll: false })
+          }
+        />
+      ) : null}
       <TabsList>
-        <TabsTab value="pairings" disabled={rounds.length === 0}>
+        <TabsTab value="pairings" disabled={rounds.length === 0 && !BracketVariant}>
           Pairings
         </TabsTab>
         <TabsTab value="standings" disabled={rounds.length === 0}>
@@ -245,7 +266,8 @@ function EventTabs({
       </TabsList>
 
       <TabsPanel value="pairings">
-        {rounds.length > 1 ? (
+        {BracketVariant ? <BracketVariant /> : null}
+        {!BracketVariant && rounds.length > 1 ? (
           <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Choose round">
             {rounds.map((r) => (
               <button
@@ -260,12 +282,14 @@ function EventTabs({
             ))}
           </div>
         ) : null}
-        <RoundTables
-          matches={roundMatches}
-          viewerId={viewer?.userId}
-          canEdit={viewer?.isHost}
-          onSetResult={onHostResult}
-        />
+        {BracketVariant ? null : (
+          <RoundTables
+            matches={roundMatches}
+            viewerId={viewer?.userId}
+            canEdit={viewer?.isHost}
+            onSetResult={onHostResult}
+          />
+        )}
       </TabsPanel>
 
       <TabsPanel value="standings">

@@ -8,8 +8,13 @@ import { LiveDot } from '#/components/ui/badge.tsx'
 import { statusLabel } from '#/lib/format.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import { absoluteUrl } from '#/lib/seo.ts'
+import { z } from 'zod'
+import { SCREEN_VARIANTS } from '#/components/events/bracket.prototype.tsx'
+import { PrototypeSwitcher } from '#/components/prototype-switcher.tsx'
 
 export const Route = createFileRoute('/events/$eventId/screen')({
+  /** `bracket`: PROTOTYPE (#17) — swaps the whole screen for a bracket variant. */
+  validateSearch: z.object({ bracket: z.enum(['A', 'B', 'C']).optional() }),
   loader: ({ context, params }) => context.queryClient.ensureQueryData(eventQuery(params.eventId)),
   head: ({ loaderData }) => ({
     meta: [{ title: loaderData ? `${loaderData.event.name} — store screen` : 'Store screen' }],
@@ -28,6 +33,40 @@ function StoreScreen() {
   const { event, rounds, matches } = data
   const round = rounds.find((r) => r.number === event.currentRound) ?? null
   const origin = typeof window === 'undefined' ? absoluteUrl('/') : window.location.origin
+  const { bracket } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const Variant = SCREEN_VARIANTS.find((v) => v.key === bracket)?.Component
+
+  if (Variant) {
+    return (
+      <>
+        <Variant
+          eventName={event.name}
+          logo={<Logo className="text-2xl" />}
+          qr={<QrCode value={joinUrl(origin, event.joinCode)} label="Scan to join" className="size-full" />}
+          clock={
+            round && round.status === 'active' ? (
+              <MatchClock
+                endsAt={round.endsAt}
+                pausedRemainingMs={round.pausedRemainingMs}
+                roundMinutes={event.roundMinutes}
+                offsetMs={data.serverNow - dataUpdatedAt}
+                referenceNow={data.serverNow}
+                size="lg"
+              />
+            ) : (
+              <p className="font-numerals text-8xl text-paper">32:14</p>
+            )
+          }
+        />
+        <PrototypeSwitcher
+          variants={SCREEN_VARIANTS}
+          current={bracket!}
+          onChange={(key) => navigate({ search: { bracket: key as 'A' | 'B' | 'C' }, replace: true })}
+        />
+      </>
+    )
+  }
 
   const seats = matches
     .filter((m) => m.roundNumber === event.currentRound)
