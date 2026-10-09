@@ -54,6 +54,7 @@ const detailWith = (event: Partial<EventDetail['event']>, entry: EntrantView | n
 
 const entrant = (deckId: string | null): EntrantView => ({
   ...me,
+  isGuest: false,
   deckId,
   deckName: deckId ? deck.name : null,
   droppedAtRound: null,

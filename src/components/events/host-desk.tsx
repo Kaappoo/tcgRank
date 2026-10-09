@@ -22,7 +22,7 @@ export function HostDesk({ detail, offsetMs, busy, onStartRound, onFinish, onClo
   const roundMatches = matches.filter((m) => m.roundNumber === event.currentRound)
   const confirmed = roundMatches.filter((m) => m.status === 'confirmed').length
   const activePlayers = players.filter((p) => p.droppedAtRound === null).length
-  const withoutDeck = event.deckRequired ? players.filter((p) => p.droppedAtRound === null && !p.deckId).length : 0
+  const withoutDeck = event.deckRequired ? players.filter((p) => p.droppedAtRound === null && !p.isGuest && !p.deckId).length : 0
   const plannedRounds = event.plannedRounds > 0 ? event.plannedRounds : recommendedRounds(players.length)
   const roundComplete = roundMatches.length > 0 && confirmed === roundMatches.length
   const lastRound = event.currentRound >= plannedRounds
