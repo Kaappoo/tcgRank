@@ -3,11 +3,13 @@ import { useServerFn } from '@tanstack/react-start'
 import { toast } from '#/components/ui/toast.tsx'
 import { eventQuery } from '#/lib/queries.ts'
 import {
+  addGuest,
   confirmResult,
   controlClock,
   finishEvent,
   joinEvent,
   leaveEvent,
+  removeGuest,
   reportResult,
   setDeckRequired,
   startNextRound,
@@ -22,6 +24,7 @@ export function useEventActions(eventId: string) {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: eventQuery(eventId).queryKey }),
       queryClient.invalidateQueries({ queryKey: ['events'] }),
+      queryClient.invalidateQueries({ queryKey: ['guests'] }),
     ])
   const onError = (error: unknown) => toast.error("That didn't go through", message(error))
 
@@ -33,6 +36,8 @@ export function useEventActions(eventId: string) {
   const join = useServerFn(joinEvent)
   const leave = useServerFn(leaveEvent)
   const deckRule = useServerFn(setDeckRequired)
+  const addGuestFn = useServerFn(addGuest)
+  const removeGuestFn = useServerFn(removeGuest)
 
   return {
     report: useMutation({
@@ -76,6 +81,16 @@ export function useEventActions(eventId: string) {
     }),
     deckRequired: useMutation({
       mutationFn: (deckRequired: boolean) => deckRule({ data: { eventId, deckRequired } }),
+      onSuccess: refresh,
+      onError,
+    }),
+    addGuest: useMutation({
+      mutationFn: (guest: { name: string } | { guestId: string }) => addGuestFn({ data: { eventId, guest } }),
+      onSuccess: () => refresh().then(() => toast.success('Player added')),
+      onError,
+    }),
+    removeGuest: useMutation({
+      mutationFn: (guestId: string) => removeGuestFn({ data: { eventId, guestId } }),
       onSuccess: refresh,
       onError,
     }),

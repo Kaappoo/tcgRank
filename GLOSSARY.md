@@ -7,6 +7,8 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Event** | One tournament night at a store (League Challenge, League Cup, casual night). Has a host, a format, a round timer and a join code. | `events` table, `EventsService` |
 | **Host** | The signed-in user who created the event. Only the host pairs rounds, controls the clock, overrides results and finishes the event. | `events.hostId` |
 | **Entry / Player** | A user registered in an event, optionally with a registered deck. | `event_players` |
+| **Guest** | A player the host entered by hand because they have no account or no phone. They never sign in: the host or their opponent reports for them, and a report against a guest counts without confirmation. A host keeps a guest list to enter the same guest again. | `user.isGuest`, `user.guestOfId` |
+| **Claim** | A guest who has since made an account takes over the guest's results through a claim link from the host. Not possible when both played in the same event. | `user.claimCode`, `/claim/$code` |
 | **Join code** | Six characters from an unambiguous alphabet (no 0/O/1/I/L). Encoded in the QR code as `/join/<code>`. | `domain/ids.ts` |
 | **Round** | One round of pairings under the event's pairing system. Exactly one round is `active` at a time. Owns the match clock. | `rounds` |
 | **Match** | Two players at a numbered table in a round, played over the event's **Best of**. A match with no player 2 is a **bye**. | `matches` |
@@ -21,7 +23,7 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Schedule** | In round robin, which round each pair of players meets in. Drawn at random when round 1 is paired and fixed from then on; entries close at that point. | |
 | **Pairing** | The assignment of players to tables for a round, produced by `pairRound`. | `domain/swiss.ts` |
 | **Bye** | Free win (3 points) for a player with no opponent this round. In Swiss it goes to the lowest-ranked active player who has not had one; in round robin the schedule gives each player of an odd field exactly one; an opponent who dropped also gives one. In an elimination round a bye only advances the player. | `outcome = 'bye'` |
-| **Report** | A player (or host) submitting a game score. A player report is **pending** until confirmed. | `reportedById`, `reportedAt` |
+| **Report** | A player (or host) submitting a game score. A player report is **pending** until confirmed, except against a **guest**. | `reportedById`, `reportedAt` |
 | **Confirm** | The opponent agreeing with a report (or reporting the same score). Host reports are confirmed immediately. Only confirmed matches count. | `confirmedAt` |
 | **Drop** | A player leaving mid-event. They keep their results but are not paired again; in round robin their remaining matches become byes for those opponents, and they can't rejoin. | `droppedAtRound` |
 | **Match points** | Win 3, tie 1, loss 0, bye 3. | `domain/standings.ts` |

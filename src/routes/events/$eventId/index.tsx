@@ -3,6 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { CalendarDays, MonitorPlay, Share2, Store, Trophy, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { z } from 'zod'
+import { AddGuestForm, GuestRowActions } from '#/components/events/guests.tsx'
 import { EntryPanel } from '#/components/events/entry-panel.tsx'
 import { DeleteEventButton } from '#/components/events/delete-event.tsx'
 import { HostDesk } from '#/components/events/host-desk.tsx'
@@ -172,7 +173,11 @@ function EventHub() {
 
         <EventTabs
           detail={detail}
+          origin={origin}
+          busy={busy}
           onHostResult={(matchId, a, b) => actions.report.mutate({ matchId, player1Games: a, player2Games: b })}
+          onAddGuest={(guest, done) => actions.addGuest.mutate(guest, { onSuccess: done })}
+          onRemoveGuest={(guestId) => actions.removeGuest.mutate(guestId)}
         />
       </div>
     </Page>
@@ -219,10 +224,18 @@ function Podium({ standings }: { standings: ReadonlyArray<StandingView> }) {
 
 function EventTabs({
   detail,
+  origin,
+  busy,
   onHostResult,
+  onAddGuest,
+  onRemoveGuest,
 }: {
   detail: EventDetail
+  origin: string
+  busy: boolean
   onHostResult: (matchId: string, player1Games: number, player2Games: number) => void
+  onAddGuest: (guest: { name: string } | { guestId: string }, done: () => void) => void
+  onRemoveGuest: (guestId: string) => void
 }) {
   const { event, matches, rounds, standings, players, viewer } = detail
   const [roundNumber, setRoundNumber] = useState(event.currentRound)
@@ -277,6 +290,9 @@ function EventTabs({
       </TabsPanel>
 
       <TabsPanel value="players">
+        {viewer?.isHost && event.status !== 'finished' ? (
+          <AddGuestForm players={players} busy={busy} onAdd={onAddGuest} />
+        ) : null}
         {players.length === 0 ? (
           <p className="py-6 text-paper-dim">Nobody has joined yet. Share the QR code to get people in.</p>
         ) : (
@@ -305,19 +321,30 @@ function EventTabs({
                   )}
                   {(event.status === 'finished' || viewer?.isHost || viewer?.userId === p.id) && p.deckName ? (
                     <p className="truncate text-xs text-paper-dim">{p.deckName}</p>
+                  ) : p.isGuest ? (
+                    <p className="text-xs text-paper-dim">Guest · no account</p>
                   ) : null}
                 </div>
                 {p.droppedAtRound !== null ? (
                   <Badge variant="muted" className="ml-auto">
                     Dropped
                   </Badge>
-                ) : viewer?.isHost && event.deckRequired && p.deckId === null && event.status !== 'finished' ? (
+                ) : viewer?.isHost && event.deckRequired && !p.isGuest && p.deckId === null && event.status !== 'finished' ? (
                   <Badge variant="loss" className="ml-auto">
                     No deck
                   </Badge>
                 ) : null}
                 {p.finalRank ? (
                   <span className="font-numerals ml-auto text-2xl text-paper-dim">#{p.finalRank}</span>
+                ) : null}
+                {viewer?.isHost && p.isGuest && event.status !== 'finished' ? (
+                  <GuestRowActions
+                    guest={p}
+                    origin={origin}
+                    started={event.status !== 'registration'}
+                    busy={busy}
+                    onRemove={() => onRemoveGuest(p.id)}
+                  />
                 ) : null}
               </li>
             ))}
