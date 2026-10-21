@@ -28,6 +28,8 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Drop** | A player leaving mid-event. They keep their results but are not paired again, and can rejoin only while the event has **open entry**. In round robin their remaining matches become byes for those opponents; a drop during an unreported elimination match loses it. | `droppedAtRound` |
 | **Open entry** | An event accepts new players, and dropped players can rejoin, until it **closes entries**: at round 1 in round robin and single elimination, at the cut in a Swiss event with a top cut, and only when a plain Swiss event finishes. _Avoid_: "registration" for this, which is the period before round 1. | |
 | **Match points** | Win 3, tie 1, loss 0, bye 3. | `domain/standings.ts` |
+| **Record** | A player's wins, losses and ties (W-L-T), in one event or across all of them. Every played match counts, top cut included. A Swiss or round-robin bye counts as a win; a bye in an elimination round counts as nothing. | `formatRecord` |
+| **Game-win %** | The share of games a player won across their matches. Round robin's tiebreaker after head-to-head. _Avoid_: GWP. | |
 | **Head-to-head** | In round robin, the result of the match between two players tied on match points; the winner ranks higher. Only breaks a tie between exactly two players. | |
 | **OMW%** | Opponents' match-win percentage. Each opponent's win % is floored at 25%; byes are excluded. First tiebreaker. | `opponentWinPercentage` |
 | **OOMW%** | Opponents' opponents' match-win percentage. Second tiebreaker. | `opponentOpponentWinPercentage` |
