@@ -1,5 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import {
+  addGuestInput,
+  claimCodeInput,
   clockInput,
   createEventInput,
   deckRequiredInput,
@@ -8,6 +10,7 @@ import {
   joinEventInput,
   listEventsInput,
   matchIdInput,
+  removeGuestInput,
   reportResultInput,
 } from '#/shared/schemas.ts'
 import { runServerEffect } from '../effect/run.ts'
@@ -70,3 +73,23 @@ export const controlClock = createServerFn({ method: 'POST' })
   .handler(({ data }) =>
     runServerEffect(EventsService.use((s) => s.controlClock(data.eventId, data.action, data.deltaMinutes))),
   )
+
+export const addGuest = createServerFn({ method: 'POST' })
+  .validator(addGuestInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.addGuest(data.eventId, data.guest))))
+
+export const removeGuest = createServerFn({ method: 'POST' })
+  .validator(removeGuestInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.removeGuest(data.eventId, data.guestId))))
+
+export const listMyGuests = createServerFn({ method: 'GET' }).handler(() =>
+  runServerEffect(EventsService.use((s) => s.guests())),
+)
+
+export const getClaimPreview = createServerFn({ method: 'GET' })
+  .validator(claimCodeInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.claimPreview(data.code))))
+
+export const claimGuest = createServerFn({ method: 'POST' })
+  .validator(claimCodeInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.claimGuest(data.code))))

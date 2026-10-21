@@ -33,10 +33,21 @@ export interface RoundView {
 }
 
 export interface EntrantView extends PlayerRef {
+  /** Added by the host without an account; the host or their opponent reports for them. */
+  readonly isGuest: boolean
   readonly deckId: string | null
   readonly deckName: string | null
   readonly droppedAtRound: number | null
   readonly finalRank: number | null
+}
+
+/** A guest on the host's guest list, as only that host sees it. */
+export interface GuestView {
+  readonly id: string
+  readonly name: string
+  /** Opens `/claim/$code` for the guest to move their results to an account. */
+  readonly claimCode: string
+  readonly eventCount: number
 }
 
 export interface StandingView extends Standing {

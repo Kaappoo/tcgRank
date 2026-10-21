@@ -42,7 +42,7 @@ pnpm review              # fallow + react-doctor + impeccable detect
 
 ### Git workflow
 
-Branches are `<type>/<kebab-description>` off `main` (e.g. `fix/migrate-on-vercel-deploy`), commits and PR titles follow Conventional Commits, PRs are squash-merged. Never use generated branch names (`ccr-…`, `claude/…`). See `docs/agents/git-workflow.md`.
+Branches are `<type>/<kebab-description>` off `develop` (e.g. `fix/migrate-on-vercel-deploy`), commits and PR titles follow Conventional Commits, PRs target `develop` and are squash-merged. `main` only moves through release PRs from `develop`, merged with a merge commit. Never use generated branch names (`ccr-…`, `claude/…`). See `docs/agents/git-workflow.md`.
 
 ### Issue tracker
 

@@ -1,5 +1,5 @@
 import { relations, sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 const timestamps = {
   createdAt: integer('created_at', { mode: 'timestamp_ms' })
@@ -25,6 +25,12 @@ export const user = sqliteTable('user', {
   displayUsername: text('display_username'),
   playerId: text('player_id'),
   bio: text('bio'),
+  /** A player a host added by hand: no login, no email, no profile page. */
+  isGuest: integer('is_guest', { mode: 'boolean' }).notNull().default(false),
+  /** The host who added this guest; their guest list. */
+  guestOfId: text('guest_of_id').references((): AnySQLiteColumn => user.id, { onDelete: 'set null' }),
+  /** Secret code a guest's results are claimed with once they have an account. */
+  claimCode: text('claim_code').unique(),
   ...timestamps,
 })
 

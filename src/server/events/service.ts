@@ -24,6 +24,7 @@ import {
   matchStatus,
   type EntrantView,
   type EventDetail,
+  type GuestView,
   type EventSummary,
   type MatchView,
   type PlayerRef,
@@ -167,6 +168,7 @@ const make = Effect.gen(function* () {
           d
             .select({
               ...playerRefColumns,
+              isGuest: user.isGuest,
               deckId: eventPlayers.deckId,
               deckName: decks.name,
               droppedAtRound: eventPlayers.droppedAtRound,
@@ -329,6 +331,174 @@ const make = Effect.gen(function* () {
     yield* db.query((d) => d.update(events).set({ deckRequired }).where(eq(events.id, eventId)))
   })
 
+  /* ------------------------------ guests ----------------------------- */
+
+  /**
+   * Host-only: enters a player who has no account (or no phone). Either a new
+   * guest by name, or one from the host's guest list. Guests skip deck
+   * registration and may be added whenever a player could join.
+   */
+  const addGuest = Effect.fn('EventsService.addGuest')(function* (
+    eventId: string,
+    who: { readonly name: string } | { readonly guestId: string },
+  ) {
+    const me = yield* requireUser
+    const event = yield* loadHostedEvent(eventId)
+    if (event.status === 'finished') return yield* new InvalidState({ reason: 'This event has already finished' })
+
+    let guest: { id: string; name: string }
+    if ('guestId' in who) {
+      const row = yield* db.query((d) =>
+        d.query.user.findFirst({
+          where: and(eq(user.id, who.guestId), eq(user.isGuest, true), eq(user.guestOfId, me.id)),
+        }),
+      )
+      if (!row) return yield* new NotFound({ entity: 'Guest', id: who.guestId })
+      guest = row
+    } else {
+      const name = who.name.trim()
+      const clash = yield* db.query((d) =>
+        d.query.user.findFirst({
+          where: and(eq(user.guestOfId, me.id), eq(user.isGuest, true), eq(sql`lower(${user.name})`, name.toLowerCase())),
+        }),
+      )
+      if (clash) {
+        return yield* new InvalidState({ reason: `You already have a guest called ${clash.name}: pick them from the list` })
+      }
+      const id = newId()
+      // Guests never sign in: the address is unroutable (.invalid) and there is no password.
+      yield* db.query((d) =>
+        d.insert(user).values({
+          id,
+          name,
+          email: `${id}@guests.tcgrank.invalid`,
+          isGuest: true,
+          guestOfId: me.id,
+          claimCode: `${newId()}${newId()}`,
+        }),
+      )
+      guest = { id, name }
+    }
+
+    const existing = yield* db.query((d) =>
+      d.query.eventPlayers.findFirst({
+        where: and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.userId, guest.id)),
+      }),
+    )
+    if (existing && existing.droppedAtRound === null) {
+      return yield* new InvalidState({ reason: `${guest.name} is already in this event` })
+    }
+    yield* db.query((d) =>
+      existing
+        ? d.update(eventPlayers).set({ droppedAtRound: null }).where(eq(eventPlayers.id, existing.id))
+        : d.insert(eventPlayers).values({ id: newId(), eventId, userId: guest.id }),
+    )
+    return { guestId: guest.id }
+  })
+
+  /** Host-only: takes a guest out, like leaving: removed before round 1, dropped after. */
+  const removeGuest = Effect.fn('EventsService.removeGuest')(function* (eventId: string, guestId: string) {
+    const event = yield* loadHostedEvent(eventId)
+    if (event.status === 'finished') return yield* new InvalidState({ reason: 'This event has already finished' })
+    const [entry] = yield* db.query((d) =>
+      d
+        .select({ id: eventPlayers.id })
+        .from(eventPlayers)
+        .innerJoin(user, eq(user.id, eventPlayers.userId))
+        .where(and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.userId, guestId), eq(user.isGuest, true))),
+    )
+    if (!entry) return yield* new NotFound({ entity: 'Guest', id: guestId })
+    yield* db.query((d) =>
+      event.status === 'registration'
+        ? d.delete(eventPlayers).where(eq(eventPlayers.id, entry.id))
+        : d.update(eventPlayers).set({ droppedAtRound: event.currentRound }).where(eq(eventPlayers.id, entry.id)),
+    )
+  })
+
+  /** The signed-in host's guest list, with the code each guest can claim their results with. */
+  const guests = Effect.fn('EventsService.guests')(function* () {
+    const me = yield* requireUser
+    const rows = yield* db.query((d) =>
+      d
+        .select({
+          id: user.id,
+          name: user.name,
+          claimCode: user.claimCode,
+          eventCount: sql<number>`count(${eventPlayers.id})`,
+        })
+        .from(user)
+        .leftJoin(eventPlayers, eq(eventPlayers.userId, user.id))
+        .where(and(eq(user.guestOfId, me.id), eq(user.isGuest, true)))
+        .groupBy(user.id)
+        .orderBy(user.name),
+    )
+    return rows.map((r): GuestView => ({ ...r, claimCode: r.claimCode ?? '', eventCount: Number(r.eventCount) }))
+  })
+
+  const loadGuestByClaimCode = Effect.fn('EventsService.loadGuestByClaimCode')(function* (code: string) {
+    const guest = yield* db.query((d) =>
+      d.query.user.findFirst({ where: and(eq(user.claimCode, code), eq(user.isGuest, true)) }),
+    )
+    if (!guest) return yield* new NotFound({ entity: 'Guest', id: code })
+    return guest
+  })
+
+  /** What a claim link would bring over, for the page that asks to accept it. */
+  const claimPreview = Effect.fn('EventsService.claimPreview')(function* (code: string) {
+    const guest = yield* loadGuestByClaimCode(code)
+    const [hosts, [count]] = yield* Effect.all([
+      playerRefs(guest.guestOfId ? [guest.guestOfId] : []),
+      db.query((d) =>
+        d.select({ n: sql<number>`count(*)` }).from(eventPlayers).where(eq(eventPlayers.userId, guest.id)),
+      ),
+    ])
+    return {
+      name: guest.name,
+      hostName: guest.guestOfId ? (hosts.get(guest.guestOfId)?.name ?? null) : null,
+      eventCount: Number(count?.n ?? 0),
+    }
+  })
+
+  /**
+   * Moves a guest's entries and matches to the signed-in player and deletes the
+   * guest. Refused when both played in the same event: one person can't hold
+   * two entries.
+   */
+  const claimGuest = Effect.fn('EventsService.claimGuest')(function* (code: string) {
+    const me = yield* requireUser
+    const guest = yield* loadGuestByClaimCode(code)
+    if (guest.guestOfId === me.id) {
+      return yield* new InvalidState({ reason: `${guest.name} is a guest you added: send them this link to claim it` })
+    }
+    const shared = yield* db.query((d) =>
+      d
+        .select({ name: events.name })
+        .from(eventPlayers)
+        .innerJoin(events, eq(events.id, eventPlayers.eventId))
+        .where(inArray(eventPlayers.userId, [guest.id, me.id]))
+        .groupBy(eventPlayers.eventId)
+        .having(sql`count(distinct ${eventPlayers.userId}) = 2`),
+    )
+    if (shared.length > 0) {
+      return yield* new InvalidState({
+        reason: `You and ${guest.name} both played in ${shared[0]!.name}, so these results can't be merged. Ask the host.`,
+      })
+    }
+    const [count] = yield* db.query((d) =>
+      d.select({ n: sql<number>`count(*)` }).from(eventPlayers).where(eq(eventPlayers.userId, guest.id)),
+    )
+    yield* db.query((d) =>
+      d.batch([
+        d.update(eventPlayers).set({ userId: me.id }).where(eq(eventPlayers.userId, guest.id)),
+        d.update(matches).set({ player1Id: me.id }).where(eq(matches.player1Id, guest.id)),
+        d.update(matches).set({ player2Id: me.id }).where(eq(matches.player2Id, guest.id)),
+        d.update(matches).set({ reportedById: me.id }).where(eq(matches.reportedById, guest.id)),
+        d.delete(user).where(eq(user.id, guest.id)),
+      ]),
+    )
+    return { eventCount: Number(count?.n ?? 0) }
+  })
+
   const leave = Effect.fn('EventsService.leave')(function* (eventId: string) {
     const me = yield* requireUser
     const event = yield* loadEvent(eventId)
@@ -476,6 +646,17 @@ const make = Effect.gen(function* () {
     return { me, match, event, isHost }
   })
 
+  /** A guest has no phone to confirm with, so a report against one counts straight away. */
+  const reportsAgainstGuest = Effect.fn('EventsService.reportsAgainstGuest')(function* (match: MatchRow, meId: string) {
+    if (match.player1Id !== meId && match.player2Id !== meId) return false
+    const opponentId = match.player1Id === meId ? match.player2Id : match.player1Id
+    if (opponentId === null) return false
+    const opponent = yield* db.query((d) =>
+      d.query.user.findFirst({ columns: { isGuest: true }, where: eq(user.id, opponentId) }),
+    )
+    return opponent?.isGuest ?? false
+  })
+
   const matchView = Effect.fn('EventsService.matchView')(function* (matchId: string) {
     const m = yield* db.query((d) => d.query.matches.findFirst({ where: eq(matches.id, matchId) }))
     if (!m) return yield* new NotFound({ entity: 'Match', id: matchId })
@@ -489,6 +670,7 @@ const make = Effect.gen(function* () {
     player2Games: number,
   ) {
     const { me, match, isHost } = yield* loadMatchForActor(matchId)
+    const againstGuest = yield* reportsAgainstGuest(match, me.id)
     const outcome = outcomeFromGames(player1Games, player2Games)
     const now = new Date(yield* Clock.currentTimeMillis)
 
@@ -510,7 +692,7 @@ const make = Effect.gen(function* () {
           outcome,
           reportedById: agreesWithPending ? match.reportedById : me.id,
           reportedAt: now,
-          confirmedAt: isHost || agreesWithPending ? now : null,
+          confirmedAt: isHost || agreesWithPending || againstGuest ? now : null,
         })
         .where(eq(matches.id, matchId)),
     )
@@ -569,6 +751,11 @@ const make = Effect.gen(function* () {
     detail,
     findByJoinCode,
     join,
+    addGuest,
+    removeGuest,
+    guests,
+    claimPreview,
+    claimGuest,
     setDeckRequired,
     leave,
     startNextRound,
