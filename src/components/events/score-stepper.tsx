@@ -2,12 +2,9 @@ import { Minus, Plus, TriangleAlert } from 'lucide-react'
 import { useState, type KeyboardEvent } from 'react'
 import { Button } from '#/components/ui/button.tsx'
 import { SubmitButton } from '#/components/ui/submit-button.tsx'
-import { invalidScoreReason, isCompleteScore, stepperMax, type ScoreRules } from '#/domain/best-of.ts'
+import { invalidScoreReason, isCompleteScore, stepperMax, type Score, type ScoreRules } from '#/domain/best-of.ts'
 import { cn } from '#/lib/utils.ts'
 import { describeScore, type ResultText, type ResultTone } from './result-options.ts'
-
-/** Two games counts, in the order of the sides: [mine, theirs] or [player 1, player 2]. */
-export type Score = readonly [number, number]
 
 /** Who the two steppers belong to: the reporting player and their opponent, or two named players. */
 export type ScoreSides =
@@ -31,7 +28,8 @@ export interface ScoreStepperProps {
 const labelsFor = (sides: ScoreSides): readonly [string, string] =>
   sides.kind === 'mine' ? ['My games', 'Their games'] : [sides.player1, sides.player2]
 
-const meaning = (sides: ScoreSides, [a, b]: Score): ResultText => {
+/** The result a score stands for, worded for the sides: "Won 2–1" or "Ash wins 2–1". */
+const resultFor = (sides: ScoreSides, [a, b]: Score): ResultText => {
   if (sides.kind === 'mine' || a === b) return describeScore(a, b)
   return a > b
     ? { text: `${sides.player1} wins ${a}–${b}`, tone: 'win' }
@@ -59,10 +57,10 @@ export function ScoreStepper({
   const [score, setScore] = useState<Score>(initial)
   const [confirmIncomplete, setConfirmIncomplete] = useState(false)
   const labels = labelsFor(sides)
-  const invalid = invalidScoreReason(rules, score[0], score[1])
+  const invalid = invalidScoreReason(rules, score)
   const agrees = agreesWith !== undefined && agreesWith[0] === score[0] && agreesWith[1] === score[1]
-  const complete = agrees || isCompleteScore(rules, score[0], score[1])
-  const result = meaning(sides, score)
+  const complete = agrees || isCompleteScore(rules, score)
+  const result = resultFor(sides, score)
 
   const set = (side: 0 | 1, games: number) => {
     setConfirmIncomplete(false)

@@ -1,3 +1,4 @@
+import type { Score } from '#/domain/best-of.ts'
 import type { MatchView } from '#/server/events/views.ts'
 
 export type ResultTone = 'win' | 'loss' | 'draw'
@@ -18,14 +19,14 @@ export const describeScore = (mine: number, theirs: number): ResultText => {
 export const myGames = (
   match: Pick<MatchView, 'player1' | 'player1Games' | 'player2Games'>,
   viewerId: string,
-): readonly [number, number] =>
+): Score =>
   match.player1.id === viewerId ? [match.player1Games, match.player2Games] : [match.player2Games, match.player1Games]
 
 /** Converts a "my games / their games" score into stored player-1 / player-2 games. */
 export const toGames = (
   match: Pick<MatchView, 'player1'>,
   viewerId: string,
-  [mine, theirs]: readonly [number, number],
+  [mine, theirs]: Score,
 ) =>
   match.player1.id === viewerId
     ? { player1Games: mine, player2Games: theirs }

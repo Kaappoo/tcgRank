@@ -11,8 +11,9 @@ import type { Outcome } from './standings.ts'
 export const BEST_OF_VALUES = [1, 3, 5] as const
 export type BestOf = (typeof BEST_OF_VALUES)[number]
 export const DEFAULT_BEST_OF: BestOf = 3
-/** The most games either side can ever report, across every best-of. */
-export const MAX_GAMES = 3
+
+/** Games each side won, in side order: [player 1, player 2], or [mine, theirs] when a player reports. */
+export type Score = readonly [number, number]
 
 export interface ScoreRules {
   readonly bestOf: BestOf
@@ -28,6 +29,9 @@ export const scoreRules = (bestOf: BestOf, options: { allowEqualGames?: boolean 
 /** Games needed to win a match: 1, 2 or 3. */
 export const majority = (bestOf: BestOf): number => Math.ceil(bestOf / 2)
 
+/** The most games either side can ever report, across every best-of. */
+export const MAX_GAMES = Math.max(...BEST_OF_VALUES.map(majority))
+
 /** Highest value one side's stepper may reach, given the other side's games: both can't be at the majority. */
 export const stepperMax = (rules: ScoreRules, otherGames: number): number => {
   const m = majority(rules.bestOf)
@@ -37,25 +41,24 @@ export const stepperMax = (rules: ScoreRules, otherGames: number): number => {
 const plural = (n: number) => (n === 1 ? `${n} game` : `${n} games`)
 
 /** Why a score can't happen under these rules, or null when it is valid. */
-export const invalidScoreReason = (rules: ScoreRules, player1Games: number, player2Games: number): string | null => {
+export const invalidScoreReason = (rules: ScoreRules, [a, b]: Score): string | null => {
   const m = majority(rules.bestOf)
   const inRange = (g: number) => Number.isInteger(g) && g >= 0 && g <= m
-  if (!inRange(player1Games) || !inRange(player2Games) || (player1Games === m && player2Games === m)) {
+  if (!inRange(a) || !inRange(b) || (a === m && b === m)) {
     return `A best of ${rules.bestOf} ends at ${plural(m)}`
   }
-  if (!rules.allowEqualGames && player1Games === player2Games) return 'This match can’t end in a tie'
+  if (!rules.allowEqualGames && a === b) return 'This match can’t end in a tie'
   return null
 }
 
-export const isValidScore = (rules: ScoreRules, player1Games: number, player2Games: number): boolean =>
-  invalidScoreReason(rules, player1Games, player2Games) === null
+export const isValidScore = (rules: ScoreRules, score: Score): boolean => invalidScoreReason(rules, score) === null
 
 /** A side reached the majority. Anything else is an incomplete report. */
-export const isCompleteScore = (rules: ScoreRules, player1Games: number, player2Games: number): boolean => {
+export const isCompleteScore = (rules: ScoreRules, [a, b]: Score): boolean => {
   const m = majority(rules.bestOf)
-  return player1Games === m || player2Games === m
+  return a === m || b === m
 }
 
-/** More games wins, equal games is a draw. */
-export const matchOutcome = (player1Games: number, player2Games: number): Exclude<Outcome, 'bye'> =>
+/** More games wins; equal games is a tie (stored as the 'draw' outcome). */
+export const matchOutcome = ([player1Games, player2Games]: Score): Exclude<Outcome, 'bye'> =>
   player1Games > player2Games ? 'p1' : player2Games > player1Games ? 'p2' : 'draw'

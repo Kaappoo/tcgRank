@@ -679,10 +679,11 @@ const make = Effect.gen(function* () {
     player2Games: number,
   ) {
     const { me, match, event, isHost } = yield* loadMatchForActor(matchId)
-    const invalid = invalidScoreReason(scoreRules(event.bestOf), player1Games, player2Games)
+    const score = [player1Games, player2Games] as const
+    const invalid = invalidScoreReason(scoreRules(event.bestOf), score)
     if (invalid) return yield* new InvalidState({ reason: invalid })
     const againstGuest = yield* reportsAgainstGuest(match, me.id)
-    const outcome = matchOutcome(player1Games, player2Games)
+    const outcome = matchOutcome(score)
     const now = new Date(yield* Clock.currentTimeMillis)
 
     // The opponent submitting the very same score counts as confirmation.
