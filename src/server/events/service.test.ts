@@ -1,7 +1,9 @@
 import { assert, describe, expect, it } from '@effect/vitest'
 import { sql } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'
+import { DEFAULT_BEST_OF, type BestOf } from '#/domain/best-of.ts'
 import { newId } from '#/domain/ids.ts'
+import { createEventInput, type CreateEventInput } from '#/shared/schemas.ts'
 import { Db } from '../db/client.ts'
 import { decks, type EventFormat } from '../db/schema.ts'
 import { asUser, insertUser, withDb } from '../testing.ts'
@@ -9,14 +11,15 @@ import { EventsService } from './service.ts'
 
 const TestLayer = withDb(EventsService.layer)
 
-const newEvent = {
+const newEvent: CreateEventInput = {
   name: 'Tuesday League Challenge',
   storeName: 'Pallet Town Games',
-  format: 'standard' as const,
+  format: 'standard',
   plannedRounds: 0,
   roundMinutes: 50,
   startsAt: new Date('2026-10-06T19:00:00Z'),
   deckRequired: false,
+  bestOf: DEFAULT_BEST_OF,
 }
 
 /** Creates a host plus `n` joined players. */
@@ -495,19 +498,17 @@ describe('Guests', () => {
 })
 
 describe('Best of', () => {
-  const hostEvent = Effect.fn('hostEvent')(function* (bestOf?: 1 | 3 | 5) {
+  const hostEvent = Effect.fn('hostEvent')(function* (input: CreateEventInput) {
     const events = yield* EventsService
     const host = yield* insertUser('Professor Oak')
-    const { id: eventId } = yield* events
-      .create(bestOf === undefined ? newEvent : { ...newEvent, bestOf })
-      .pipe(asUser(host))
+    const { id: eventId } = yield* events.create(input).pipe(asUser(host))
     const players = [yield* insertUser('Red'), yield* insertUser('Blue')]
     for (const p of players) yield* events.join(eventId).pipe(asUser(p))
     return { events, host, eventId, players }
   })
 
-  const startRound = Effect.fn('startRound')(function* (bestOf?: 1 | 3 | 5) {
-    const ctx = yield* hostEvent(bestOf)
+  const startRound = Effect.fn('startRound')(function* (bestOf: BestOf) {
+    const ctx = yield* hostEvent({ ...newEvent, bestOf })
     yield* ctx.events.startNextRound(ctx.eventId).pipe(asUser(ctx.host))
     const { matches } = yield* ctx.events.detail(ctx.eventId)
     const match = matches[0]!
@@ -519,7 +520,9 @@ describe('Best of', () => {
   it.effect('is a best of 3 unless the host picks otherwise', () =>
     run(
       Effect.gen(function* () {
-        const { events, eventId, players } = yield* hostEvent()
+        // The create form leaves best of untouched: the input schema fills it in.
+        const input = createEventInput.parse({ ...newEvent, bestOf: undefined })
+        const { events, eventId, players } = yield* hostEvent(input)
         const { event } = yield* events.detail(eventId)
         expect(event.bestOf).toBe(3)
         const mine = yield* events.list({ scope: 'mine' }).pipe(asUser(players[0]!))
@@ -531,7 +534,7 @@ describe('Best of', () => {
   it.effect.each([1, 5] as const)('stores a best of %i', (bestOf) =>
     run(
       Effect.gen(function* () {
-        const { events, eventId } = yield* hostEvent(bestOf)
+        const { events, eventId } = yield* hostEvent({ ...newEvent, bestOf })
         const { event } = yield* events.detail(eventId)
         expect(event.bestOf).toBe(bestOf)
       }),
@@ -541,7 +544,7 @@ describe('Best of', () => {
   it.effect('only the host can change it, and only before round 1', () =>
     run(
       Effect.gen(function* () {
-        const { events, host, eventId, players } = yield* hostEvent()
+        const { events, host, eventId, players } = yield* hostEvent(newEvent)
         const forbidden = yield* Effect.flip(events.setBestOf(eventId, 1).pipe(asUser(players[0]!)))
         expect(forbidden._tag).toBe('Forbidden')
         yield* events.setBestOf(eventId, 5).pipe(asUser(host))

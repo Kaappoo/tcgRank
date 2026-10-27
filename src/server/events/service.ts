@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm'
 import { Clock, Context, Effect, Layer } from 'effect'
-import { DEFAULT_BEST_OF, invalidScoreReason, matchOutcome, scoreRules, type BestOf } from '#/domain/best-of.ts'
+import { invalidScoreReason, matchOutcome, scoreRules, type BestOf } from '#/domain/best-of.ts'
 import { newId, newJoinCode, normalizeJoinCode } from '#/domain/ids.ts'
 import { deckIneligibility } from '#/domain/registration.ts'
 import { adjustClock, pauseClock, resumeClock, startClock } from '#/domain/match-clock.ts'
@@ -247,10 +247,7 @@ const make = Effect.gen(function* () {
 
   /* ---------------------------- commands ----------------------------- */
 
-  /** `bestOf` defaults to 3 when left out. */
-  const create = Effect.fn('EventsService.create')(function* (
-    input: Omit<CreateEventInput, 'bestOf'> & { readonly bestOf?: BestOf | undefined },
-  ) {
+  const create = Effect.fn('EventsService.create')(function* (input: CreateEventInput) {
     const me = yield* requireUser
     const id = newId()
     const joinCode = newJoinCode()
@@ -266,7 +263,7 @@ const make = Effect.gen(function* () {
         roundMinutes: input.roundMinutes,
         startsAt: input.startsAt,
         deckRequired: input.deckRequired,
-        bestOf: input.bestOf ?? DEFAULT_BEST_OF,
+        bestOf: input.bestOf,
         joinCode,
       }),
     )

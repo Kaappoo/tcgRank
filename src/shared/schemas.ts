@@ -10,6 +10,8 @@ import { EVENT_FORMATS } from '#/server/db/schema.ts'
 
 const eventFormat = z.enum(EVENT_FORMATS)
 
+export const bestOfSchema = z.union(BEST_OF_VALUES.map((n) => z.literal(n)))
+
 export const createEventInput = z.object({
   name: z.string().trim().min(3, 'Give the event a name of at least 3 characters').max(80),
   storeName: z.string().trim().min(2, 'Which store is hosting?').max(80),
@@ -19,7 +21,7 @@ export const createEventInput = z.object({
   roundMinutes: z.coerce.number().int().min(10, 'Rounds need at least 10 minutes').max(120),
   startsAt: z.coerce.date(),
   deckRequired: z.boolean().default(false),
-  bestOf: z.union(BEST_OF_VALUES.map((n) => z.literal(n))).default(DEFAULT_BEST_OF),
+  bestOf: bestOfSchema.default(DEFAULT_BEST_OF),
 })
 export type CreateEventInput = z.infer<typeof createEventInput>
 
@@ -49,7 +51,7 @@ export const deckRequiredInput = z.object({
 
 export const bestOfInput = z.object({
   eventId: z.string().min(1),
-  bestOf: z.union(BEST_OF_VALUES.map((n) => z.literal(n))),
+  bestOf: bestOfSchema,
 })
 
 /** Shape only: the event's best-of decides which scores are possible (`EventsService.reportResult`). */
