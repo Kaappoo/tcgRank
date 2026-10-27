@@ -40,6 +40,8 @@ const toneText: Record<ResultTone, string> = { win: 'text-win', draw: 'text-draw
 
 const focusOnMount = (element: HTMLElement | null) => element?.focus()
 
+const sameScore = (a: Score, b: Score | undefined) => b !== undefined && a[0] === b[0] && a[1] === b[1]
+
 /**
  * Best-of score entry: one stepper per side, bounded by the score rules, the result the score
  * means, and a send button. An incomplete report (nobody reached the majority) asks once more.
@@ -58,8 +60,7 @@ export function ScoreStepper({
   const [confirmIncomplete, setConfirmIncomplete] = useState(false)
   const labels = labelsFor(sides)
   const invalid = invalidScoreReason(rules, score)
-  const agrees = agreesWith !== undefined && agreesWith[0] === score[0] && agreesWith[1] === score[1]
-  const complete = agrees || isCompleteScore(rules, score)
+  const complete = sameScore(score, agreesWith) || isCompleteScore(rules, score)
   const result = resultFor(sides, score)
 
   const set = (side: 0 | 1, games: number) => {
@@ -104,20 +105,7 @@ export function ScoreStepper({
       ) : null}
 
       {confirmIncomplete ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-draw/40 bg-draw/[0.06] p-4">
-          <p role="alert" className="flex items-center gap-2 text-sm font-semibold text-draw">
-            <TriangleAlert className="size-4" aria-hidden /> Not all games reported. Send anyway?
-          </p>
-          <div className="flex gap-2">
-            {/* Focus lands on the answer to the question, so keyboard and screen reader users aren't stranded. */}
-            <SubmitButton ref={focusOnMount} size="lg" className="flex-1" disabled={isPending}>
-              {isPending ? 'Sending…' : 'Send anyway'}
-            </SubmitButton>
-            <Button type="button" size="lg" variant="ghost" onClick={() => setConfirmIncomplete(false)}>
-              Keep editing
-            </Button>
-          </div>
-        </div>
+        <ConfirmIncomplete isPending={isPending} onKeepEditing={() => setConfirmIncomplete(false)} />
       ) : (
         <div className="flex gap-2">
           <SubmitButton size="lg" className="flex-1" disabled={Boolean(invalid) || isPending}>
@@ -131,6 +119,25 @@ export function ScoreStepper({
         </div>
       )}
     </form>
+  )
+}
+
+/** The second step of an incomplete report. Focus lands on its answer, so keyboard and screen reader users aren't stranded. */
+function ConfirmIncomplete({ isPending, onKeepEditing }: { isPending?: boolean; onKeepEditing: () => void }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-draw/40 bg-draw/[0.06] p-4">
+      <p role="alert" className="flex items-center gap-2 text-sm font-semibold text-draw">
+        <TriangleAlert className="size-4" aria-hidden /> Not all games reported. Send anyway?
+      </p>
+      <div className="flex gap-2">
+        <SubmitButton ref={focusOnMount} size="lg" className="flex-1" disabled={isPending}>
+          {isPending ? 'Sending…' : 'Send anyway'}
+        </SubmitButton>
+        <Button type="button" size="lg" variant="ghost" onClick={onKeepEditing}>
+          Keep editing
+        </Button>
+      </div>
+    </div>
   )
 }
 

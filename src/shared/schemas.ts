@@ -10,7 +10,7 @@ import { EVENT_FORMATS } from '#/server/db/schema.ts'
 
 const eventFormat = z.enum(EVENT_FORMATS)
 
-export const bestOfSchema = z.union(BEST_OF_VALUES.map((n) => z.literal(n)))
+const bestOfSchema =z.union(BEST_OF_VALUES.map((n) => z.literal(n)))
 
 export const createEventInput = z.object({
   name: z.string().trim().min(3, 'Give the event a name of at least 3 characters').max(80),

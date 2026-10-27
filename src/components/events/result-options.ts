@@ -22,6 +22,10 @@ export const myGames = (
 ): Score =>
   match.player1.id === viewerId ? [match.player1Games, match.player2Games] : [match.player2Games, match.player1Games]
 
+/** The opponent's report waiting on the viewer, as [mine, theirs]: sending it back confirms it. */
+export const opponentReport = (match: MatchView, viewerId: string): Score | undefined =>
+  match.status === 'reported' && match.reportedById !== viewerId ? myGames(match, viewerId) : undefined
+
 /** Converts a "my games / their games" score into stored player-1 / player-2 games. */
 export const toGames = (
   match: Pick<MatchView, 'player1'>,

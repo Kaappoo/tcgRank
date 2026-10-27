@@ -5,7 +5,7 @@ import { Button } from '#/components/ui/button.tsx'
 import { scoreRules, type BestOf } from '#/domain/best-of.ts'
 import { bestOfLabel } from '#/lib/format.ts'
 import type { MatchView } from '#/server/events/views.ts'
-import { describeResult, myGames, toGames } from './result-options.ts'
+import { describeResult, myGames, opponentReport, toGames } from './result-options.ts'
 import { ScoreStepper } from './score-stepper.tsx'
 
 export interface ReportResultProps {
@@ -78,7 +78,7 @@ export function ReportResult({ match, viewerId, bestOf, isPending, onReport, onC
         rules={scoreRules(bestOf)}
         sides={{ kind: 'mine' }}
         initial={myGames(match, viewerId)}
-        agreesWith={match.status === 'reported' && !reportedByMe ? myGames(match, viewerId) : undefined}
+        agreesWith={opponentReport(match, viewerId)}
         isPending={isPending}
         onCancel={editing ? () => setEditing(false) : undefined}
         onSend={(score) => {
