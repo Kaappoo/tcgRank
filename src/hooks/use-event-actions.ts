@@ -17,7 +17,7 @@ import {
   startNextRound,
 } from '#/server/functions/events.ts'
 
-const message = (error: unknown) => (error instanceof Error ? error.message : 'Something went wrong')
+export const errorMessage = (error: unknown) => (error instanceof Error ? error.message : 'Something went wrong')
 
 /** Every mutation a player or host can make on an event, wired to refresh the live view. */
 export function useEventActions(eventId: string) {
@@ -28,7 +28,7 @@ export function useEventActions(eventId: string) {
       queryClient.invalidateQueries({ queryKey: ['events'] }),
       queryClient.invalidateQueries({ queryKey: ['guests'] }),
     ])
-  const onError = (error: unknown) => toast.error("That didn't go through", message(error))
+  const onError = (error: unknown) => toast.error("That didn't go through", errorMessage(error))
 
   const report = useServerFn(reportResult)
   const confirm = useServerFn(confirmResult)
@@ -53,6 +53,11 @@ export function useEventActions(eventId: string) {
           ),
         ),
       onError,
+    }),
+    /** The host's correction from the round tables: its refusal is shown in the correction dialog, not a toast. */
+    correct: useMutation({
+      mutationFn: (input: { matchId: string; player1Games: number; player2Games: number }) => report({ data: input }),
+      onSuccess: () => refresh().then(() => toast.success('Result locked in')),
     }),
     confirm: useMutation({
       mutationFn: (matchId: string) => confirm({ data: { matchId } }),

@@ -101,7 +101,13 @@ describe('ScoreStepper', () => {
   it('sends an incomplete score in one tap when it agrees with the pending report', async () => {
     const onSend = vi.fn()
     render(
-      <ScoreStepper rules={scoreRules(3)} sides={{ kind: 'mine' }} initial={[0, 1]} agreesWith={[0, 1]} onSend={onSend} />,
+      <ScoreStepper
+        rules={scoreRules(3)}
+        sides={{ kind: 'mine' }}
+        initial={[0, 1]}
+        agreesWith={[0, 1]}
+        onSend={onSend}
+      />,
     )
     await userEvent.click(screen.getByRole('button', { name: 'Send result' }))
     expect(onSend).toHaveBeenCalledWith([0, 1])
