@@ -21,7 +21,7 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from '#/components/ui/tabs.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { useEventActions } from '#/hooks/use-event-actions.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
-import { formatLabel, statusLabel } from '#/lib/format.ts'
+import { bestOfLabel, formatLabel, statusLabel } from '#/lib/format.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
 import { cn } from '#/lib/utils.ts'
@@ -74,6 +74,7 @@ function EventHub() {
             {statusLabel(event.status, event.currentRound)}
           </Badge>
           <Badge variant="outline">{formatLabel(event.format)}</Badge>
+          <Badge variant="outline">{bestOfLabel(event.bestOf)}</Badge>
           {isHost ? <Badge>You&apos;re hosting</Badge> : null}
         </div>
         <h1 className="font-display text-4xl sm:text-6xl">{event.name}</h1>
@@ -130,7 +131,12 @@ function EventHub() {
 
         {viewer?.currentMatch && event.status === 'running' && currentRound ? (
           <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
-            <PairingCard match={viewer.currentMatch} viewerId={viewer.userId} records={records} />
+            <PairingCard
+              match={viewer.currentMatch}
+              viewerId={viewer.userId}
+              bestOf={event.bestOf}
+              records={records}
+            />
             <div className="flex flex-col gap-6">
               {!isHost ? (
                 <div className="rounded-2xl border border-line bg-surface p-5">

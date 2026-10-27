@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { BEST_OF_VALUES, DEFAULT_BEST_OF, MAX_GAMES } from '#/domain/best-of.ts'
 import { EVENT_FORMATS } from '#/server/db/schema.ts'
 
 /**
@@ -18,6 +19,7 @@ export const createEventInput = z.object({
   roundMinutes: z.coerce.number().int().min(10, 'Rounds need at least 10 minutes').max(120),
   startsAt: z.coerce.date(),
   deckRequired: z.boolean().default(false),
+  bestOf: z.union(BEST_OF_VALUES.map((n) => z.literal(n))).default(DEFAULT_BEST_OF),
 })
 export type CreateEventInput = z.infer<typeof createEventInput>
 
@@ -45,15 +47,12 @@ export const deckRequiredInput = z.object({
   deckRequired: z.boolean(),
 })
 
-export const reportResultInput = z
-  .object({
-    matchId: z.string().min(1),
-    player1Games: z.number().int().min(0).max(3),
-    player2Games: z.number().int().min(0).max(3),
-  })
-  .refine((v) => v.player1Games + v.player2Games <= 3, {
-    message: 'A best-of-three has at most three games',
-  })
+/** Shape only: the event's best-of decides which scores are possible (`EventsService.reportResult`). */
+export const reportResultInput = z.object({
+  matchId: z.string().min(1),
+  player1Games: z.number().int().min(0).max(MAX_GAMES),
+  player2Games: z.number().int().min(0).max(MAX_GAMES),
+})
 
 export const matchIdInput = z.object({ matchId: z.string().min(1) })
 

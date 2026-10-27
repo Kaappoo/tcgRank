@@ -71,7 +71,7 @@ function Home() {
           </div>
 
           <div className="relative flex flex-col gap-4 lg:pl-6" aria-label="Preview of a player's pairing screen">
-            <PairingCard match={demoMatch} viewerId="you" records={demoRecords} />
+            <PairingCard match={demoMatch} viewerId="you" bestOf={3} records={demoRecords} />
             <div className="rounded-2xl border border-line bg-surface/90 p-5 backdrop-blur">
               <MatchClock endsAt={null} pausedRemainingMs={DEMO_PAUSED_MS} roundMinutes={50} size="md" />
             </div>

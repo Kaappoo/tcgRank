@@ -1,5 +1,6 @@
 import { relations, sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
+import type { BestOf } from '#/domain/best-of.ts'
 
 const timestamps = {
   createdAt: integer('created_at', { mode: 'timestamp_ms' })
@@ -106,6 +107,8 @@ export const events = sqliteTable(
     roundMinutes: integer('round_minutes').notNull().default(50),
     /** Players must register a 60-card deck in the event's format to enter. */
     deckRequired: integer('deck_required', { mode: 'boolean' }).notNull().default(false),
+    /** Most games a match can have: 1, 3 or 5. Events from before best-of read as 3. */
+    bestOf: integer('best_of').$type<BestOf>().notNull().default(3),
     currentRound: integer('current_round').notNull().default(0),
     startsAt: integer('starts_at', { mode: 'timestamp_ms' }).notNull(),
     finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),

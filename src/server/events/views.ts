@@ -1,3 +1,4 @@
+import type { BestOf } from '#/domain/best-of.ts'
 import type { Standing } from '#/domain/standings.ts'
 import type { EventFormat, EventStatus, MatchOutcome } from '../db/schema.ts'
 
@@ -65,6 +66,7 @@ export interface EventSummary {
   readonly currentRound: number
   readonly plannedRounds: number
   readonly deckRequired: boolean
+  readonly bestOf: BestOf
   readonly playerCount: number
   readonly host: PlayerRef
 }

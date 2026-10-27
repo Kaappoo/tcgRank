@@ -1,3 +1,4 @@
+import type { BestOf } from '#/domain/best-of.ts'
 import type { EventFormat, EventStatus } from '#/server/db/schema.ts'
 
 const FORMAT_LABELS: Record<EventFormat, string> = {
@@ -8,6 +9,8 @@ const FORMAT_LABELS: Record<EventFormat, string> = {
 }
 
 export const formatLabel = (format: EventFormat): string => FORMAT_LABELS[format]
+
+export const bestOfLabel = (bestOf: BestOf): string => `Best of ${bestOf}`
 
 export const statusLabel = (status: EventStatus, currentRound: number): string => {
   if (status === 'registration') return 'Registration open'

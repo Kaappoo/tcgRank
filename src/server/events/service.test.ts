@@ -492,3 +492,94 @@ describe('Guests', () => {
     ),
   )
 })
+
+describe('Best of', () => {
+  const hostEvent = Effect.fn('hostEvent')(function* (bestOf?: 1 | 3 | 5) {
+    const events = yield* EventsService
+    const host = yield* insertUser('Professor Oak')
+    const { id: eventId } = yield* events
+      .create(bestOf === undefined ? newEvent : { ...newEvent, bestOf })
+      .pipe(asUser(host))
+    const players = [yield* insertUser('Red'), yield* insertUser('Blue')]
+    for (const p of players) yield* events.join(eventId).pipe(asUser(p))
+    return { events, host, eventId, players }
+  })
+
+  const startRound = Effect.fn('startRound')(function* (bestOf?: 1 | 3 | 5) {
+    const ctx = yield* hostEvent(bestOf)
+    yield* ctx.events.startNextRound(ctx.eventId).pipe(asUser(ctx.host))
+    const { matches } = yield* ctx.events.detail(ctx.eventId)
+    const match = matches[0]!
+    const p1 = ctx.players.find((p) => p.id === match.player1.id)!
+    const p2 = ctx.players.find((p) => p.id === match.player2!.id)!
+    return { ...ctx, match, p1, p2 }
+  })
+
+  it.effect('is a best of 3 unless the host picks otherwise', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, eventId, players } = yield* hostEvent()
+        const { event } = yield* events.detail(eventId)
+        expect(event.bestOf).toBe(3)
+        const mine = yield* events.list({ scope: 'mine' }).pipe(asUser(players[0]!))
+        expect(mine.find((e) => e.id === eventId)?.bestOf).toBe(3)
+      }),
+    ),
+  )
+
+  it.effect.each([1, 5] as const)('stores a best of %i', (bestOf) =>
+    run(
+      Effect.gen(function* () {
+        const { events, eventId } = yield* hostEvent(bestOf)
+        const { event } = yield* events.detail(eventId)
+        expect(event.bestOf).toBe(bestOf)
+      }),
+    ),
+  )
+
+  it.effect('refuses a score the best of does not allow, from a player and from the host', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, match, p1 } = yield* startRound(3)
+        const fromPlayer = yield* Effect.flip(events.reportResult(match.id, 2, 2).pipe(asUser(p1)))
+        expect(fromPlayer).toMatchObject({ _tag: 'InvalidState', reason: 'A best of 3 ends at 2 games' })
+        const fromHost = yield* Effect.flip(events.reportResult(match.id, 3, 0).pipe(asUser(host)))
+        expect(fromHost).toMatchObject({ _tag: 'InvalidState', reason: 'A best of 3 ends at 2 games' })
+      }),
+    ),
+  )
+
+  it.effect('a best of 1 refuses 2–0 and accepts 1–0', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, match, p1 } = yield* startRound(1)
+        const refused = yield* Effect.flip(events.reportResult(match.id, 2, 0).pipe(asUser(p1)))
+        expect(refused._tag).toBe('InvalidState')
+        const reported = yield* events.reportResult(match.id, 1, 0).pipe(asUser(p1))
+        expect(reported).toMatchObject({ status: 'reported', outcome: 'p1' })
+      }),
+    ),
+  )
+
+  it.effect('a best of 5 accepts 3–2', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, match } = yield* startRound(5)
+        const reported = yield* events.reportResult(match.id, 2, 3).pipe(asUser(host))
+        expect(reported).toMatchObject({ status: 'confirmed', outcome: 'p2', player1Games: 2, player2Games: 3 })
+      }),
+    ),
+  )
+
+  it.effect('an incomplete report is stored with more games winning, and the same score confirms it', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, match, p1, p2 } = yield* startRound(3)
+        const reported = yield* events.reportResult(match.id, 1, 0).pipe(asUser(p1))
+        expect(reported).toMatchObject({ status: 'reported', outcome: 'p1', player1Games: 1, player2Games: 0 })
+        const confirmed = yield* events.reportResult(match.id, 1, 0).pipe(asUser(p2))
+        expect(confirmed.status).toBe('confirmed')
+      }),
+    ),
+  )
+})
