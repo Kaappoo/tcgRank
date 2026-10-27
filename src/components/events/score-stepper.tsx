@@ -20,6 +20,10 @@ export interface ScoreStepperProps {
   readonly initial: Score
   readonly onSend: (score: Score) => void
   readonly isPending?: boolean
+  /** Why the last send was refused, shown under the score. */
+  readonly error?: string | null
+  /** The pending report, in side order: sending the same score confirms it, so it skips the incomplete warning. */
+  readonly agreesWith?: Score
   /** Shows a Cancel button next to send. */
   readonly onCancel?: () => void
 }
@@ -36,16 +40,28 @@ const meaning = (sides: ScoreSides, [a, b]: Score): ResultText => {
 
 const toneText: Record<ResultTone, string> = { win: 'text-win', draw: 'text-draw', loss: 'text-loss' }
 
+const focusOnMount = (element: HTMLElement | null) => element?.focus()
+
 /**
  * Best-of score entry: one stepper per side, bounded by the score rules, the result the score
  * means, and a send button. An incomplete report (nobody reached the majority) asks once more.
  */
-export function ScoreStepper({ rules, sides, initial, onSend, isPending, onCancel }: ScoreStepperProps) {
+export function ScoreStepper({
+  rules,
+  sides,
+  initial,
+  onSend,
+  isPending,
+  error,
+  agreesWith,
+  onCancel,
+}: ScoreStepperProps) {
   const [score, setScore] = useState<Score>(initial)
   const [confirmIncomplete, setConfirmIncomplete] = useState(false)
   const labels = labelsFor(sides)
   const invalid = invalidScoreReason(rules, score[0], score[1])
-  const complete = isCompleteScore(rules, score[0], score[1])
+  const agrees = agreesWith !== undefined && agreesWith[0] === score[0] && agreesWith[1] === score[1]
+  const complete = agrees || isCompleteScore(rules, score[0], score[1])
   const result = meaning(sides, score)
 
   const set = (side: 0 | 1, games: number) => {
@@ -83,16 +99,22 @@ export function ScoreStepper({ rules, sides, initial, onSend, isPending, onCance
       </p>
 
       {invalid ? <p className="text-sm text-loss">{invalid}</p> : null}
+      {error ? (
+        <p role="alert" className="text-sm text-loss">
+          {error}
+        </p>
+      ) : null}
 
       {confirmIncomplete ? (
         <div className="flex flex-col gap-3 rounded-lg border border-draw/40 bg-draw/[0.06] p-4">
-          <p className="flex items-center gap-2 text-sm font-semibold text-draw">
+          <p role="alert" className="flex items-center gap-2 text-sm font-semibold text-draw">
             <TriangleAlert className="size-4" aria-hidden /> Not all games reported. Send anyway?
           </p>
           <div className="flex gap-2">
-            <Button type="submit" size="lg" className="flex-1" disabled={isPending}>
+            {/* Focus lands on the answer to the question, so keyboard and screen reader users aren't stranded. */}
+            <SubmitButton ref={focusOnMount} size="lg" className="flex-1" disabled={isPending}>
               {isPending ? 'Sending…' : 'Send anyway'}
-            </Button>
+            </SubmitButton>
             <Button type="button" size="lg" variant="ghost" onClick={() => setConfirmIncomplete(false)}>
               Keep editing
             </Button>
@@ -149,6 +171,7 @@ function Stepper({
           className="size-12"
           aria-label={`Remove a game: ${label}`}
           disabled={value <= 0}
+          focusableWhenDisabled
           onClick={() => step(-1)}
         >
           <Minus className="size-5" />
@@ -172,6 +195,7 @@ function Stepper({
           className="size-12"
           aria-label={`Add a game: ${label}`}
           disabled={value >= max}
+          focusableWhenDisabled
           onClick={() => step(1)}
         >
           <Plus className="size-5" />
