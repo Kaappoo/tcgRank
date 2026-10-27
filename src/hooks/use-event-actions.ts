@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
 import { toast } from '#/components/ui/toast.tsx'
+import type { BestOf } from '#/domain/best-of.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import {
   addGuest,
@@ -11,6 +12,7 @@ import {
   leaveEvent,
   removeGuest,
   reportResult,
+  setBestOf,
   setDeckRequired,
   startNextRound,
 } from '#/server/functions/events.ts'
@@ -36,6 +38,7 @@ export function useEventActions(eventId: string) {
   const join = useServerFn(joinEvent)
   const leave = useServerFn(leaveEvent)
   const deckRule = useServerFn(setDeckRequired)
+  const bestOfRule = useServerFn(setBestOf)
   const addGuestFn = useServerFn(addGuest)
   const removeGuestFn = useServerFn(removeGuest)
 
@@ -81,6 +84,11 @@ export function useEventActions(eventId: string) {
     }),
     deckRequired: useMutation({
       mutationFn: (deckRequired: boolean) => deckRule({ data: { eventId, deckRequired } }),
+      onSuccess: refresh,
+      onError,
+    }),
+    bestOf: useMutation({
+      mutationFn: (bestOf: BestOf) => bestOfRule({ data: { eventId, bestOf } }),
       onSuccess: refresh,
       onError,
     }),

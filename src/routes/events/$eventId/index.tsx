@@ -126,6 +126,7 @@ function EventHub() {
             onFinish={() => actions.finish.mutate()}
             onClock={(action, deltaMinutes) => actions.clock.mutate({ action, deltaMinutes })}
             onDeckRequired={(required) => actions.deckRequired.mutate(required)}
+            onBestOf={(bestOf) => actions.bestOf.mutate(bestOf)}
           />
         ) : null}
 

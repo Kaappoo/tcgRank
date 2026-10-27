@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import {
   addGuestInput,
+  bestOfInput,
   claimCodeInput,
   clockInput,
   createEventInput,
@@ -41,6 +42,10 @@ export const setDeckRequired = createServerFn({ method: 'POST' })
   .handler(({ data }) =>
     runServerEffect(EventsService.use((s) => s.setDeckRequired(data.eventId, data.deckRequired))),
   )
+
+export const setBestOf = createServerFn({ method: 'POST' })
+  .validator(bestOfInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.setBestOf(data.eventId, data.bestOf))))
 
 export const leaveEvent = createServerFn({ method: 'POST' })
   .validator(eventIdInput)
