@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
 import { toast } from '#/components/ui/toast.tsx'
+import type { BestOf } from '#/domain/best-of.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import {
   addGuest,
@@ -11,11 +12,12 @@ import {
   leaveEvent,
   removeGuest,
   reportResult,
+  setBestOf,
   setDeckRequired,
   startNextRound,
 } from '#/server/functions/events.ts'
 
-const message = (error: unknown) => (error instanceof Error ? error.message : 'Something went wrong')
+export const errorMessage = (error: unknown) => (error instanceof Error ? error.message : 'Something went wrong')
 
 /** Every mutation a player or host can make on an event, wired to refresh the live view. */
 export function useEventActions(eventId: string) {
@@ -26,7 +28,7 @@ export function useEventActions(eventId: string) {
       queryClient.invalidateQueries({ queryKey: ['events'] }),
       queryClient.invalidateQueries({ queryKey: ['guests'] }),
     ])
-  const onError = (error: unknown) => toast.error("That didn't go through", message(error))
+  const onError = (error: unknown) => toast.error("That didn't go through", errorMessage(error))
 
   const report = useServerFn(reportResult)
   const confirm = useServerFn(confirmResult)
@@ -36,6 +38,7 @@ export function useEventActions(eventId: string) {
   const join = useServerFn(joinEvent)
   const leave = useServerFn(leaveEvent)
   const deckRule = useServerFn(setDeckRequired)
+  const bestOfRule = useServerFn(setBestOf)
   const addGuestFn = useServerFn(addGuest)
   const removeGuestFn = useServerFn(removeGuest)
 
@@ -50,6 +53,11 @@ export function useEventActions(eventId: string) {
           ),
         ),
       onError,
+    }),
+    /** The host's correction from the round tables: its refusal is shown in the correction dialog, not a toast. */
+    correct: useMutation({
+      mutationFn: (input: { matchId: string; player1Games: number; player2Games: number }) => report({ data: input }),
+      onSuccess: () => refresh().then(() => toast.success('Result locked in')),
     }),
     confirm: useMutation({
       mutationFn: (matchId: string) => confirm({ data: { matchId } }),
@@ -81,6 +89,11 @@ export function useEventActions(eventId: string) {
     }),
     deckRequired: useMutation({
       mutationFn: (deckRequired: boolean) => deckRule({ data: { eventId, deckRequired } }),
+      onSuccess: refresh,
+      onError,
+    }),
+    bestOf: useMutation({
+      mutationFn: (bestOf: BestOf) => bestOfRule({ data: { eventId, bestOf } }),
       onSuccess: refresh,
       onError,
     }),

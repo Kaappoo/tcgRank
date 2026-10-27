@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
+import { DEFAULT_BEST_OF } from '#/domain/best-of.ts'
 import { EventsService } from '../events/service.ts'
 import { asUser, insertUser, withDb } from '../testing.ts'
 import { ProfilesService, resultFor } from './service.ts'
@@ -35,6 +36,7 @@ describe('ProfilesService', () => {
           roundMinutes: 50,
           startsAt: new Date(),
           deckRequired: false,
+          bestOf: DEFAULT_BEST_OF,
         })
         .pipe(asUser(host))
       yield* events.join(id).pipe(asUser(ash))

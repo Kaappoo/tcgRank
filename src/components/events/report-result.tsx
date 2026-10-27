@@ -2,28 +2,23 @@ import { Check, Clock3, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { Badge } from '#/components/ui/badge.tsx'
 import { Button } from '#/components/ui/button.tsx'
+import { scoreRules, type BestOf } from '#/domain/best-of.ts'
+import { bestOfLabel } from '#/lib/format.ts'
 import type { MatchView } from '#/server/events/views.ts'
-import { cn } from '#/lib/utils.ts'
-import { describeResult, RESULT_OPTIONS, toGames, type ResultOption } from './result-options.ts'
-import { SubmitButton } from '#/components/ui/submit-button.tsx'
+import { describeResult, myGames, opponentReport, toGames } from './result-options.ts'
+import { ScoreStepper } from './score-stepper.tsx'
 
 export interface ReportResultProps {
   readonly match: MatchView
   readonly viewerId: string
+  readonly bestOf: BestOf
   readonly isPending?: boolean
   readonly onReport: (games: { player1Games: number; player2Games: number }) => void
   readonly onConfirm: () => void
 }
 
-const toneClass: Record<ResultOption['tone'], string> = {
-  win: 'data-[selected=true]:border-win data-[selected=true]:bg-win/12 data-[selected=true]:text-win',
-  draw: 'data-[selected=true]:border-draw data-[selected=true]:bg-draw/12 data-[selected=true]:text-draw',
-  loss: 'data-[selected=true]:border-loss data-[selected=true]:bg-loss/12 data-[selected=true]:text-loss',
-}
-
-/** Result reporting at the table: pick the score, submit, and the opponent confirms. */
-export function ReportResult({ match, viewerId, isPending, onReport, onConfirm }: ReportResultProps) {
-  const [choice, setChoice] = useState<ResultOption | null>(null)
+/** Result reporting at the table: step in the games, send, and the opponent confirms. */
+export function ReportResult({ match, viewerId, bestOf, isPending, onReport, onConfirm }: ReportResultProps) {
   const [editing, setEditing] = useState(false)
   const current = describeResult(match, viewerId)
   const reportedByMe = match.reportedById === viewerId
@@ -74,47 +69,23 @@ export function ReportResult({ match, viewerId, isPending, onReport, onConfirm }
   }
 
   return (
-    <form
-      className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-5"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (!choice) return
-        onReport(toGames(match, viewerId, choice))
-        setEditing(false)
-      }}
-    >
+    <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-5">
       <div className="flex items-baseline justify-between gap-4">
         <h3 className="font-display text-xl">Report your match</h3>
-        <span className="text-xs text-paper-dim">Best of three</span>
+        <span className="text-xs text-paper-dim">{bestOfLabel(bestOf)}</span>
       </div>
-      <div role="radiogroup" aria-label="Match result" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {RESULT_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            role="radio"
-            aria-checked={choice?.id === option.id}
-            data-selected={choice?.id === option.id}
-            onClick={() => setChoice(option)}
-            className={cn(
-              'min-h-12 cursor-pointer rounded-lg border border-line-strong px-3 py-2 text-left text-sm font-semibold transition-[background-color,border-color,color,scale] duration-150 active:scale-[0.97] hover:border-paper-dim',
-              toneClass[option.tone],
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <SubmitButton size="lg" className="flex-1" disabled={!choice || isPending}>
-          {isPending ? 'Sending…' : 'Submit result'}
-        </SubmitButton>
-        {editing ? (
-          <Button type="button" size="lg" variant="ghost" onClick={() => setEditing(false)}>
-            Cancel
-          </Button>
-        ) : null}
-      </div>
-    </form>
+      <ScoreStepper
+        rules={scoreRules(bestOf)}
+        sides={{ kind: 'mine' }}
+        initial={myGames(match, viewerId)}
+        agreesWith={opponentReport(match, viewerId)}
+        isPending={isPending}
+        onCancel={editing ? () => setEditing(false) : undefined}
+        onSend={(score) => {
+          onReport(toGames(match, viewerId, score))
+          setEditing(false)
+        }}
+      />
+    </div>
   )
 }

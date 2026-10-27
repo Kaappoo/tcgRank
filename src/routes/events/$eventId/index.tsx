@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { CalendarDays, MonitorPlay, Share2, Store, Trophy, Users } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ComponentProps } from 'react'
 import { z } from 'zod'
 import { AddGuestForm, GuestRowActions } from '#/components/events/guests.tsx'
 import { EntryPanel } from '#/components/events/entry-panel.tsx'
@@ -19,9 +19,9 @@ import { Badge, LiveDot } from '#/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#/components/ui/button.tsx'
 import { Tabs, TabsList, TabsPanel, TabsTab } from '#/components/ui/tabs.tsx'
 import { toast } from '#/components/ui/toast.tsx'
-import { useEventActions } from '#/hooks/use-event-actions.ts'
+import { errorMessage, useEventActions } from '#/hooks/use-event-actions.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
-import { formatLabel, statusLabel } from '#/lib/format.ts'
+import { bestOfLabel, formatLabel, statusLabel } from '#/lib/format.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
 import { cn } from '#/lib/utils.ts'
@@ -74,6 +74,7 @@ function EventHub() {
             {statusLabel(event.status, event.currentRound)}
           </Badge>
           <Badge variant="outline">{formatLabel(event.format)}</Badge>
+          <Badge variant="outline">{bestOfLabel(event.bestOf)}</Badge>
           {isHost ? <Badge>You&apos;re hosting</Badge> : null}
         </div>
         <h1 className="font-display text-4xl sm:text-6xl">{event.name}</h1>
@@ -125,12 +126,18 @@ function EventHub() {
             onFinish={() => actions.finish.mutate()}
             onClock={(action, deltaMinutes) => actions.clock.mutate({ action, deltaMinutes })}
             onDeckRequired={(required) => actions.deckRequired.mutate(required)}
+            onBestOf={(bestOf) => actions.bestOf.mutate(bestOf)}
           />
         ) : null}
 
         {viewer?.currentMatch && event.status === 'running' && currentRound ? (
           <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
-            <PairingCard match={viewer.currentMatch} viewerId={viewer.userId} records={records} />
+            <PairingCard
+              match={viewer.currentMatch}
+              viewerId={viewer.userId}
+              bestOf={event.bestOf}
+              records={records}
+            />
             <div className="flex flex-col gap-6">
               {!isHost ? (
                 <div className="rounded-2xl border border-line bg-surface p-5">
@@ -148,6 +155,7 @@ function EventHub() {
                 <ReportResult
                   match={viewer.currentMatch}
                   viewerId={viewer.userId}
+                  bestOf={event.bestOf}
                   isPending={actions.report.isPending || actions.confirm.isPending}
                   onReport={(games) => actions.report.mutate({ matchId: viewer.currentMatch!.id, ...games })}
                   onConfirm={() => actions.confirm.mutate(viewer.currentMatch!.id)}
@@ -175,7 +183,13 @@ function EventHub() {
           detail={detail}
           origin={origin}
           busy={busy}
-          onHostResult={(matchId, a, b) => actions.report.mutate({ matchId, player1Games: a, player2Games: b })}
+          onHostResult={(matchId, a, b, saved) =>
+            actions.correct.mutate({ matchId, player1Games: a, player2Games: b }, { onSuccess: saved })
+          }
+          correction={{
+            isPending: actions.correct.isPending,
+            error: actions.correct.error ? errorMessage(actions.correct.error) : null,
+          }}
           onAddGuest={(guest, done) => actions.addGuest.mutate(guest, { onSuccess: done })}
           onRemoveGuest={(guestId) => actions.removeGuest.mutate(guestId)}
         />
@@ -227,13 +241,15 @@ function EventTabs({
   origin,
   busy,
   onHostResult,
+  correction,
   onAddGuest,
   onRemoveGuest,
 }: {
   detail: EventDetail
   origin: string
   busy: boolean
-  onHostResult: (matchId: string, player1Games: number, player2Games: number) => void
+  onHostResult: ComponentProps<typeof RoundTables>['onSetResult']
+  correction: ComponentProps<typeof RoundTables>['correction']
   onAddGuest: (guest: { name: string } | { guestId: string }, done: () => void) => void
   onRemoveGuest: (guestId: string) => void
 }) {
@@ -275,9 +291,11 @@ function EventTabs({
         ) : null}
         <RoundTables
           matches={roundMatches}
+          bestOf={event.bestOf}
           viewerId={viewer?.userId}
           canEdit={viewer?.isHost}
           onSetResult={onHostResult}
+          correction={correction}
         />
       </TabsPanel>
 

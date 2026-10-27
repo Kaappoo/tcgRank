@@ -1,6 +1,9 @@
 import { assert, describe, expect, it } from '@effect/vitest'
+import { sql } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'
+import { DEFAULT_BEST_OF, type BestOf } from '#/domain/best-of.ts'
 import { newId } from '#/domain/ids.ts'
+import { createEventInput, type CreateEventInput } from '#/shared/schemas.ts'
 import { Db } from '../db/client.ts'
 import { decks, type EventFormat } from '../db/schema.ts'
 import { asUser, insertUser, withDb } from '../testing.ts'
@@ -8,14 +11,15 @@ import { EventsService } from './service.ts'
 
 const TestLayer = withDb(EventsService.layer)
 
-const newEvent = {
+const newEvent: CreateEventInput = {
   name: 'Tuesday League Challenge',
   storeName: 'Pallet Town Games',
-  format: 'standard' as const,
+  format: 'standard',
   plannedRounds: 0,
   roundMinutes: 50,
   startsAt: new Date('2026-10-06T19:00:00Z'),
   deckRequired: false,
+  bestOf: DEFAULT_BEST_OF,
 }
 
 /** Creates a host plus `n` joined players. */
@@ -488,6 +492,145 @@ describe('Guests', () => {
         expect([moved.player1.id, moved.player2?.id]).toContain(gary.id)
         expect(yield* events.guests().pipe(asUser(host))).toEqual([])
         expect((yield* Effect.flip(events.claimPreview(claimCode)))._tag).toBe('NotFound')
+      }),
+    ),
+  )
+})
+
+describe('Best of', () => {
+  const hostEvent = Effect.fn('hostEvent')(function* (input: CreateEventInput) {
+    const events = yield* EventsService
+    const host = yield* insertUser('Professor Oak')
+    const { id: eventId } = yield* events.create(input).pipe(asUser(host))
+    const players = [yield* insertUser('Red'), yield* insertUser('Blue')]
+    for (const p of players) yield* events.join(eventId).pipe(asUser(p))
+    return { events, host, eventId, players }
+  })
+
+  const startRound = Effect.fn('startRound')(function* (bestOf: BestOf) {
+    const ctx = yield* hostEvent({ ...newEvent, bestOf })
+    yield* ctx.events.startNextRound(ctx.eventId).pipe(asUser(ctx.host))
+    const { matches } = yield* ctx.events.detail(ctx.eventId)
+    const match = matches[0]!
+    const p1 = ctx.players.find((p) => p.id === match.player1.id)!
+    const p2 = ctx.players.find((p) => p.id === match.player2!.id)!
+    return { ...ctx, match, p1, p2 }
+  })
+
+  it.effect('is a best of 3 unless the host picks otherwise', () =>
+    run(
+      Effect.gen(function* () {
+        // The create form leaves best of untouched: the input schema fills it in.
+        const input = createEventInput.parse({ ...newEvent, bestOf: undefined })
+        const { events, eventId, players } = yield* hostEvent(input)
+        const { event } = yield* events.detail(eventId)
+        expect(event.bestOf).toBe(3)
+        const mine = yield* events.list({ scope: 'mine' }).pipe(asUser(players[0]!))
+        expect(mine.find((e) => e.id === eventId)?.bestOf).toBe(3)
+      }),
+    ),
+  )
+
+  it.effect.each([1, 5] as const)('stores a best of %i', (bestOf) =>
+    run(
+      Effect.gen(function* () {
+        const { events, eventId } = yield* hostEvent({ ...newEvent, bestOf })
+        const { event } = yield* events.detail(eventId)
+        expect(event.bestOf).toBe(bestOf)
+      }),
+    ),
+  )
+
+  it.effect('only the host can change it, and only before round 1', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* hostEvent(newEvent)
+        const forbidden = yield* Effect.flip(events.setBestOf(eventId, 1).pipe(asUser(players[0]!)))
+        expect(forbidden._tag).toBe('Forbidden')
+        yield* events.setBestOf(eventId, 5).pipe(asUser(host))
+        expect((yield* events.detail(eventId)).event.bestOf).toBe(5)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const locked = yield* Effect.flip(events.setBestOf(eventId, 1).pipe(asUser(host)))
+        expect(locked).toMatchObject({ _tag: 'InvalidState', reason: 'Best of can only change before round 1' })
+        expect((yield* events.detail(eventId)).event.bestOf).toBe(5)
+      }),
+    ),
+  )
+
+  it.effect('refuses a score the best of does not allow, from a player and from the host', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, match, p1 } = yield* startRound(3)
+        const fromPlayer = yield* Effect.flip(events.reportResult(match.id, 2, 2).pipe(asUser(p1)))
+        expect(fromPlayer).toMatchObject({ _tag: 'InvalidState', reason: 'A best of 3 ends at 2 games' })
+        const fromHost = yield* Effect.flip(events.reportResult(match.id, 3, 0).pipe(asUser(host)))
+        expect(fromHost).toMatchObject({ _tag: 'InvalidState', reason: 'A best of 3 ends at 2 games' })
+      }),
+    ),
+  )
+
+  it.effect('a best of 1 refuses 2–0 and accepts 1–0', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, match, p1 } = yield* startRound(1)
+        const refused = yield* Effect.flip(events.reportResult(match.id, 2, 0).pipe(asUser(p1)))
+        expect(refused._tag).toBe('InvalidState')
+        const reported = yield* events.reportResult(match.id, 1, 0).pipe(asUser(p1))
+        expect(reported).toMatchObject({ status: 'reported', outcome: 'p1' })
+      }),
+    ),
+  )
+
+  it.effect('a best of 5 accepts 3–2', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, match } = yield* startRound(5)
+        const reported = yield* events.reportResult(match.id, 2, 3).pipe(asUser(host))
+        expect(reported).toMatchObject({ status: 'confirmed', outcome: 'p2', player1Games: 2, player2Games: 3 })
+      }),
+    ),
+  )
+
+  it.effect("the host's correction overrides a player's report and is final", () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, match, p1 } = yield* startRound(3)
+        yield* events.reportResult(match.id, 2, 0).pipe(asUser(p1))
+        const corrected = yield* events.reportResult(match.id, 0, 2).pipe(asUser(host))
+        expect(corrected).toMatchObject({ status: 'confirmed', outcome: 'p2', player1Games: 0, player2Games: 2 })
+        const stored = (yield* events.detail(eventId)).matches.find((m) => m.id === match.id)
+        expect(stored).toMatchObject({ status: 'confirmed', outcome: 'p2', player1Games: 0, player2Games: 2 })
+      }),
+    ),
+  )
+
+  it.effect('an event stored before best of existed reads as a best of 3', () =>
+    run(
+      Effect.gen(function* () {
+        const db = yield* Db
+        const events = yield* EventsService
+        const host = yield* insertUser('Professor Oak')
+        const eventId = newId()
+        // The shape of a pre-migration row: no best_of given, so the column default applies.
+        yield* db.query((d) =>
+          d.run(
+            sql`insert into events (id, host_id, name, store_name, join_code, starts_at)
+                values (${eventId}, ${host.id}, 'Old League', 'Pallet Town Games', 'OLD123', 0)`,
+          ),
+        )
+        expect((yield* events.detail(eventId)).event.bestOf).toBe(3)
+      }),
+    ),
+  )
+
+  it.effect('an incomplete report is stored with more games winning, and the same score confirms it', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, match, p1, p2 } = yield* startRound(3)
+        const reported = yield* events.reportResult(match.id, 1, 0).pipe(asUser(p1))
+        expect(reported).toMatchObject({ status: 'reported', outcome: 'p1', player1Games: 1, player2Games: 0 })
+        const confirmed = yield* events.reportResult(match.id, 1, 0).pipe(asUser(p2))
+        expect(confirmed.status).toBe('confirmed')
       }),
     ),
   )

@@ -6,7 +6,7 @@ import { ReportResult } from './report-result.tsx'
 const meta = {
   title: 'Events/ReportResult',
   component: ReportResult,
-  args: { match: playingMatch, viewerId: 'ash', onReport: fn(), onConfirm: fn() },
+  args: { match: playingMatch, viewerId: 'ash', bestOf: 3, onReport: fn(), onConfirm: fn() },
   decorators: [
     (Story) => (
       <div className="max-w-xl">
@@ -19,6 +19,8 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Reporting: Story = {}
+export const ReportingBestOf1: Story = { args: { bestOf: 1 } }
+export const ReportingBestOf5: Story = { args: { bestOf: 5 } }
 export const NeedsYourConfirmation: Story = {
   args: {
     match: {

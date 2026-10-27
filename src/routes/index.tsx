@@ -5,6 +5,7 @@ import { EventRow } from '#/components/events/event-row.tsx'
 import { MatchClock } from '#/components/events/match-clock.tsx'
 import { PairingCard } from '#/components/events/pairing-card.tsx'
 import { buttonVariants } from '#/components/ui/button.tsx'
+import { DEFAULT_BEST_OF } from '#/domain/best-of.ts'
 import { eventsQuery } from '#/lib/queries.ts'
 import { cn } from '#/lib/utils.ts'
 import type { MatchView } from '#/server/events/views.ts'
@@ -71,7 +72,7 @@ function Home() {
           </div>
 
           <div className="relative flex flex-col gap-4 lg:pl-6" aria-label="Preview of a player's pairing screen">
-            <PairingCard match={demoMatch} viewerId="you" records={demoRecords} />
+            <PairingCard match={demoMatch} viewerId="you" bestOf={DEFAULT_BEST_OF} records={demoRecords} />
             <div className="rounded-2xl border border-line bg-surface/90 p-5 backdrop-blur">
               <MatchClock endsAt={null} pausedRemainingMs={DEMO_PAUSED_MS} roundMinutes={50} size="md" />
             </div>

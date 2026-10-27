@@ -1,5 +1,6 @@
 import './env.ts'
 import { Effect } from 'effect'
+import { DEFAULT_BEST_OF } from '../src/domain/best-of.ts'
 import { auth } from '../src/server/auth.ts'
 import { CurrentUser, type SessionUser } from '../src/server/current-user.ts'
 import { DecksService } from '../src/server/decks/service.ts'
@@ -70,6 +71,7 @@ const program = Effect.gen(function* () {
         roundMinutes: 50,
         startsAt: new Date(),
         deckRequired: false,
+        bestOf: DEFAULT_BEST_OF,
       }),
     )
     for (const p of players) yield* as(p, events.join(id))

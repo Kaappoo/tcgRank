@@ -13,8 +13,8 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Round** | One round of pairings under the event's pairing system. Exactly one round is `active` at a time. Owns the match clock. | `rounds` |
 | **Match** | Two players at a numbered table in a round, played over the event's **Best of**. A match with no player 2 is a **bye**. | `matches` |
 | **Game** | One play of the card game within a match. A match's score counts games won by each player ("2–1"). _Avoid_: "match" for a single game. | `player1Games`, `player2Games` |
-| **Best of** | An event setting chosen by the host: the most games a match can have (1, 3 or 5). A player who wins a majority of them (1, 2 or 3) wins the match. | |
-| **Incomplete report** | A report in which neither player reached a majority of the best-of, e.g. 1–0 or 1–1 in a best of three. Allowed after a warning; the player with more games wins, equal games is a tie. | |
+| **Best of** | An event setting chosen by the host: the most games a match can have (1, 3 or 5). A player who wins a majority of them (1, 2 or 3) wins the match. | `events.bestOf`, `domain/best-of.ts` |
+| **Incomplete report** | A report in which neither player reached a majority of the best-of, e.g. 1–0 or 1–1 in a best of three. Allowed after a warning; the player with more games wins, equal games is a tie. | `isCompleteScore` |
 | **Elimination round** | A round of a top cut or a single-elimination event: a match's loser is out, so a match can't end in a tie. | |
 | **Pairing system** | How an event builds its rounds: **Swiss**, **round robin** (everyone plays everyone once) or **single elimination** (losers are out). Chosen by the host. | |
 | **Event setup** | The settings that shape how an event is played: its **pairing system**, **top cut**, **best of** and **deck required**. The host can change them during registration; they are fixed once round 1 is paired. | |

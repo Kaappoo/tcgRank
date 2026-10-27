@@ -1,9 +1,10 @@
 import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm'
 import { Clock, Context, Effect, Layer } from 'effect'
+import { invalidScoreReason, matchOutcome, scoreRules, type BestOf } from '#/domain/best-of.ts'
 import { newId, newJoinCode, normalizeJoinCode } from '#/domain/ids.ts'
 import { deckIneligibility } from '#/domain/registration.ts'
 import { adjustClock, pauseClock, resumeClock, startClock } from '#/domain/match-clock.ts'
-import { computeStandings, type Outcome } from '#/domain/standings.ts'
+import { computeStandings } from '#/domain/standings.ts'
 import { pairRound, recommendedRounds } from '#/domain/swiss.ts'
 import type { CreateEventInput } from '#/shared/schemas.ts'
 import { optionalUser, requireUser } from '../current-user.ts'
@@ -37,9 +38,6 @@ const playerRefColumns = {
   username: user.username,
   image: user.image,
 }
-
-const outcomeFromGames = (player1Games: number, player2Games: number): Outcome =>
-  player1Games > player2Games ? 'p1' : player2Games > player1Games ? 'p2' : 'draw'
 
 interface ListEventsOptions {
   readonly scope: 'upcoming' | 'live' | 'finished' | 'mine'
@@ -111,6 +109,7 @@ const make = Effect.gen(function* () {
       currentRound: r.currentRound,
       plannedRounds: r.plannedRounds,
       deckRequired: r.deckRequired,
+      bestOf: r.bestOf,
       playerCount: countByEvent.get(r.id) ?? 0,
       host: hosts.get(r.hostId) ?? unknownPlayer(r.hostId),
     }))
@@ -264,6 +263,7 @@ const make = Effect.gen(function* () {
         roundMinutes: input.roundMinutes,
         startsAt: input.startsAt,
         deckRequired: input.deckRequired,
+        bestOf: input.bestOf,
         joinCode,
       }),
     )
@@ -329,6 +329,15 @@ const make = Effect.gen(function* () {
       return yield* new InvalidState({ reason: 'Deck registration can only change before round 1' })
     }
     yield* db.query((d) => d.update(events).set({ deckRequired }).where(eq(events.id, eventId)))
+  })
+
+  /** Host-only: how many games a match runs to. Fixed once round 1 starts, so reported scores keep their meaning. */
+  const setBestOf = Effect.fn('EventsService.setBestOf')(function* (eventId: string, bestOf: BestOf) {
+    const event = yield* loadHostedEvent(eventId)
+    if (event.status !== 'registration') {
+      return yield* new InvalidState({ reason: 'Best of can only change before round 1' })
+    }
+    yield* db.query((d) => d.update(events).set({ bestOf }).where(eq(events.id, eventId)))
   })
 
   /* ------------------------------ guests ----------------------------- */
@@ -669,9 +678,12 @@ const make = Effect.gen(function* () {
     player1Games: number,
     player2Games: number,
   ) {
-    const { me, match, isHost } = yield* loadMatchForActor(matchId)
+    const { me, match, event, isHost } = yield* loadMatchForActor(matchId)
+    const score = [player1Games, player2Games] as const
+    const invalid = invalidScoreReason(scoreRules(event.bestOf), score)
+    if (invalid) return yield* new InvalidState({ reason: invalid })
     const againstGuest = yield* reportsAgainstGuest(match, me.id)
-    const outcome = outcomeFromGames(player1Games, player2Games)
+    const outcome = matchOutcome(score)
     const now = new Date(yield* Clock.currentTimeMillis)
 
     // The opponent submitting the very same score counts as confirmation.
@@ -757,6 +769,7 @@ const make = Effect.gen(function* () {
     claimPreview,
     claimGuest,
     setDeckRequired,
+    setBestOf,
     leave,
     startNextRound,
     finishEvent,

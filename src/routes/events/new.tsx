@@ -8,6 +8,7 @@ import { Input } from '#/components/ui/input.tsx'
 import { Switch } from '#/components/ui/switch.tsx'
 import { Textarea } from '#/components/ui/textarea.tsx'
 import { toast } from '#/components/ui/toast.tsx'
+import { DEFAULT_BEST_OF, type BestOf } from '#/domain/best-of.ts'
 import { recommendedRounds } from '#/domain/swiss.ts'
 import { requireAuth } from '#/lib/guards.ts'
 import type { EventFormat } from '#/server/db/schema.ts'
@@ -16,6 +17,7 @@ import { createEventInput } from '#/shared/schemas.ts'
 import { SubmitButton } from '#/components/ui/submit-button.tsx'
 import { fieldErrors } from '#/lib/form-errors.ts'
 import { FormatField } from '#/components/forms/format-select.tsx'
+import { BestOfField } from '#/components/forms/best-of-field.tsx'
 
 export const Route = createFileRoute('/events/new')({
   beforeLoad: requireAuth,
@@ -41,6 +43,7 @@ function NewEvent() {
   const [format, setFormat] = useState<EventFormat>('standard')
   const [roundMinutes, setRoundMinutes] = useState(50)
   const [deckRequired, setDeckRequired] = useState(false)
+  const [bestOf, setBestOf] = useState<BestOf>(DEFAULT_BEST_OF)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const mutation = useMutation({
@@ -70,6 +73,7 @@ function NewEvent() {
             format,
             roundMinutes,
             deckRequired,
+            bestOf,
             startsAt: new Date(String(form.get('startsAt'))),
           })
           if (!parsed.success) {
@@ -109,6 +113,7 @@ function NewEvent() {
             <FieldError>{errors.plannedRounds}</FieldError>
           </Field>
         </div>
+        <BestOfField value={bestOf} onChange={setBestOf} />
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-3 text-sm font-semibold">Round timer</legend>
           <div className="flex flex-wrap items-center gap-2">
@@ -134,7 +139,8 @@ function NewEvent() {
             />
           </div>
           <p className="text-xs text-paper-dim">
-            Best-of-three Standard rounds are usually 50 minutes. Everyone sees the same clock on their phone.
+            Standard rounds usually get 25 minutes for a best of 1 and 50 for a best of 3. Everyone sees the same
+            clock on their phone.
           </p>
           <FieldError>{errors.roundMinutes}</FieldError>
         </fieldset>
