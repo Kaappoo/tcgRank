@@ -1,10 +1,12 @@
 import { Check, Clock3, PencilLine } from 'lucide-react'
 import { Badge } from '#/components/ui/badge.tsx'
 import { Button } from '#/components/ui/button.tsx'
-import { Dialog, DialogClose, DialogContent } from '#/components/ui/dialog.tsx'
+import { Dialog, DialogContent } from '#/components/ui/dialog.tsx'
+import { scoreRules, type BestOf } from '#/domain/best-of.ts'
 import type { MatchView } from '#/server/events/views.ts'
 import { cn } from '#/lib/utils.ts'
 import { useState } from 'react'
+import { ScoreStepper } from './score-stepper.tsx'
 
 const statusBadge = (m: MatchView) =>
   m.status === 'confirmed' ? (
@@ -24,11 +26,14 @@ const score = (m: MatchView) => (m.outcome && m.outcome !== 'bye' ? `${m.player1
 /** Every table in a round. Hosts get a correction control on each row. */
 export function RoundTables({
   matches,
+  bestOf,
   viewerId,
   canEdit,
   onSetResult,
 }: {
   matches: ReadonlyArray<MatchView>
+  /** The event's best of: bounds the host's correction steppers. */
+  bestOf: BestOf
   viewerId?: string | null
   canEdit?: boolean
   onSetResult?: (matchId: string, player1Games: number, player2Games: number) => void
@@ -87,36 +92,16 @@ export function RoundTables({
             title={`Table ${editing.table}`}
             description="Host results are final immediately and override what players reported."
           >
-            <div className="grid gap-2">
-              {[
-                [2, 0],
-                [2, 1],
-                [1, 0],
-                [1, 1],
-                [0, 0],
-                [0, 1],
-                [1, 2],
-                [0, 2],
-              ].map(([a, b]) => (
-                <DialogClose
-                  key={`${a}-${b}`}
-                  render={
-                    <Button
-                      variant="secondary"
-                      className="justify-between"
-                      onClick={() => onSetResult?.(editing.id, a!, b!)}
-                    />
-                  }
-                >
-                  <span className="truncate">
-                    {a! > b! ? editing.player1.name : a! < b! ? editing.player2?.name : 'Tie'}
-                  </span>
-                  <span className="tabular text-paper-dim">
-                    {a}–{b}
-                  </span>
-                </DialogClose>
-              ))}
-            </div>
+            <ScoreStepper
+              rules={scoreRules(bestOf)}
+              sides={{ kind: 'players', player1: editing.player1.name, player2: editing.player2?.name ?? 'Bye' }}
+              initial={[editing.player1Games, editing.player2Games]}
+              onSend={([p1, p2]) => {
+                onSetResult?.(editing.id, p1, p2)
+                setEditing(null)
+              }}
+              onCancel={() => setEditing(null)}
+            />
           </DialogContent>
         ) : null}
       </Dialog>

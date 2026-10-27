@@ -283,6 +283,7 @@ function EventTabs({
         ) : null}
         <RoundTables
           matches={roundMatches}
+          bestOf={event.bestOf}
           viewerId={viewer?.userId}
           canEdit={viewer?.isHost}
           onSetResult={onHostResult}
