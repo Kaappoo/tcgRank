@@ -1,4 +1,5 @@
 import { assert, describe, expect, it } from '@effect/vitest'
+import { sql } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'
 import { newId } from '#/domain/ids.ts'
 import { Db } from '../db/client.ts'
@@ -583,6 +584,38 @@ describe('Best of', () => {
         const { events, host, match } = yield* startRound(5)
         const reported = yield* events.reportResult(match.id, 2, 3).pipe(asUser(host))
         expect(reported).toMatchObject({ status: 'confirmed', outcome: 'p2', player1Games: 2, player2Games: 3 })
+      }),
+    ),
+  )
+
+  it.effect("the host's correction overrides a player's report and is final", () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, match, p1 } = yield* startRound(3)
+        yield* events.reportResult(match.id, 2, 0).pipe(asUser(p1))
+        const corrected = yield* events.reportResult(match.id, 0, 2).pipe(asUser(host))
+        expect(corrected).toMatchObject({ status: 'confirmed', outcome: 'p2', player1Games: 0, player2Games: 2 })
+        const stored = (yield* events.detail(eventId)).matches.find((m) => m.id === match.id)
+        expect(stored).toMatchObject({ status: 'confirmed', outcome: 'p2', player1Games: 0, player2Games: 2 })
+      }),
+    ),
+  )
+
+  it.effect('an event stored before best of existed reads as a best of 3', () =>
+    run(
+      Effect.gen(function* () {
+        const db = yield* Db
+        const events = yield* EventsService
+        const host = yield* insertUser('Professor Oak')
+        const eventId = newId()
+        // The shape of a pre-migration row: no best_of given, so the column default applies.
+        yield* db.query((d) =>
+          d.run(
+            sql`insert into events (id, host_id, name, store_name, join_code, starts_at)
+                values (${eventId}, ${host.id}, 'Old League', 'Pallet Town Games', 'OLD123', 0)`,
+          ),
+        )
+        expect((yield* events.detail(eventId)).event.bestOf).toBe(3)
       }),
     ),
   )
