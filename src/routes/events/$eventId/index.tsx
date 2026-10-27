@@ -154,6 +154,7 @@ function EventHub() {
                 <ReportResult
                   match={viewer.currentMatch}
                   viewerId={viewer.userId}
+                  bestOf={event.bestOf}
                   isPending={actions.report.isPending || actions.confirm.isPending}
                   onReport={(games) => actions.report.mutate({ matchId: viewer.currentMatch!.id, ...games })}
                   onConfirm={() => actions.confirm.mutate(viewer.currentMatch!.id)}

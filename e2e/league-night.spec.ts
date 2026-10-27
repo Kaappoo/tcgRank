@@ -32,8 +32,11 @@ test.describe('league night', () => {
     await expect(pairing).toContainText('Misty Waterflower')
     await expect(pairing).toContainText('TABLE')
     await expect(ash.page.getByRole('timer')).toHaveText(/^(30:00|29:\d\d)$/)
-    await ash.page.getByRole('radio', { name: 'Won 2–1' }).click()
-    await ash.page.getByRole('button', { name: 'Submit result' }).click()
+    await ash.page.getByRole('button', { name: 'Add a game: My games' }).click()
+    await ash.page.getByRole('button', { name: 'Add a game: My games' }).click()
+    await ash.page.getByRole('button', { name: 'Add a game: Their games' }).click()
+    await expect(ash.page.getByRole('status').filter({ hasText: 'Won 2–1' })).toBeVisible()
+    await ash.page.getByRole('button', { name: 'Send result' }).click()
     await expect(ash.page.getByText('Awaiting opponent')).toBeVisible()
 
     // Misty confirms from her phone.
