@@ -78,6 +78,7 @@ export function ReportResult({ match, viewerId, bestOf, isPending, onReport, onC
         rules={scoreRules(bestOf)}
         sides={{ kind: 'mine' }}
         initial={myGames(match, viewerId)}
+        agreesWith={match.status === 'reported' && !reportedByMe ? myGames(match, viewerId) : undefined}
         isPending={isPending}
         onCancel={editing ? () => setEditing(false) : undefined}
         onSend={(score) => {

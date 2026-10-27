@@ -71,6 +71,40 @@ describe('ReportResult', () => {
     expect(onReport).toHaveBeenCalledWith({ player1Games: 2, player2Games: 1 })
   })
 
+  it('resending the pending incomplete score confirms it without asking again', async () => {
+    const onReport = vi.fn()
+    render(
+      <ReportResult
+        match={{ ...match, player1Games: 1, player2Games: 0, outcome: 'p1', reportedById: 'misty', status: 'reported' }}
+        viewerId="ash"
+        bestOf={3}
+        onReport={onReport}
+        onConfirm={vi.fn()}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Report different score' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Send result' }))
+    expect(screen.queryByText(/Not all games reported/)).not.toBeInTheDocument()
+    expect(onReport).toHaveBeenCalledWith({ player1Games: 1, player2Games: 0 })
+  })
+
+  it('still asks the reporter once more when they resend their own incomplete score', async () => {
+    const onReport = vi.fn()
+    render(
+      <ReportResult
+        match={{ ...match, player1Games: 1, player2Games: 0, outcome: 'p1', reportedById: 'misty', status: 'reported' }}
+        viewerId="misty"
+        bestOf={3}
+        onReport={onReport}
+        onConfirm={vi.fn()}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Change' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Send result' }))
+    expect(onReport).not.toHaveBeenCalled()
+    expect(screen.getByText(/Not all games reported/)).toBeInTheDocument()
+  })
+
   it('lets the reporter change a pending result but not confirm it', async () => {
     render(
       <ReportResult
