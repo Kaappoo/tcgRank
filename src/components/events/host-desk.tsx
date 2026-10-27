@@ -1,6 +1,8 @@
 import { Flag, Minus, Pause, Play, Plus, Shuffle } from 'lucide-react'
+import { BestOfField } from '#/components/forms/best-of-field.tsx'
 import { Button } from '#/components/ui/button.tsx'
 import { Switch } from '#/components/ui/switch.tsx'
+import type { BestOf } from '#/domain/best-of.ts'
 import { recommendedRounds } from '#/domain/swiss.ts'
 import type { EventDetail } from '#/server/events/views.ts'
 import { MatchClock } from './match-clock.tsx'
@@ -13,10 +15,20 @@ export interface HostDeskProps {
   readonly onFinish: () => void
   readonly onClock: (action: 'pause' | 'resume' | 'adjust', deltaMinutes?: number) => void
   readonly onDeckRequired: (required: boolean) => void
+  readonly onBestOf: (bestOf: BestOf) => void
 }
 
 /** The host's control surface: one primary action at a time, clock controls beside it. */
-export function HostDesk({ detail, offsetMs, busy, onStartRound, onFinish, onClock, onDeckRequired }: HostDeskProps) {
+export function HostDesk({
+  detail,
+  offsetMs,
+  busy,
+  onStartRound,
+  onFinish,
+  onClock,
+  onDeckRequired,
+  onBestOf,
+}: HostDeskProps) {
   const { event, rounds, matches, players } = detail
   const round = rounds.find((r) => r.number === event.currentRound) ?? null
   const roundMatches = matches.filter((m) => m.roundNumber === event.currentRound)
@@ -72,9 +84,7 @@ export function HostDesk({ detail, offsetMs, busy, onStartRound, onFinish, onClo
             <p className="text-sm text-paper-dim">
               {plannedRounds} Swiss rounds of {event.roundMinutes} minutes. Pair round 1 once everyone has scanned in.
             </p>
-            {event.status === 'registration' ? (
-              <DeckRequiredSwitch checked={event.deckRequired} disabled={busy} onChange={onDeckRequired} />
-            ) : null}
+            <EventRules event={event} busy={busy} onDeckRequired={onDeckRequired} onBestOf={onBestOf} />
           </div>
         )}
       </div>
@@ -131,6 +141,29 @@ export function HostDesk({ detail, offsetMs, busy, onStartRound, onFinish, onClo
         ) : null}
       </div>
     </section>
+  )
+}
+
+/** Rules players play by. Editable during registration; best of stays visible, locked, once round 1 starts. */
+function EventRules({
+  event,
+  busy,
+  onDeckRequired,
+  onBestOf,
+}: Pick<HostDeskProps, 'busy' | 'onDeckRequired' | 'onBestOf'> & { event: EventDetail['event'] }) {
+  const open = event.status === 'registration'
+  return (
+    <>
+      {open ? <DeckRequiredSwitch checked={event.deckRequired} disabled={busy} onChange={onDeckRequired} /> : null}
+      <div className="mt-2 rounded-lg border border-line px-4 py-3">
+        <BestOfField
+          value={event.bestOf}
+          onChange={onBestOf}
+          disabled={busy || !open}
+          hint={open ? undefined : 'Fixed once round 1 starts.'}
+        />
+      </div>
+    </>
   )
 }
 

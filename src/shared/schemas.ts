@@ -47,6 +47,11 @@ export const deckRequiredInput = z.object({
   deckRequired: z.boolean(),
 })
 
+export const bestOfInput = z.object({
+  eventId: z.string().min(1),
+  bestOf: z.union(BEST_OF_VALUES.map((n) => z.literal(n))),
+})
+
 /** Shape only: the event's best-of decides which scores are possible (`EventsService.reportResult`). */
 export const reportResultInput = z.object({
   matchId: z.string().min(1),

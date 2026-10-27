@@ -334,6 +334,15 @@ const make = Effect.gen(function* () {
     yield* db.query((d) => d.update(events).set({ deckRequired }).where(eq(events.id, eventId)))
   })
 
+  /** Host-only: how many games a match runs to. Fixed once round 1 starts, so reported scores keep their meaning. */
+  const setBestOf = Effect.fn('EventsService.setBestOf')(function* (eventId: string, bestOf: BestOf) {
+    const event = yield* loadHostedEvent(eventId)
+    if (event.status !== 'registration') {
+      return yield* new InvalidState({ reason: 'Best of can only change before round 1' })
+    }
+    yield* db.query((d) => d.update(events).set({ bestOf }).where(eq(events.id, eventId)))
+  })
+
   /* ------------------------------ guests ----------------------------- */
 
   /**
@@ -762,6 +771,7 @@ const make = Effect.gen(function* () {
     claimPreview,
     claimGuest,
     setDeckRequired,
+    setBestOf,
     leave,
     startNextRound,
     finishEvent,

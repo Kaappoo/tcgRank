@@ -537,6 +537,22 @@ describe('Best of', () => {
     ),
   )
 
+  it.effect('only the host can change it, and only before round 1', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* hostEvent()
+        const forbidden = yield* Effect.flip(events.setBestOf(eventId, 1).pipe(asUser(players[0]!)))
+        expect(forbidden._tag).toBe('Forbidden')
+        yield* events.setBestOf(eventId, 5).pipe(asUser(host))
+        expect((yield* events.detail(eventId)).event.bestOf).toBe(5)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const locked = yield* Effect.flip(events.setBestOf(eventId, 1).pipe(asUser(host)))
+        expect(locked).toMatchObject({ _tag: 'InvalidState', reason: 'Best of can only change before round 1' })
+        expect((yield* events.detail(eventId)).event.bestOf).toBe(5)
+      }),
+    ),
+  )
+
   it.effect('refuses a score the best of does not allow, from a player and from the host', () =>
     run(
       Effect.gen(function* () {
