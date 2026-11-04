@@ -45,7 +45,7 @@
 pnpm install
 cp .env.example .env            # set BETTER_AUTH_SECRET at minimum
 pnpm tsx scripts/migrate.ts     # create local.db
-pnpm db:seed                    # optional: demo store, 9 players, a finished Cup and a live event
+pnpm db:seed                    # optional: demo store, 9 players, an event per pairing system
 pnpm dev                        # http://localhost:3000
 ```
 

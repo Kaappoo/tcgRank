@@ -1,9 +1,26 @@
-import { Flag, Minus, Pause, Play, Plus, Shuffle } from 'lucide-react'
+import { Flag, Minus, Pause, Play, Plus, Scissors, Shuffle } from 'lucide-react'
+import { useState } from 'react'
+import { BestOfField } from '#/components/forms/best-of-field.tsx'
+import { PairingSystemField } from '#/components/forms/pairing-system-field.tsx'
+import { SettingSwitch } from '#/components/forms/setting-switch.tsx'
 import { Button } from '#/components/ui/button.tsx'
-import { Switch } from '#/components/ui/switch.tsx'
-import { recommendedRounds } from '#/domain/swiss.ts'
+import { Field, FieldLabel } from '#/components/ui/field.tsx'
+import { Input } from '#/components/ui/input.tsx'
+import { SubmitButton } from '#/components/ui/submit-button.tsx'
+import type { BestOf } from '#/domain/best-of.ts'
+import { roundTitle, stageName, type Bracket } from '#/domain/bracket.ts'
+import {
+  allowedCutSizes,
+  defaultCutSize,
+  TOP_CUT_SIZES,
+  type PairingSystem,
+  type TopCutSize,
+} from '#/domain/event-setup.ts'
+import { pairRoundLabel, setupLine } from '#/lib/format.ts'
 import type { EventDetail } from '#/server/events/views.ts'
+import { roundMinutesSchema } from '#/shared/schemas.ts'
 import { MatchClock } from './match-clock.tsx'
+import { ToggleChip } from '#/components/ui/toggle-chip.tsx'
 
 export interface HostDeskProps {
   readonly detail: EventDetail
@@ -11,21 +28,45 @@ export interface HostDeskProps {
   readonly busy: boolean
   readonly onStartRound: () => void
   readonly onFinish: () => void
+  /** Cuts a Swiss event to its top players after the last Swiss round. */
+  readonly onCut: (cut: { size: TopCutSize; roundMinutes: number }) => void
   readonly onClock: (action: 'pause' | 'resume' | 'adjust', deltaMinutes?: number) => void
   readonly onDeckRequired: (required: boolean) => void
+  readonly onBestOf: (bestOf: BestOf) => void
+  readonly onPairingSystem: (pairingSystem: PairingSystem) => void
+  readonly onTopCut: (topCut: boolean) => void
 }
 
+/** Above this many players a round robin needs more rounds than a night usually has. */
+const LONG_ROUND_ROBIN = 10
+
 /** The host's control surface: one primary action at a time, clock controls beside it. */
-export function HostDesk({ detail, offsetMs, busy, onStartRound, onFinish, onClock, onDeckRequired }: HostDeskProps) {
+export function HostDesk({
+  detail,
+  offsetMs,
+  busy,
+  onStartRound,
+  onFinish,
+  onCut,
+  onClock,
+  onDeckRequired,
+  onBestOf,
+  onPairingSystem,
+  onTopCut,
+}: HostDeskProps) {
   const { event, rounds, matches, players } = detail
   const round = rounds.find((r) => r.number === event.currentRound) ?? null
   const roundMatches = matches.filter((m) => m.roundNumber === event.currentRound)
   const confirmed = roundMatches.filter((m) => m.status === 'confirmed').length
   const activePlayers = players.filter((p) => p.droppedAtRound === null).length
-  const withoutDeck = event.deckRequired ? players.filter((p) => p.droppedAtRound === null && !p.deckId).length : 0
-  const plannedRounds = event.plannedRounds > 0 ? event.plannedRounds : recommendedRounds(players.length)
+  const withoutDeck = event.deckRequired
+    ? players.filter((p) => p.droppedAtRound === null && !p.isGuest && !p.deckId).length
+    : 0
+  const { mainPhaseRounds: plannedRounds, bracket, isLastRound: lastRound, cutDue } = detail.progress
   const roundComplete = roundMatches.length > 0 && confirmed === roundMatches.length
-  const lastRound = event.currentRound >= plannedRounds
+  const stageOf = (roundNumber: number) => (bracket ? stageName(bracket, roundNumber) : null)
+  // A half-played bracket has no champion, so it can't be published early.
+  const bracketStarted = rounds.some((r) => r.elimination)
 
   if (event.status === 'finished') return null
 
@@ -40,7 +81,7 @@ export function HostDesk({ detail, offsetMs, busy, onStartRound, onFinish, onClo
             <MatchClock
               endsAt={round.endsAt}
               pausedRemainingMs={round.pausedRemainingMs}
-              roundMinutes={event.roundMinutes}
+              roundMinutes={round.minutes}
               offsetMs={offsetMs}
               referenceNow={detail.serverNow}
               size="md"
@@ -70,11 +111,26 @@ export function HostDesk({ detail, offsetMs, busy, onStartRound, onFinish, onClo
           <div className="flex flex-col gap-2">
             <p className="font-display text-3xl">{activePlayers} players checked in</p>
             <p className="text-sm text-paper-dim">
-              {plannedRounds} Swiss rounds of {event.roundMinutes} minutes. Pair round 1 once everyone has scanned in.
+              {setupLine(event, players.length)}. Pair round 1 once everyone has scanned in.
+              {event.pairingSystem === 'round_robin' ? ' Pairing round 1 draws the schedule and closes entries.' : ''}
+              {event.pairingSystem === 'single_elimination'
+                ? ' Pairing round 1 draws the seeds and closes entries.'
+                : ''}
             </p>
-            {event.status === 'registration' ? (
-              <DeckRequiredSwitch checked={event.deckRequired} disabled={busy} onChange={onDeckRequired} />
+            {event.pairingSystem === 'round_robin' && players.length > LONG_ROUND_ROBIN ? (
+              <p className="text-sm text-loss">
+                {players.length} players means {plannedRounds} rounds: a round robin this size will run long. Swiss fits
+                a night better.
+              </p>
             ) : null}
+            <EventSetup
+              event={event}
+              busy={busy}
+              onDeckRequired={onDeckRequired}
+              onBestOf={onBestOf}
+              onPairingSystem={onPairingSystem}
+              onTopCut={onTopCut}
+            />
           </div>
         )}
       </div>
@@ -83,9 +139,7 @@ export function HostDesk({ detail, offsetMs, busy, onStartRound, onFinish, onClo
         {event.currentRound > 0 ? (
           <div className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between text-sm">
-              <span className="font-semibold">
-                Round {event.currentRound} of {plannedRounds}
-              </span>
+              <span className="font-semibold">{roundLine(event, plannedRounds, bracket)}</span>
               <span className="tabular text-paper-dim">
                 {confirmed}/{roundMatches.length} results in
               </span>
@@ -107,7 +161,17 @@ export function HostDesk({ detail, offsetMs, busy, onStartRound, onFinish, onClo
           </div>
         ) : null}
 
-        {lastRound && event.currentRound > 0 ? (
+        {cutDue ? (
+          <CutStep
+            attendance={players.length}
+            activePlayers={activePlayers}
+            roundMinutes={event.roundMinutes}
+            ready={roundComplete && !busy}
+            busy={busy}
+            onCut={onCut}
+            onFinish={onFinish}
+          />
+        ) : lastRound && event.currentRound > 0 ? (
           <Button size="lg" disabled={busy || !roundComplete} onClick={onFinish}>
             <Flag /> Finish & publish standings
           </Button>
@@ -117,14 +181,17 @@ export function HostDesk({ detail, offsetMs, busy, onStartRound, onFinish, onClo
             disabled={busy || (event.currentRound > 0 && !roundComplete) || activePlayers < 2}
             onClick={onStartRound}
           >
-            <Shuffle /> {event.currentRound === 0 ? 'Pair round 1' : `Pair round ${event.currentRound + 1}`}
+            <Shuffle />{' '}
+            {event.currentRound === 0
+              ? 'Pair round 1'
+              : pairRoundLabel(event.currentRound + 1, stageOf(event.currentRound + 1))}
           </Button>
         )}
         {!lastRound && (event.currentRound === 0 || roundComplete) ? <MissingDecks count={withoutDeck} /> : null}
         {event.currentRound > 0 && !roundComplete ? (
           <p className="text-xs text-paper-dim">Next round unlocks when every table has a confirmed result.</p>
         ) : null}
-        {!lastRound && event.currentRound > 0 && roundComplete ? (
+        {!lastRound && event.currentRound > 0 && roundComplete && !bracketStarted ? (
           <Button variant="ghost" size="sm" disabled={busy} onClick={onFinish}>
             End event early
           </Button>
@@ -134,25 +201,206 @@ export function HostDesk({ detail, offsetMs, busy, onStartRound, onFinish, onClo
   )
 }
 
-function DeckRequiredSwitch({
-  checked,
+/**
+ * The desk's round line: "Round 3 of 5 · then top cut" in the Swiss rounds of an event with a cut, "Top 8 ·
+ * Quarterfinal" then the stage in its top cut, "Quarterfinal · Round 2 of 3" in a single-elimination bracket.
+ */
+const roundLine = (
+  event: Pick<EventDetail['event'], 'currentRound' | 'topCut'>,
+  plannedRounds: number,
+  bracket: Bracket | null,
+): string => {
+  if (bracket?.topCutSize !== undefined && event.currentRound >= bracket.firstRound) {
+    return roundTitle(bracket, event.currentRound)
+  }
+  const stage = bracket ? stageName(bracket, event.currentRound) : null
+  const line = `${stage ? `${stage} · ` : ''}Round ${event.currentRound} of ${plannedRounds}`
+  return event.topCut ? `${line} · then top cut` : line
+}
+
+/**
+ * The cut step after the last Swiss round: the cut size (default from attendance, never more than the players still
+ * in) and the top cut round timer, with finishing still on offer. Below 9 players finishing is the default and the
+ * cut sits behind "Cut anyway".
+ */
+function CutStep({
+  attendance,
+  activePlayers,
+  roundMinutes,
+  ready,
+  busy,
+  onCut,
+  onFinish,
+}: {
+  attendance: number
+  activePlayers: number
+  roundMinutes: number
+  ready: boolean
+  busy: boolean
+  onCut: HostDeskProps['onCut']
+  onFinish: () => void
+}) {
+  const suggested = defaultCutSize(attendance)
+  const allowed = allowedCutSizes(activePlayers)
+  // Only the host's own choices are state; until they choose, the defaults follow the event.
+  const [cutAnyway, setCutAnyway] = useState(false)
+  const [chosenSize, setSize] = useState<TopCutSize | null>(null)
+  const [chosenMinutes, setMinutes] = useState<number | null>(null)
+  const size = chosenSize ?? fittingCutSize(allowed, suggested ?? 4)
+  const minutes = chosenMinutes ?? roundMinutes
+  const validMinutes = roundMinutesSchema.safeParse(minutes).success
+
+  if (size === null || (suggested === null && !cutAnyway)) {
+    return (
+      <FinishWithoutCut
+        ready={ready}
+        busy={busy}
+        smallField={suggested === null}
+        canCut={size !== null}
+        onFinish={onFinish}
+        onCutAnyway={() => setCutAnyway(true)}
+      />
+    )
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (ready && validMinutes) onCut({ size, roundMinutes: minutes })
+      }}
+    >
+      <CutSizeField size={size} allowed={allowed} disabled={busy} onChange={setSize} />
+      <Field>
+        <FieldLabel>Top cut round timer (minutes)</FieldLabel>
+        <Input
+          type="number"
+          min={10}
+          max={120}
+          value={minutes}
+          disabled={busy}
+          onChange={(e) => setMinutes(Number(e.target.value))}
+          className="w-24"
+        />
+      </Field>
+      <p className="text-xs text-paper-dim">Cutting seeds the top players by Swiss rank and closes entries.</p>
+      <SubmitButton size="lg" disabled={!ready || !validMinutes}>
+        <Scissors /> Cut to top {size}
+      </SubmitButton>
+      <Button type="button" variant="ghost" size="sm" disabled={!ready} onClick={onFinish}>
+        Finish & publish standings
+      </Button>
+    </form>
+  )
+}
+
+/** The largest allowed cut no bigger than `target`, or null when none is. */
+const fittingCutSize = (allowed: ReadonlyArray<TopCutSize>, target: number): TopCutSize | null =>
+  allowed.filter((n) => n <= target).at(-1) ?? null
+
+/** Finishing as the main step: below 9 players, with a quieter "Cut anyway" while a cut is possible. */
+function FinishWithoutCut({
+  ready,
+  busy,
+  smallField,
+  canCut,
+  onFinish,
+  onCutAnyway,
+}: {
+  ready: boolean
+  busy: boolean
+  smallField: boolean
+  canCut: boolean
+  onFinish: () => void
+  onCutAnyway: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Button size="lg" disabled={!ready} onClick={onFinish}>
+        <Flag /> Finish & publish standings
+      </Button>
+      {smallField ? <p className="text-xs text-paper-dim">Fewer than 9 players: League Cups only cut from 9.</p> : null}
+      {canCut ? (
+        <Button variant="ghost" size="sm" disabled={busy} onClick={onCutAnyway}>
+          Cut anyway
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+/** Segmented choice of the cut size; sizes larger than the players still in are disabled. */
+function CutSizeField({
+  size,
+  allowed,
   disabled,
   onChange,
 }: {
-  checked: boolean
+  size: TopCutSize
+  allowed: ReadonlyArray<TopCutSize>
   disabled: boolean
-  onChange: (required: boolean) => void
+  onChange: (size: TopCutSize) => void
 }) {
   return (
-    <label className="mt-2 flex items-center justify-between gap-4 rounded-lg border border-line px-4 py-3">
-      <span className="flex flex-col">
-        <span className="text-sm font-semibold">Require a deck</span>
-        <span className="text-xs text-paper-dim">
-          Players must register a 60-card deck to join. Fixed once round 1 starts.
-        </span>
-      </span>
-      <Switch checked={checked} disabled={disabled} onCheckedChange={onChange} />
-    </label>
+    <fieldset className="flex flex-col gap-2" disabled={disabled}>
+      <legend className="mb-2 text-sm font-semibold">Top cut</legend>
+      <div className="flex flex-wrap gap-2">
+        {TOP_CUT_SIZES.map((n) => (
+          <ToggleChip
+            key={n}
+            pressed={size === n}
+            disabled={!allowed.includes(n)}
+            onClick={() => onChange(n)}
+          >
+            Top <span className="tabular">{n}</span>
+          </ToggleChip>
+        ))}
+      </div>
+    </fieldset>
+  )
+}
+
+/** The event setup: editable during registration, shown locked once round 1 starts. */
+function EventSetup({
+  event,
+  busy,
+  onDeckRequired,
+  onBestOf,
+  onPairingSystem,
+  onTopCut,
+}: Pick<HostDeskProps, 'busy' | 'onDeckRequired' | 'onBestOf' | 'onPairingSystem' | 'onTopCut'> & {
+  event: EventDetail['event']
+}) {
+  const open = event.status === 'registration'
+  const locked = busy || !open
+  const fixed = 'Fixed once round 1 starts.'
+  return (
+    <fieldset className="mt-2 flex flex-col gap-3">
+      <legend className="sr-only">Event setup</legend>
+      <div className="rounded-lg border border-line px-4 py-3">
+        <PairingSystemField value={event.pairingSystem} onChange={onPairingSystem} disabled={locked} />
+      </div>
+      {event.pairingSystem === 'swiss' ? (
+        <SettingSwitch
+          title="Top cut"
+          description={`The best players play a bracket after the Swiss rounds. ${fixed}`}
+          checked={event.topCut}
+          disabled={locked}
+          onChange={onTopCut}
+        />
+      ) : null}
+      <div className="rounded-lg border border-line px-4 py-3">
+        <BestOfField value={event.bestOf} onChange={onBestOf} disabled={locked} hint={open ? undefined : fixed} />
+      </div>
+      <SettingSwitch
+        title="Require a deck"
+        description={`Players must register a 60-card deck to join. ${fixed}`}
+        checked={event.deckRequired}
+        disabled={locked}
+        onChange={onDeckRequired}
+      />
+    </fieldset>
   )
 }
 

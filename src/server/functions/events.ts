@@ -1,14 +1,21 @@
 import { createServerFn } from '@tanstack/react-start'
 import {
+  addGuestInput,
+  bestOfInput,
+  claimCodeInput,
   clockInput,
   createEventInput,
+  cutToTopInput,
   deckRequiredInput,
   eventIdInput,
   joinCodeInput,
   joinEventInput,
   listEventsInput,
   matchIdInput,
+  pairingSystemInput,
+  removeGuestInput,
   reportResultInput,
+  topCutInput,
 } from '#/shared/schemas.ts'
 import { runServerEffect } from '../effect/run.ts'
 import { EventsService } from '../events/service.ts'
@@ -39,6 +46,20 @@ export const setDeckRequired = createServerFn({ method: 'POST' })
     runServerEffect(EventsService.use((s) => s.setDeckRequired(data.eventId, data.deckRequired))),
   )
 
+export const setBestOf = createServerFn({ method: 'POST' })
+  .validator(bestOfInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.setBestOf(data.eventId, data.bestOf))))
+
+export const setPairingSystem = createServerFn({ method: 'POST' })
+  .validator(pairingSystemInput)
+  .handler(({ data }) =>
+    runServerEffect(EventsService.use((s) => s.setPairingSystem(data.eventId, data.pairingSystem))),
+  )
+
+export const setTopCut = createServerFn({ method: 'POST' })
+  .validator(topCutInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.setTopCut(data.eventId, data.topCut))))
+
 export const leaveEvent = createServerFn({ method: 'POST' })
   .validator(eventIdInput)
   .handler(({ data }) => runServerEffect(EventsService.use((s) => s.leave(data.eventId))))
@@ -46,6 +67,12 @@ export const leaveEvent = createServerFn({ method: 'POST' })
 export const startNextRound = createServerFn({ method: 'POST' })
   .validator(eventIdInput)
   .handler(({ data }) => runServerEffect(EventsService.use((s) => s.startNextRound(data.eventId))))
+
+export const cutToTop = createServerFn({ method: 'POST' })
+  .validator(cutToTopInput)
+  .handler(({ data }) =>
+    runServerEffect(EventsService.use((s) => s.cutToTop(data.eventId, data.size, data.roundMinutes))),
+  )
 
 export const finishEvent = createServerFn({ method: 'POST' })
   .validator(eventIdInput)
@@ -70,3 +97,23 @@ export const controlClock = createServerFn({ method: 'POST' })
   .handler(({ data }) =>
     runServerEffect(EventsService.use((s) => s.controlClock(data.eventId, data.action, data.deltaMinutes))),
   )
+
+export const addGuest = createServerFn({ method: 'POST' })
+  .validator(addGuestInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.addGuest(data.eventId, data.guest))))
+
+export const removeGuest = createServerFn({ method: 'POST' })
+  .validator(removeGuestInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.removeGuest(data.eventId, data.guestId))))
+
+export const listMyGuests = createServerFn({ method: 'GET' }).handler(() =>
+  runServerEffect(EventsService.use((s) => s.guests())),
+)
+
+export const getClaimPreview = createServerFn({ method: 'GET' })
+  .validator(claimCodeInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.claimPreview(data.code))))
+
+export const claimGuest = createServerFn({ method: 'POST' })
+  .validator(claimCodeInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.claimGuest(data.code))))

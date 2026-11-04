@@ -138,6 +138,7 @@ function ProfilePage() {
                         {e.name} {e.finalRank === 1 ? <Trophy className="size-4 text-orange" /> : null}
                       </p>
                       <p className="truncate text-sm text-paper-dim">
+                        {e.stage ? <span className="font-semibold text-paper">{e.stage} · </span> : null}
                         {e.storeName} · <LocalTime value={e.startsAt} options={{ dateStyle: 'medium' }} /> ·{' '}
                         {e.playerCount} players
                       </p>

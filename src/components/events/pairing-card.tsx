@@ -1,13 +1,17 @@
 import { Link } from '@tanstack/react-router'
 import { Avatar } from '#/components/ui/avatar.tsx'
 import { Badge } from '#/components/ui/badge.tsx'
+import type { BestOf } from '#/domain/best-of.ts'
 import { formatRecord, type Standing } from '#/domain/standings.ts'
 import type { MatchView, PlayerRef } from '#/server/events/views.ts'
+import { bestOfLabel } from '#/lib/format.ts'
 import { cn } from '#/lib/utils.ts'
 
 export interface PairingCardProps {
   readonly match: MatchView
   readonly viewerId: string
+  /** The event's best-of, shown next to the round so players know how many games to play. */
+  readonly bestOf: BestOf
   readonly records?: ReadonlyMap<string, Pick<Standing, 'wins' | 'losses' | 'draws' | 'byes'>>
   readonly className?: string
 }
@@ -16,7 +20,7 @@ export interface PairingCardProps {
  * The moment a player looks at their phone after pairings go up.
  * The orange slab wipes across on every new pairing (keyed by match id).
  */
-export function PairingCard({ match, viewerId, records, className }: PairingCardProps) {
+export function PairingCard({ match, viewerId, bestOf, records, className }: PairingCardProps) {
   const me = match.player1.id === viewerId ? match.player1 : match.player2
   const opponent = match.player1.id === viewerId ? match.player2 : match.player1
 
@@ -28,7 +32,9 @@ export function PairingCard({ match, viewerId, records, className }: PairingCard
       <div key={match.id} aria-hidden className="slab right-[-12%] hidden w-[26%] animate-slab sm:block" />
       <div className="relative grid gap-6 p-5 sm:p-8">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-paper-dim">Round {match.roundNumber}</p>
+          <p className="text-sm font-semibold text-paper-dim">
+            Round {match.roundNumber} · {bestOfLabel(bestOf)}
+          </p>
           <p className="flex -skew-x-12 animate-slab flex-col items-end rounded-md bg-orange px-4 py-2 text-on-orange sm:skew-x-0 sm:animate-none sm:bg-transparent sm:p-0">
             <span className="text-[11px] font-bold tracking-[0.08em]">TABLE</span>
             <span className="font-numerals text-6xl leading-[0.85] sm:text-7xl">{match.table}</span>

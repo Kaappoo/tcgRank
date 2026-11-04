@@ -1,10 +1,13 @@
 # Git workflow
 
-Every change goes through a short-lived branch and a pull request into `main`. Nothing is committed to `main` directly.
+Every change goes through a short-lived branch and a pull request into `develop`. Nothing is committed to `develop` or `main` directly.
+
+- `develop` collects finished work. Feature, fix and docs PRs target it.
+- `main` is what production deploys (Vercel). It only moves through a **release PR** from `develop`, so it gets one merge per batch of work instead of one per change.
 
 ## Branches
 
-Name: `<type>/<short-kebab-description>`, branched from the latest `main`.
+Name: `<type>/<short-kebab-description>`, branched from the latest `develop`.
 
 - `<type>` is a Conventional Commits type (below) describing the change.
 - The description says what the change does in 2–5 words: `fix/migrate-on-vercel-deploy`, `feat/deck-cover-picker`, `docs/git-workflow`.
@@ -24,6 +27,13 @@ Name: `<type>/<short-kebab-description>`, branched from the latest `main`.
 
 ## Pull requests
 
-- Title follows the same Conventional Commits format; it becomes the squash commit on `main`.
-- Merge with **squash**, so `main` reads as one conventional commit per PR.
+- Base branch is `develop`.
+- Title follows the same Conventional Commits format; it becomes the squash commit on `develop`.
+- Merge with **squash**, so `develop` reads as one conventional commit per PR.
+
+## Releases
+
+- Open a PR from `develop` into `main` when a batch is ready to ship, titled `chore(release): <what the batch delivers>`, with the PRs it carries listed in the body.
+- Merge it with a **merge commit**, not a squash. That way `develop` and `main` keep sharing history, and the next release doesn't conflict with the last one.
+- Production migrations run on deploy, so a release containing a migration ships that migration.
 - `pnpm typecheck && pnpm test` pass before pushing.

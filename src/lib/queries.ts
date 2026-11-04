@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { getDeck, listMyDecks, listUserDecks } from '#/server/functions/decks.ts'
-import { getEvent, getEventByCode, listEvents } from '#/server/functions/events.ts'
+import { getClaimPreview, getEvent, getEventByCode, listEvents, listMyGuests } from '#/server/functions/events.ts'
 import { getMyProfile, getProfile } from '#/server/functions/profiles.ts'
 import { getSessionUser } from '#/server/functions/session.ts'
 
@@ -36,7 +36,22 @@ export const eventByCodeQuery = (code: string) =>
   queryOptions({
     queryKey: ['event-code', code],
     queryFn: () => getEventByCode({ data: { code } }),
-    staleTime: 30_000,
+    staleTime: 15_000,
+    // The join screen shows the event setup, which the host can still change during registration.
+    refetchInterval: (query) => (query.state.data?.status === 'registration' ? 20_000 : false),
+  })
+
+/** The signed-in host's guest list (players added without an account). */
+export const myGuestsQuery = queryOptions({
+  queryKey: ['guests', 'mine'],
+  queryFn: () => listMyGuests(),
+  staleTime: 30_000,
+})
+
+export const claimPreviewQuery = (code: string) =>
+  queryOptions({
+    queryKey: ['claim', code],
+    queryFn: () => getClaimPreview({ data: { code } }),
   })
 
 export const myDecksQuery = queryOptions({

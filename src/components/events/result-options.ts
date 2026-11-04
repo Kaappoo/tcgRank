@@ -1,46 +1,45 @@
+import type { Score } from '#/domain/best-of.ts'
 import type { MatchView } from '#/server/events/views.ts'
 
-export interface ResultOption {
-  readonly id: string
-  readonly label: string
-  readonly mine: number
-  readonly theirs: number
-  readonly tone: 'win' | 'loss' | 'draw'
+export type ResultTone = 'win' | 'loss' | 'draw'
+
+export interface ResultText {
+  readonly text: string
+  readonly tone: ResultTone
 }
 
-/** Best-of-three outcomes from the reporting player's point of view. */
-export const RESULT_OPTIONS: ReadonlyArray<ResultOption> = [
-  { id: 'w20', label: 'Won 2–0', mine: 2, theirs: 0, tone: 'win' },
-  { id: 'w21', label: 'Won 2–1', mine: 2, theirs: 1, tone: 'win' },
-  { id: 'w10', label: 'Won 1–0 on time', mine: 1, theirs: 0, tone: 'win' },
-  { id: 'd11', label: 'Tie 1–1', mine: 1, theirs: 1, tone: 'draw' },
-  { id: 'd00', label: 'Tie 0–0', mine: 0, theirs: 0, tone: 'draw' },
-  { id: 'l01', label: 'Lost 0–1 on time', mine: 0, theirs: 1, tone: 'loss' },
-  { id: 'l12', label: 'Lost 1–2', mine: 1, theirs: 2, tone: 'loss' },
-  { id: 'l02', label: 'Lost 0–2', mine: 0, theirs: 2, tone: 'loss' },
-]
+/** What a "my games / their games" score means, e.g. "Won 2–1". */
+export const describeScore = (mine: number, theirs: number): ResultText => {
+  if (mine === theirs) return { text: `Tie ${mine}–${theirs}`, tone: 'draw' }
+  const won = mine > theirs
+  return { text: `${won ? 'Won' : 'Lost'} ${mine}–${theirs}`, tone: won ? 'win' : 'loss' }
+}
 
-/** Converts a "my score / their score" choice into stored player-1 / player-2 games. */
+/** The viewer's games first: [mine, theirs]. */
+export const myGames = (
+  match: Pick<MatchView, 'player1' | 'player1Games' | 'player2Games'>,
+  viewerId: string,
+): Score =>
+  match.player1.id === viewerId ? [match.player1Games, match.player2Games] : [match.player2Games, match.player1Games]
+
+/** The opponent's report waiting on the viewer, as [mine, theirs]: sending it back confirms it. */
+export const opponentReport = (match: MatchView, viewerId: string): Score | undefined =>
+  match.status === 'reported' && match.reportedById !== viewerId ? myGames(match, viewerId) : undefined
+
+/** Converts a "my games / their games" score into stored player-1 / player-2 games. */
 export const toGames = (
   match: Pick<MatchView, 'player1'>,
   viewerId: string,
-  option: Pick<ResultOption, 'mine' | 'theirs'>,
+  [mine, theirs]: Score,
 ) =>
   match.player1.id === viewerId
-    ? { player1Games: option.mine, player2Games: option.theirs }
-    : { player1Games: option.theirs, player2Games: option.mine }
+    ? { player1Games: mine, player2Games: theirs }
+    : { player1Games: theirs, player2Games: mine }
 
 /** Describes a stored result from one player's perspective, e.g. "Won 2–1". */
-export const describeResult = (
-  match: MatchView,
-  viewerId: string,
-): { text: string; tone: 'win' | 'loss' | 'draw' } | null => {
+export const describeResult = (match: MatchView, viewerId: string): ResultText | null => {
   if (!match.outcome) return null
   if (match.outcome === 'bye') return { text: 'Bye', tone: 'win' }
-  const asP1 = match.player1.id === viewerId
-  const mine = asP1 ? match.player1Games : match.player2Games
-  const theirs = asP1 ? match.player2Games : match.player1Games
-  if (match.outcome === 'draw') return { text: `Tie ${mine}–${theirs}`, tone: 'draw' }
-  const won = (match.outcome === 'p1') === asP1
-  return { text: `${won ? 'Won' : 'Lost'} ${mine}–${theirs}`, tone: won ? 'win' : 'loss' }
+  const [mine, theirs] = myGames(match, viewerId)
+  return describeScore(mine, theirs)
 }

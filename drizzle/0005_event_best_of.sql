@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `best_of` integer DEFAULT 3 NOT NULL;

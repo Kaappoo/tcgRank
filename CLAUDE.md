@@ -16,7 +16,7 @@ pnpm test:e2e            # playwright (starts its own dev server on :3100 with e
 pnpm build               # vite build → .output (Nitro) + Serwist service worker
 pnpm storybook           # component workbench on :6006
 pnpm db:generate         # drizzle-kit migration from src/server/db/schema.ts
-pnpm db:seed             # demo store, players, a finished and a live event
+pnpm db:seed             # demo store, players, an event per pairing system
 pnpm review              # fallow + react-doctor + impeccable detect
 ```
 
@@ -42,7 +42,7 @@ pnpm review              # fallow + react-doctor + impeccable detect
 
 ### Git workflow
 
-Branches are `<type>/<kebab-description>` off `main` (e.g. `fix/migrate-on-vercel-deploy`), commits and PR titles follow Conventional Commits, PRs are squash-merged. Never use generated branch names (`ccr-…`, `claude/…`). See `docs/agents/git-workflow.md`.
+Branches are `<type>/<kebab-description>` off `develop` (e.g. `fix/migrate-on-vercel-deploy`), commits and PR titles follow Conventional Commits, PRs target `develop` and are squash-merged. `main` only moves through release PRs from `develop`, merged with a merge commit. Never use generated branch names (`ccr-…`, `claude/…`). See `docs/agents/git-workflow.md`.
 
 ### Issue tracker
 

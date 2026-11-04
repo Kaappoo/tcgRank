@@ -36,11 +36,17 @@ const detailWith = (event: Partial<EventDetail['event']>, entry: EntrantView | n
     currentRound: 0,
     plannedRounds: 3,
     deckRequired: false,
+    bestOf: 3,
+    pairingSystem: 'swiss',
+    topCut: false,
+    topCutSize: null,
+    entriesClosedReason: null,
     playerCount: 1,
     host: { id: 'host', name: 'Oak', username: 'oak', image: null },
     description: null,
     joinCode: 'ABC234',
     roundMinutes: 50,
+    topCutRoundMinutes: null,
     finishedAt: null,
     ...event,
   },
@@ -48,16 +54,19 @@ const detailWith = (event: Partial<EventDetail['event']>, entry: EntrantView | n
   rounds: [],
   matches: [],
   standings: [],
+  progress: { mainPhaseRounds: 3, bracket: null, isLastRound: false, cutDue: false },
   viewer: { userId: me.id, isHost: false, entry, currentMatch: null },
   serverNow: 0,
 })
 
 const entrant = (deckId: string | null): EntrantView => ({
   ...me,
+  isGuest: false,
   deckId,
   deckName: deckId ? deck.name : null,
   droppedAtRound: null,
   finalRank: null,
+  seed: null,
 })
 
 const fakeActions = () => {
@@ -100,5 +109,48 @@ describe('EntryPanel', () => {
     await renderPanel(detailWith({ status: 'running', currentRound: 1 }, entrant('deck-1')), actions)
     expect(screen.getByRole('button', { name: 'Drop from event' })).toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+  })
+
+  describe('once entries are closed', () => {
+    const CLOSED = 'Entries are closed: the schedule has started'
+    const closed = {
+      status: 'running',
+      currentRound: 1,
+      pairingSystem: 'round_robin',
+      entriesClosedReason: CLOSED,
+    } as const
+
+    it('shows why instead of the join card', async () => {
+      const { actions } = fakeActions()
+      await renderPanel(detailWith(closed, null), actions)
+      expect(screen.getByText(CLOSED)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Join event' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    })
+
+    it('tells a dropped player they cannot rejoin', async () => {
+      const { actions } = fakeActions()
+      await renderPanel(detailWith(closed, { ...entrant('deck-1'), droppedAtRound: 1 }), actions)
+      expect(screen.getByText(CLOSED)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Rejoin event' })).not.toBeInTheDocument()
+    })
+
+    it('shows the note instead of asking a signed-out visitor to sign in to join', async () => {
+      const { actions } = fakeActions()
+      const client = new QueryClient()
+      await renderWithRouter(
+        <EntryPanel detail={detailWith(closed, null)} signedIn={false} busy={false} actions={actions} />,
+        client,
+      )
+      expect(screen.getByText(CLOSED)).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /Sign in to join/ })).not.toBeInTheDocument()
+    })
+
+    it('still lets a player in the event drop', async () => {
+      const { actions } = fakeActions()
+      await renderPanel(detailWith(closed, entrant('deck-1')), actions)
+      expect(screen.getByRole('button', { name: 'Drop from event' })).toBeInTheDocument()
+      expect(screen.queryByText(CLOSED)).not.toBeInTheDocument()
+    })
   })
 })

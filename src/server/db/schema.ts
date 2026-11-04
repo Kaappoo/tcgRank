@@ -1,5 +1,7 @@
 import { relations, sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
+import { DEFAULT_BEST_OF, type BestOf } from '#/domain/best-of.ts'
+import { DEFAULT_PAIRING_SYSTEM, PAIRING_SYSTEMS, type TopCutSize } from '#/domain/event-setup.ts'
 
 const timestamps = {
   createdAt: integer('created_at', { mode: 'timestamp_ms' })
@@ -25,6 +27,12 @@ export const user = sqliteTable('user', {
   displayUsername: text('display_username'),
   playerId: text('player_id'),
   bio: text('bio'),
+  /** A player a host added by hand: no login, no email, no profile page. */
+  isGuest: integer('is_guest', { mode: 'boolean' }).notNull().default(false),
+  /** The host who added this guest; their guest list. */
+  guestOfId: text('guest_of_id').references((): AnySQLiteColumn => user.id, { onDelete: 'set null' }),
+  /** Secret code a guest's results are claimed with once they have an account. */
+  claimCode: text('claim_code').unique(),
   ...timestamps,
 })
 
@@ -95,11 +103,24 @@ export const events = sqliteTable(
     format: text('format', { enum: EVENT_FORMATS }).notNull().default('standard'),
     status: text('status', { enum: EVENT_STATUSES }).notNull().default('registration'),
     joinCode: text('join_code').notNull().unique(),
-    /** 0 means "pick the recommended Swiss round count when the event starts". */
+    /** How rounds are built. Events from before pairing systems read as Swiss. */
+    pairingSystem: text('pairing_system', { enum: PAIRING_SYSTEMS }).notNull().default(DEFAULT_PAIRING_SYSTEM),
+    /** A Swiss event cuts to a single-elimination bracket after its Swiss rounds. Only meaningful under Swiss. */
+    topCut: integer('top_cut', { mode: 'boolean' }).notNull().default(false),
+    /** Players in the top cut (2, 4 or 8). Null until the host cuts. */
+    topCutSize: integer('top_cut_size').$type<TopCutSize>(),
+    /** Round timer for every top cut round. Null until the host cuts. */
+    topCutRoundMinutes: integer('top_cut_round_minutes'),
+    /**
+     * Rounds of the main phase (top cut rounds not included). 0 means "pick by attendance": a Swiss count from
+     * the round table when round 1 is paired; round robin and single elimination always set it at round 1.
+     */
     plannedRounds: integer('planned_rounds').notNull().default(0),
     roundMinutes: integer('round_minutes').notNull().default(50),
     /** Players must register a 60-card deck in the event's format to enter. */
     deckRequired: integer('deck_required', { mode: 'boolean' }).notNull().default(false),
+    /** Most games a match can have: 1, 3 or 5. Events from before best-of read as the default, 3. */
+    bestOf: integer('best_of').$type<BestOf>().notNull().default(DEFAULT_BEST_OF),
     currentRound: integer('current_round').notNull().default(0),
     startsAt: integer('starts_at', { mode: 'timestamp_ms' }).notNull(),
     finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
@@ -120,7 +141,12 @@ export const eventPlayers = sqliteTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     deckId: text('deck_id').references(() => decks.id, { onDelete: 'set null' }),
     droppedAtRound: integer('dropped_at_round'),
+    /** Placement once the event finishes. */
     finalRank: integer('final_rank'),
+    /** Bracket seed, 1 strongest. Null until assigned: random at round 1 in single elimination, Swiss rank at the cut. */
+    seed: integer('seed'),
+    /** Seat in the round-robin schedule, drawn at random at round 1. Null outside round robin. */
+    schedulePosition: integer('schedule_position'),
     joinedAt: integer('joined_at', { mode: 'timestamp_ms' })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
@@ -140,6 +166,8 @@ export const rounds = sqliteTable(
       .references(() => events.id, { onDelete: 'cascade' }),
     number: integer('number').notNull(),
     status: text('status', { enum: ROUND_STATUSES }).notNull().default('active'),
+    /** A round of a top cut or a single-elimination event: matches can't tie and losers are out. */
+    elimination: integer('elimination', { mode: 'boolean' }).notNull().default(false),
     startedAt: integer('started_at', { mode: 'timestamp_ms' }).notNull(),
     /** When the clock hits zero. Null while the clock is paused. */
     endsAt: integer('ends_at', { mode: 'timestamp_ms' }),
@@ -162,6 +190,11 @@ export const matches = sqliteTable(
       .references(() => rounds.id, { onDelete: 'cascade' }),
     roundNumber: integer('round_number').notNull(),
     table: integer('table_number').notNull(),
+    /**
+     * Position in the bracket in an elimination round (null otherwise); the winners of slots 2k and 2k+1 meet in
+     * slot k of the next round. Separate from the physical table.
+     */
+    bracketSlot: integer('bracket_slot'),
     player1Id: text('player1_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),

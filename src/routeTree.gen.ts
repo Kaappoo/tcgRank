@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as ApiUploadthingRouteImport } from './routes/api/uploadthing'
+import { Route as ClaimCodeRouteImport } from './routes/claim/$code'
 import { Route as DecksIndexRouteImport } from './routes/decks/index'
 import { Route as DecksDeckIdRouteImport } from './routes/decks/$deckId'
 import { Route as DecksNewRouteImport } from './routes/decks/new'
@@ -52,6 +53,11 @@ const SignUpRoute = SignUpRouteImport.update({
 const ApiUploadthingRoute = ApiUploadthingRouteImport.update({
   id: '/api/uploadthing',
   path: '/api/uploadthing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClaimCodeRoute = ClaimCodeRouteImport.update({
+  id: '/claim/$code',
+  path: '/claim/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DecksIndexRoute = DecksIndexRouteImport.update({
@@ -131,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/api/uploadthing': typeof ApiUploadthingRoute
+  '/claim/$code': typeof ClaimCodeRoute
   '/decks/$deckId': typeof DecksDeckIdRoute
   '/decks/new': typeof DecksNewRoute
   '/events/new': typeof EventsNewRoute
@@ -152,6 +159,7 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/api/uploadthing': typeof ApiUploadthingRoute
+  '/claim/$code': typeof ClaimCodeRoute
   '/decks/$deckId': typeof DecksDeckIdRoute
   '/decks/new': typeof DecksNewRoute
   '/events/new': typeof EventsNewRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
   '/api/uploadthing': typeof ApiUploadthingRoute
+  '/claim/$code': typeof ClaimCodeRoute
   '/decks/$deckId': typeof DecksDeckIdRoute
   '/decks/new': typeof DecksNewRoute
   '/events/new': typeof EventsNewRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/api/uploadthing'
+    | '/claim/$code'
     | '/decks/$deckId'
     | '/decks/new'
     | '/events/new'
@@ -218,6 +228,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/api/uploadthing'
+    | '/claim/$code'
     | '/decks/$deckId'
     | '/decks/new'
     | '/events/new'
@@ -239,6 +250,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/api/uploadthing'
+    | '/claim/$code'
     | '/decks/$deckId'
     | '/decks/new'
     | '/events/new'
@@ -261,6 +273,7 @@ export interface RootRouteChildren {
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
   ApiUploadthingRoute: typeof ApiUploadthingRoute
+  ClaimCodeRoute: typeof ClaimCodeRoute
   DecksDeckIdRoute: typeof DecksDeckIdRoute
   DecksNewRoute: typeof DecksNewRoute
   EventsNewRoute: typeof EventsNewRoute
@@ -312,6 +325,13 @@ declare module '@tanstack/react-router' {
       path: '/api/uploadthing'
       fullPath: '/api/uploadthing'
       preLoaderRoute: typeof ApiUploadthingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/claim/$code': {
+      id: '/claim/$code'
+      path: '/claim/$code'
+      fullPath: '/claim/$code'
+      preLoaderRoute: typeof ClaimCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/decks/': {
@@ -421,6 +441,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
   ApiUploadthingRoute: ApiUploadthingRoute,
+  ClaimCodeRoute: ClaimCodeRoute,
   DecksDeckIdRoute: DecksDeckIdRoute,
   DecksNewRoute: DecksNewRoute,
   EventsNewRoute: EventsNewRoute,
