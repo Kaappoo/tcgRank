@@ -197,12 +197,18 @@ const loserOf = (m: ExitMatch): string | null => {
 
 /**
  * Whether a decided elimination match was lost by a drop: its loser had dropped by the match's round (during it, or
- * before it as a walkover). Read from the drop round, so a host correction of the games keeps it.
+ * before it as a walkover) and the winner hadn't reached `gamesToWin`. Read from the drop round, so a host correction
+ * keeps it; a match played out to a result before its loser left stands as played.
  */
-export const lostByDrop = (m: ExitMatch, droppedAtRound: (playerId: string) => number | null): boolean => {
+export const lostByDrop = (
+  m: ExitMatch & { readonly player1Games: number; readonly player2Games: number },
+  droppedAtRound: (playerId: string) => number | null,
+  gamesToWin: number,
+): boolean => {
   const loser = loserOf(m)
   const dropRound = loser === null ? null : droppedAtRound(loser)
-  return dropRound !== null && dropRound <= m.roundNumber
+  const winnerGames = loser === m.player1Id ? m.player2Games : m.player1Games
+  return dropRound !== null && dropRound <= m.roundNumber && winnerGames < gamesToWin
 }
 
 export const bracketExits = (

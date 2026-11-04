@@ -1110,7 +1110,7 @@ describe('Single elimination', () => {
     ),
   )
 
-  it.effect('a dropped match stays dropped after the host corrects it, since the drop round says so', () =>
+  it.effect('a dropped match stays dropped after the host corrects its games, since the drop round says so', () =>
     run(
       Effect.gen(function* () {
         const { events, host, eventId, players } = yield* bracket(2)
@@ -1118,9 +1118,25 @@ describe('Single elimination', () => {
         const [match] = (yield* events.detail(eventId)).matches
         const leaverIsP1 = match!.player1.id === players[0]!.id
         yield* events.leave(eventId).pipe(asUser(players[0]!))
-        yield* events.reportResult(match!.id, leaverIsP1 ? 1 : 2, leaverIsP1 ? 2 : 1).pipe(asUser(host))
+        // The opponent was a game up when the leaver dropped.
+        yield* events.reportResult(match!.id, leaverIsP1 ? 0 : 1, leaverIsP1 ? 1 : 0).pipe(asUser(host))
         const after = (yield* events.detail(eventId)).matches.find((m) => m.id === match!.id)!
         expect(after).toMatchObject({ status: 'confirmed', dropped: true })
+      }),
+    ),
+  )
+
+  it.effect('a match played out before its loser left stands as played, not dropped', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* bracket(2)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const [match] = (yield* events.detail(eventId)).matches
+        const loserIsP1 = match!.player1.id === players[0]!.id
+        yield* events.reportResult(match!.id, loserIsP1 ? 1 : 2, loserIsP1 ? 2 : 1).pipe(asUser(host))
+        yield* events.leave(eventId).pipe(asUser(players[0]!))
+        const after = (yield* events.detail(eventId)).matches.find((m) => m.id === match!.id)!
+        expect(after).toMatchObject({ status: 'confirmed', dropped: false })
       }),
     ),
   )

@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm'
 import { Clock, Context, Effect, Layer, Random } from 'effect'
-import { invalidScoreReason, matchOutcome, scoreRules, type BestOf } from '#/domain/best-of.ts'
+import { invalidScoreReason, majority, matchOutcome, scoreRules, type BestOf } from '#/domain/best-of.ts'
 import {
   eventBracket,
   finalRound,
@@ -136,11 +136,11 @@ const make = Effect.gen(function* () {
           )
           .pipe(Effect.map((rows) => new Map(rows.map((r) => [r.id, r]))))
 
-  /** `droppedAtRound` of the event's players and whether the match's round is an elimination round. */
+  /** Reads drops from the players' `droppedAtRound`, in elimination rounds of an event played to `bestOf`. */
   const toMatchView = (
     m: MatchRow,
     refs: Map<string, PlayerRef>,
-    { droppedAtRound, elimination }: { droppedAtRound: ReadonlyMap<string, number | null>; elimination: boolean },
+    drops: { droppedAtRound: ReadonlyMap<string, number | null>; elimination: boolean; bestOf: BestOf },
   ): MatchView => ({
     id: m.id,
     roundNumber: m.roundNumber,
@@ -153,7 +153,8 @@ const make = Effect.gen(function* () {
     reportedById: m.reportedById,
     status: matchStatus(m),
     bracketSlot: m.bracketSlot,
-    dropped: elimination && lostByDrop(m, (id) => droppedAtRound.get(id) ?? null),
+    dropped:
+      drops.elimination && lostByDrop(m, (id) => drops.droppedAtRound.get(id) ?? null, majority(drops.bestOf)),
   })
 
   const summaries = Effect.fn('EventsService.summaries')(function* (rows: ReadonlyArray<EventRow>) {
@@ -271,7 +272,7 @@ const make = Effect.gen(function* () {
     const droppedAtRound = new Map(entries.map((e) => [e.id, e.droppedAtRound]))
     const eliminationRounds = new Set(roundRows.filter((r) => r.elimination).map((r) => r.id))
     const matchViews = matchRows.map((m) =>
-      toMatchView(m, refs, { droppedAtRound, elimination: eliminationRounds.has(m.roundId) }),
+      toMatchView(m, refs, { droppedAtRound, elimination: eliminationRounds.has(m.roundId), bestOf: event.bestOf }),
     )
     const standings = standingsView(event, players, matchRows, refs)
     const [summary] = yield* summaries([event])
@@ -945,7 +946,7 @@ const make = Effect.gen(function* () {
     return opponent?.isGuest ?? false
   })
 
-  const matchView = Effect.fn('EventsService.matchView')(function* (matchId: string) {
+  const matchView = Effect.fn('EventsService.matchView')(function* (matchId: string, bestOf: BestOf) {
     const m = yield* db.query((d) => d.query.matches.findFirst({ where: eq(matches.id, matchId) }))
     if (!m) return yield* new NotFound({ entity: 'Match', id: matchId })
     const seated = m.player2Id === null ? [m.player1Id] : [m.player1Id, m.player2Id]
@@ -965,6 +966,7 @@ const make = Effect.gen(function* () {
     return toMatchView(m, refs, {
       droppedAtRound: new Map(entries.map((e) => [e.userId, e.droppedAtRound])),
       elimination: round?.elimination ?? false,
+      bestOf,
     })
   })
 
@@ -1006,19 +1008,19 @@ const make = Effect.gen(function* () {
         })
         .where(eq(matches.id, matchId)),
     )
-    return yield* matchView(matchId)
+    return yield* matchView(matchId, event.bestOf)
   })
 
   const confirmResult = Effect.fn('EventsService.confirmResult')(function* (matchId: string) {
-    const { me, match, isHost } = yield* loadMatchForActor(matchId)
+    const { me, match, event, isHost } = yield* loadMatchForActor(matchId)
     if (match.outcome === null) return yield* new InvalidState({ reason: 'Nobody has reported this match yet' })
-    if (match.confirmedAt !== null) return yield* matchView(matchId)
+    if (match.confirmedAt !== null) return yield* matchView(matchId, event.bestOf)
     if (!isHost && match.reportedById === me.id) {
       return yield* new InvalidState({ reason: 'Your opponent needs to confirm the result you reported' })
     }
     const now = new Date(yield* Clock.currentTimeMillis)
     yield* db.query((d) => d.update(matches).set({ confirmedAt: now }).where(eq(matches.id, matchId)))
-    return yield* matchView(matchId)
+    return yield* matchView(matchId, event.bestOf)
   })
 
   const controlClock = Effect.fn('EventsService.controlClock')(function* (
