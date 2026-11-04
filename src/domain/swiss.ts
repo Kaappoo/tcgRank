@@ -8,19 +8,20 @@ interface Pairing {
   readonly player2Id: string | null
 }
 
+/** Upper bound of attendance for each round count, from 3 rounds up; above the last row, 10 rounds. */
+const LEAGUE_CHALLENGE_ROWS = [8, 16, 32, 64, 128, 256, 512] as const
+const LEAGUE_CUP_ROWS = [8, 12, 32, 64, 128, 226, 409] as const
+
 /**
- * Recommended number of Swiss rounds for a local event, following the
- * Play! Pokémon attendance table for League Challenges and Cups.
+ * Recommended number of Swiss rounds, following the Play! Pokémon attendance
+ * tables: League Challenge for an event without a top cut, League Cup for one
+ * with a cut. Below 4 players: 1 round for 2, 3 for 3.
  */
-export const recommendedRounds = (playerCount: number): number => {
+export const recommendedRounds = (playerCount: number, options: { readonly topCut: boolean }): number => {
   if (playerCount <= 2) return 1
-  if (playerCount <= 8) return 3
-  if (playerCount <= 12) return 4
-  if (playerCount <= 20) return 5
-  if (playerCount <= 32) return 5
-  if (playerCount <= 64) return 6
-  if (playerCount <= 128) return 7
-  return 8
+  const rows = options.topCut ? LEAGUE_CUP_ROWS : LEAGUE_CHALLENGE_ROWS
+  const row = rows.findIndex((max) => playerCount <= max)
+  return row === -1 ? 3 + rows.length : 3 + row
 }
 
 const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`)
