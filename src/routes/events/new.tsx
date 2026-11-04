@@ -19,6 +19,7 @@ import { FormatField } from '#/components/forms/format-select.tsx'
 import { BestOfField } from '#/components/forms/best-of-field.tsx'
 import { SettingSwitch } from '#/components/forms/setting-switch.tsx'
 import { EventSetupFields, type SetupDraft } from '#/components/events/event-setup-fields.tsx'
+import { ToggleChip } from '#/components/ui/toggle-chip.tsx'
 
 export const Route = createFileRoute('/events/new')({
   beforeLoad: requireAuth,
@@ -117,15 +118,13 @@ function NewEvent() {
           <legend className="mb-3 text-sm font-semibold">Round timer</legend>
           <div className="flex flex-wrap items-center gap-2">
             {ROUND_PRESETS.map((m) => (
-              <button
+              <ToggleChip
                 key={m}
-                type="button"
-                aria-pressed={roundMinutes === m}
+                pressed={roundMinutes === m}
                 onClick={() => setRoundMinutes(m)}
-                className="h-11 cursor-pointer rounded-lg border border-line-strong px-4 text-sm font-semibold transition-colors hover:border-paper-dim aria-pressed:border-orange aria-pressed:bg-orange aria-pressed:text-on-orange"
               >
                 <span className="tabular">{m}</span> min
-              </button>
+              </ToggleChip>
             ))}
             <Input
               aria-label="Custom minutes"

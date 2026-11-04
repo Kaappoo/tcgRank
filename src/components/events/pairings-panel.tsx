@@ -2,6 +2,7 @@ import { useState, type ComponentProps } from 'react'
 import type { EventDetail } from '#/server/events/views.ts'
 import { BracketPath } from './bracket-path.tsx'
 import { RoundTables } from './round-tables.tsx'
+import { ToggleChip } from '#/components/ui/toggle-chip.tsx'
 
 type TablesProps = Pick<ComponentProps<typeof RoundTables>, 'canEdit' | 'onSetResult' | 'correction'>
 
@@ -36,15 +37,14 @@ export function PairingsPanel({
       {chips.length > 1 ? (
         <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Choose round">
           {chips.map((chip) => (
-            <button
+            <ToggleChip
               key={chip.number}
-              type="button"
-              aria-pressed={inBracket ? chip.number === firstElimination?.number : chip.number === shownRound}
+              pressed={inBracket ? chip.number === firstElimination?.number : chip.number === shownRound}
+              shape="pill"
               onClick={() => setChosen({ during: event.currentRound, round: chip.number })}
-              className="h-9 cursor-pointer rounded-full border border-line-strong px-4 text-sm font-semibold transition-colors aria-pressed:border-orange aria-pressed:bg-orange aria-pressed:text-on-orange"
             >
               {chip.label}
-            </button>
+            </ToggleChip>
           ))}
         </div>
       ) : null}

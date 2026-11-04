@@ -1,5 +1,6 @@
 import { PAIRING_SYSTEMS, type PairingSystem } from '#/domain/event-setup.ts'
 import { pairingSystemLabel } from '#/lib/format.ts'
+import { ToggleChip } from '#/components/ui/toggle-chip.tsx'
 
 const DESCRIPTIONS: Record<PairingSystem, string> = {
   swiss: 'Players with the same record meet each round. Nobody is knocked out.',
@@ -22,15 +23,13 @@ export function PairingSystemField({
       <legend className="mb-3 text-sm font-semibold">Pairing system</legend>
       <div className="flex flex-wrap items-center gap-2">
         {PAIRING_SYSTEMS.map((system) => (
-          <button
+          <ToggleChip
             key={system}
-            type="button"
-            aria-pressed={value === system}
+            pressed={value === system}
             onClick={() => onChange(system)}
-            className="h-11 cursor-pointer rounded-lg border border-line-strong px-4 text-sm font-semibold transition-colors hover:border-paper-dim disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:border-orange aria-pressed:bg-orange aria-pressed:text-on-orange"
           >
             {pairingSystemLabel(system)}
-          </button>
+          </ToggleChip>
         ))}
       </div>
       <p className="text-xs text-paper-dim">{DESCRIPTIONS[value]}</p>

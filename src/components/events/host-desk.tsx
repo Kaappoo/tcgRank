@@ -6,6 +6,7 @@ import { SettingSwitch } from '#/components/forms/setting-switch.tsx'
 import { Button } from '#/components/ui/button.tsx'
 import { Field, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
+import { SubmitButton } from '#/components/ui/submit-button.tsx'
 import type { BestOf } from '#/domain/best-of.ts'
 import { roundTitle, stageName, type Bracket } from '#/domain/bracket.ts'
 import {
@@ -17,7 +18,9 @@ import {
 } from '#/domain/event-setup.ts'
 import { pairRoundLabel, setupLine } from '#/lib/format.ts'
 import type { EventDetail } from '#/server/events/views.ts'
+import { roundMinutesSchema } from '#/shared/schemas.ts'
 import { MatchClock } from './match-clock.tsx'
+import { ToggleChip } from '#/components/ui/toggle-chip.tsx'
 
 export interface HostDeskProps {
   readonly detail: EventDetail
@@ -245,6 +248,7 @@ function CutStep({
   const [chosenMinutes, setMinutes] = useState<number | null>(null)
   const size = chosenSize ?? fittingCutSize(allowed, suggested ?? 4)
   const minutes = chosenMinutes ?? roundMinutes
+  const validMinutes = roundMinutesSchema.safeParse(minutes).success
 
   if (size === null || (suggested === null && !cutAnyway)) {
     return (
@@ -260,7 +264,13 @@ function CutStep({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (ready && validMinutes) onCut({ size, roundMinutes: minutes })
+      }}
+    >
       <CutSizeField size={size} allowed={allowed} disabled={busy} onChange={setSize} />
       <Field>
         <FieldLabel>Top cut round timer (minutes)</FieldLabel>
@@ -275,25 +285,19 @@ function CutStep({
         />
       </Field>
       <p className="text-xs text-paper-dim">Cutting seeds the top players by Swiss rank and closes entries.</p>
-      <Button
-        size="lg"
-        disabled={!ready || !validRoundMinutes(minutes)}
-        onClick={() => onCut({ size, roundMinutes: minutes })}
-      >
+      <SubmitButton size="lg" disabled={!ready || !validMinutes}>
         <Scissors /> Cut to top {size}
-      </Button>
-      <Button variant="ghost" size="sm" disabled={!ready} onClick={onFinish}>
+      </SubmitButton>
+      <Button type="button" variant="ghost" size="sm" disabled={!ready} onClick={onFinish}>
         Finish & publish standings
       </Button>
-    </div>
+    </form>
   )
 }
 
 /** The largest allowed cut no bigger than `target`, or null when none is. */
 const fittingCutSize = (allowed: ReadonlyArray<TopCutSize>, target: number): TopCutSize | null =>
   allowed.filter((n) => n <= target).at(-1) ?? null
-
-const validRoundMinutes = (minutes: number) => Number.isInteger(minutes) && minutes >= 10 && minutes <= 120
 
 /** Finishing as the main step: below 9 players, with a quieter "Cut anyway" while a cut is possible. */
 function FinishWithoutCut({
@@ -343,16 +347,14 @@ function CutSizeField({
       <legend className="mb-2 text-sm font-semibold">Top cut</legend>
       <div className="flex flex-wrap gap-2">
         {TOP_CUT_SIZES.map((n) => (
-          <button
+          <ToggleChip
             key={n}
-            type="button"
-            aria-pressed={size === n}
+            pressed={size === n}
             disabled={!allowed.includes(n)}
             onClick={() => onChange(n)}
-            className="h-11 cursor-pointer rounded-lg border border-line-strong px-4 text-sm font-semibold transition-colors hover:border-paper-dim disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:border-orange aria-pressed:bg-orange aria-pressed:text-on-orange"
           >
             Top <span className="tabular">{n}</span>
-          </button>
+          </ToggleChip>
         ))}
       </div>
     </fieldset>

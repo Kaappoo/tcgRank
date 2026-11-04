@@ -13,7 +13,8 @@ const eventFormat = z.enum(EVENT_FORMATS)
 
 const bestOfSchema = z.union(BEST_OF_VALUES.map((n) => z.literal(n)))
 const pairingSystemSchema = z.enum(PAIRING_SYSTEMS)
-const roundMinutesSchema = z.coerce.number().int().min(10, 'Rounds need at least 10 minutes').max(120)
+/** A round timer in minutes; the host desk's cut step validates with it too. */
+export const roundMinutesSchema = z.coerce.number().int().min(10, 'Rounds need at least 10 minutes').max(120)
 
 /** Same wording as `EventsService` uses when it refuses a top cut outside Swiss. */
 const TOP_CUT_SWISS_ONLY = 'Only Swiss events can have a top cut'
