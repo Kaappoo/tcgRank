@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { EventDetail } from '#/server/events/views.ts'
@@ -13,9 +13,11 @@ const detailWith = (event: Partial<EventDetail['event']>): EventDetail => ({
     status: 'registration',
     startsAt: 0,
     currentRound: 0,
-    plannedRounds: 3,
+    plannedRounds: 0,
     deckRequired: false,
     bestOf: 3,
+    pairingSystem: 'swiss',
+    topCut: false,
     playerCount: 0,
     host: { id: 'host', name: 'Oak', username: 'oak', image: null },
     description: null,
@@ -32,9 +34,25 @@ const detailWith = (event: Partial<EventDetail['event']>): EventDetail => ({
   serverNow: 0,
 })
 
+const entrants = (n: number): EventDetail['players'] =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `p${i + 1}`,
+    name: `Trainer ${i + 1}`,
+    username: null,
+    image: null,
+    isGuest: false,
+    deckId: null,
+    deckName: null,
+    droppedAtRound: null,
+    finalRank: null,
+  }))
+
 const renderDesk = (detail: EventDetail) => {
   const onBestOf = vi.fn()
-  render(
+  const onPairingSystem = vi.fn()
+  const onTopCut = vi.fn()
+  const onDeckRequired = vi.fn()
+  const view = render(
     <HostDesk
       detail={detail}
       offsetMs={0}
@@ -42,11 +60,13 @@ const renderDesk = (detail: EventDetail) => {
       onStartRound={vi.fn()}
       onFinish={vi.fn()}
       onClock={vi.fn()}
-      onDeckRequired={vi.fn()}
+      onDeckRequired={onDeckRequired}
       onBestOf={onBestOf}
+      onPairingSystem={onPairingSystem}
+      onTopCut={onTopCut}
     />,
   )
-  return { onBestOf }
+  return { onBestOf, onPairingSystem, onTopCut, onDeckRequired, view }
 }
 
 describe('HostDesk best of', () => {
@@ -62,5 +82,78 @@ describe('HostDesk best of', () => {
     expect(screen.getByRole('button', { name: 'Best of 5' })).toHaveAttribute('aria-pressed', 'true')
     for (const n of [1, 3, 5]) expect(screen.getByRole('button', { name: `Best of ${n}` })).toBeDisabled()
     expect(screen.getByText('Fixed once round 1 starts.')).toBeInTheDocument()
+  })
+})
+
+describe('HostDesk event setup', () => {
+  it('groups pairing system, top cut, best of and deck required during registration', async () => {
+    const { onPairingSystem, onTopCut } = renderDesk(detailWith({}))
+    const setup = screen.getByRole('group', { name: 'Event setup' })
+    expect(within(setup).getByRole('button', { name: 'Swiss' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(setup).getByRole('switch', { name: 'Top cut' })).not.toBeChecked()
+    expect(within(setup).getByRole('button', { name: 'Best of 3' })).toBeInTheDocument()
+    expect(within(setup).getByRole('switch', { name: 'Require a deck' })).toBeInTheDocument()
+    await userEvent.click(within(setup).getByRole('button', { name: 'Round robin' }))
+    expect(onPairingSystem).toHaveBeenCalledWith('round_robin')
+    await userEvent.click(within(setup).getByRole('switch', { name: 'Top cut' }))
+    expect(onTopCut).toHaveBeenCalledWith(true)
+  })
+
+  it('offers the top cut only under Swiss', () => {
+    renderDesk(detailWith({ pairingSystem: 'single_elimination' }))
+    expect(screen.queryByRole('switch', { name: 'Top cut' })).not.toBeInTheDocument()
+  })
+
+  it('disables the whole setup once round 1 starts', () => {
+    renderDesk(detailWith({ status: 'running', currentRound: 1, topCut: true }))
+    const setup = screen.getByRole('group', { name: 'Event setup' })
+    for (const name of ['Swiss', 'Round robin', 'Single elimination', 'Best of 3']) {
+      expect(within(setup).getByRole('button', { name })).toBeDisabled()
+    }
+    expect(within(setup).getByRole('switch', { name: 'Top cut' })).toHaveAttribute('aria-disabled', 'true')
+    expect(within(setup).getByRole('switch', { name: 'Require a deck' })).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it.each([
+    [{ pairingSystem: 'swiss', topCut: true }, 24, '5 Swiss rounds of 50 minutes, then top 8'],
+    [{ pairingSystem: 'swiss', topCut: false }, 13, '4 Swiss rounds of 50 minutes'],
+    [{ pairingSystem: 'swiss', topCut: true }, 6, '3 Swiss rounds of 50 minutes, top cut from 9 players'],
+    [{ pairingSystem: 'round_robin', topCut: false }, 8, 'Round robin: 7 rounds of 50 minutes'],
+    [
+      { pairingSystem: 'single_elimination', topCut: false },
+      8,
+      'Single elimination: 3 rounds of 50 minutes, best of 3',
+    ],
+  ] as const)('shows the setup line for %o with %i players', (setup, players, line) => {
+    renderDesk({ ...detailWith(setup), players: entrants(players) })
+    expect(screen.getByText(line, { exact: false })).toBeInTheDocument()
+  })
+
+  it('updates the setup line as players join', () => {
+    const { view } = renderDesk({ ...detailWith({ topCut: true }), players: entrants(12) })
+    expect(screen.getByText('4 Swiss rounds of 50 minutes, then top 4', { exact: false })).toBeInTheDocument()
+    view.rerender(
+      <HostDesk
+        detail={{ ...detailWith({ topCut: true }), players: entrants(21) }}
+        offsetMs={0}
+        busy={false}
+        onStartRound={vi.fn()}
+        onFinish={vi.fn()}
+        onClock={vi.fn()}
+        onDeckRequired={vi.fn()}
+        onBestOf={vi.fn()}
+        onPairingSystem={vi.fn()}
+        onTopCut={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('5 Swiss rounds of 50 minutes, then top 8', { exact: false })).toBeInTheDocument()
+  })
+
+  it('warns that a round robin of more than 10 players runs long', () => {
+    const { view } = renderDesk({ ...detailWith({ pairingSystem: 'round_robin' }), players: entrants(10) })
+    expect(screen.queryByText(/run long/)).not.toBeInTheDocument()
+    view.unmount()
+    renderDesk({ ...detailWith({ pairingSystem: 'round_robin' }), players: entrants(11) })
+    expect(screen.getByText(/11 rounds.*run long/)).toBeInTheDocument()
   })
 })

@@ -21,7 +21,7 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from '#/components/ui/tabs.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { errorMessage, useEventActions } from '#/hooks/use-event-actions.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
-import { bestOfLabel, formatLabel, statusLabel } from '#/lib/format.ts'
+import { formatLabel, setupSummary, statusLabel } from '#/lib/format.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
 import { cn } from '#/lib/utils.ts'
@@ -74,7 +74,7 @@ function EventHub() {
             {statusLabel(event.status, event.currentRound)}
           </Badge>
           <Badge variant="outline">{formatLabel(event.format)}</Badge>
-          <Badge variant="outline">{bestOfLabel(event.bestOf)}</Badge>
+          <Badge variant="outline">{setupSummary(event)}</Badge>
           {isHost ? <Badge>You&apos;re hosting</Badge> : null}
         </div>
         <h1 className="font-display text-4xl sm:text-6xl">{event.name}</h1>
@@ -127,6 +127,8 @@ function EventHub() {
             onClock={(action, deltaMinutes) => actions.clock.mutate({ action, deltaMinutes })}
             onDeckRequired={(required) => actions.deckRequired.mutate(required)}
             onBestOf={(bestOf) => actions.bestOf.mutate(bestOf)}
+            onPairingSystem={(pairingSystem) => actions.pairingSystem.mutate(pairingSystem)}
+            onTopCut={(topCut) => actions.topCut.mutate(topCut)}
           />
         ) : null}
 

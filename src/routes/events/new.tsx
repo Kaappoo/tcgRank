@@ -3,13 +3,12 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useState } from 'react'
 import { Page, PageHeader } from '#/components/layout/page.tsx'
-import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field.tsx'
+import { Field, FieldError, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
-import { Switch } from '#/components/ui/switch.tsx'
 import { Textarea } from '#/components/ui/textarea.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { DEFAULT_BEST_OF, type BestOf } from '#/domain/best-of.ts'
-import { recommendedRounds } from '#/domain/swiss.ts'
+import { DEFAULT_PAIRING_SYSTEM } from '#/domain/event-setup.ts'
 import { requireAuth } from '#/lib/guards.ts'
 import type { EventFormat } from '#/server/db/schema.ts'
 import { createEvent } from '#/server/functions/events.ts'
@@ -18,6 +17,8 @@ import { SubmitButton } from '#/components/ui/submit-button.tsx'
 import { fieldErrors } from '#/lib/form-errors.ts'
 import { FormatField } from '#/components/forms/format-select.tsx'
 import { BestOfField } from '#/components/forms/best-of-field.tsx'
+import { SettingSwitch } from '#/components/forms/setting-switch.tsx'
+import { EventSetupFields, type SetupDraft } from '#/components/events/event-setup-fields.tsx'
 
 export const Route = createFileRoute('/events/new')({
   beforeLoad: requireAuth,
@@ -44,6 +45,11 @@ function NewEvent() {
   const [roundMinutes, setRoundMinutes] = useState(50)
   const [deckRequired, setDeckRequired] = useState(false)
   const [bestOf, setBestOf] = useState<BestOf>(DEFAULT_BEST_OF)
+  const [setup, setSetup] = useState<SetupDraft>({
+    pairingSystem: DEFAULT_PAIRING_SYSTEM,
+    topCut: false,
+    plannedRounds: 0,
+  })
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const mutation = useMutation({
@@ -74,6 +80,7 @@ function NewEvent() {
             roundMinutes,
             deckRequired,
             bestOf,
+            ...setup,
             startsAt: new Date(String(form.get('startsAt'))),
           })
           if (!parsed.success) {
@@ -103,17 +110,9 @@ function NewEvent() {
         </div>
         <div className="grid gap-6 sm:grid-cols-2">
           <FormatField value={format} onChange={setFormat} />
-          <Field invalid={Boolean(errors.plannedRounds)}>
-            <FieldLabel>Swiss rounds</FieldLabel>
-            <Input name="plannedRounds" type="number" min={0} max={12} defaultValue={0} inputMode="numeric" />
-            <FieldDescription>
-              Leave at 0 and we&apos;ll pick by attendance — e.g. {recommendedRounds(8)} rounds for 8 players,{' '}
-              {recommendedRounds(16)} for 16.
-            </FieldDescription>
-            <FieldError>{errors.plannedRounds}</FieldError>
-          </Field>
+          <BestOfField value={bestOf} onChange={setBestOf} />
         </div>
-        <BestOfField value={bestOf} onChange={setBestOf} />
+        <EventSetupFields value={setup} onChange={setSetup} roundsError={errors.plannedRounds} />
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-3 text-sm font-semibold">Round timer</legend>
           <div className="flex flex-wrap items-center gap-2">
@@ -144,15 +143,12 @@ function NewEvent() {
           </p>
           <FieldError>{errors.roundMinutes}</FieldError>
         </fieldset>
-        <label className="flex items-center justify-between gap-4 rounded-lg border border-line px-4 py-3">
-          <span className="flex flex-col">
-            <span className="text-sm font-semibold">Require a deck</span>
-            <span className="text-xs text-paper-dim">
-              Players must register a 60-card deck in this format to join. Otherwise they can skip it.
-            </span>
-          </span>
-          <Switch checked={deckRequired} onCheckedChange={setDeckRequired} />
-        </label>
+        <SettingSwitch
+          title="Require a deck"
+          description="Players must register a 60-card deck in this format to join. Otherwise they can skip it."
+          checked={deckRequired}
+          onChange={setDeckRequired}
+        />
         <Field>
           <FieldLabel>Notes for players</FieldLabel>
           <Textarea name="description" placeholder="Entry fee, prizes, deck registration deadline…" />

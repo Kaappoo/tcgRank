@@ -1,9 +1,11 @@
 import { Flag, Minus, Pause, Play, Plus, Shuffle } from 'lucide-react'
 import { BestOfField } from '#/components/forms/best-of-field.tsx'
+import { PairingSystemField } from '#/components/forms/pairing-system-field.tsx'
+import { SettingSwitch } from '#/components/forms/setting-switch.tsx'
 import { Button } from '#/components/ui/button.tsx'
-import { Switch } from '#/components/ui/switch.tsx'
 import type { BestOf } from '#/domain/best-of.ts'
-import { recommendedRounds } from '#/domain/swiss.ts'
+import { mainPhaseRounds, type PairingSystem } from '#/domain/event-setup.ts'
+import { setupLine } from '#/lib/format.ts'
 import type { EventDetail } from '#/server/events/views.ts'
 import { MatchClock } from './match-clock.tsx'
 
@@ -16,7 +18,12 @@ export interface HostDeskProps {
   readonly onClock: (action: 'pause' | 'resume' | 'adjust', deltaMinutes?: number) => void
   readonly onDeckRequired: (required: boolean) => void
   readonly onBestOf: (bestOf: BestOf) => void
+  readonly onPairingSystem: (pairingSystem: PairingSystem) => void
+  readonly onTopCut: (topCut: boolean) => void
 }
+
+/** Above this many players a round robin needs more rounds than a night usually has. */
+const LONG_ROUND_ROBIN = 10
 
 /** The host's control surface: one primary action at a time, clock controls beside it. */
 export function HostDesk({
@@ -28,6 +35,8 @@ export function HostDesk({
   onClock,
   onDeckRequired,
   onBestOf,
+  onPairingSystem,
+  onTopCut,
 }: HostDeskProps) {
   const { event, rounds, matches, players } = detail
   const round = rounds.find((r) => r.number === event.currentRound) ?? null
@@ -35,7 +44,7 @@ export function HostDesk({
   const confirmed = roundMatches.filter((m) => m.status === 'confirmed').length
   const activePlayers = players.filter((p) => p.droppedAtRound === null).length
   const withoutDeck = event.deckRequired ? players.filter((p) => p.droppedAtRound === null && !p.isGuest && !p.deckId).length : 0
-  const plannedRounds = event.plannedRounds > 0 ? event.plannedRounds : recommendedRounds(players.length)
+  const plannedRounds = mainPhaseRounds({ ...event, playerCount: players.length })
   const roundComplete = roundMatches.length > 0 && confirmed === roundMatches.length
   const lastRound = event.currentRound >= plannedRounds
 
@@ -82,9 +91,22 @@ export function HostDesk({
           <div className="flex flex-col gap-2">
             <p className="font-display text-3xl">{activePlayers} players checked in</p>
             <p className="text-sm text-paper-dim">
-              {plannedRounds} Swiss rounds of {event.roundMinutes} minutes. Pair round 1 once everyone has scanned in.
+              {setupLine(event, players.length)}. Pair round 1 once everyone has scanned in.
             </p>
-            <EventRules event={event} busy={busy} onDeckRequired={onDeckRequired} onBestOf={onBestOf} />
+            {event.pairingSystem === 'round_robin' && players.length > LONG_ROUND_ROBIN ? (
+              <p className="text-sm text-loss">
+                {players.length} players means {plannedRounds} rounds: a round robin this size will run long. Swiss fits
+                a night better.
+              </p>
+            ) : null}
+            <EventSetup
+              event={event}
+              busy={busy}
+              onDeckRequired={onDeckRequired}
+              onBestOf={onBestOf}
+              onPairingSystem={onPairingSystem}
+              onTopCut={onTopCut}
+            />
           </div>
         )}
       </div>
@@ -144,48 +166,46 @@ export function HostDesk({
   )
 }
 
-/** Rules players play by. Editable during registration; best of stays visible, locked, once round 1 starts. */
-function EventRules({
+/** The event setup: editable during registration, shown locked once round 1 starts. */
+function EventSetup({
   event,
   busy,
   onDeckRequired,
   onBestOf,
-}: Pick<HostDeskProps, 'busy' | 'onDeckRequired' | 'onBestOf'> & { event: EventDetail['event'] }) {
-  const open = event.status === 'registration'
-  return (
-    <>
-      {open ? <DeckRequiredSwitch checked={event.deckRequired} disabled={busy} onChange={onDeckRequired} /> : null}
-      <div className="mt-2 rounded-lg border border-line px-4 py-3">
-        <BestOfField
-          value={event.bestOf}
-          onChange={onBestOf}
-          disabled={busy || !open}
-          hint={open ? undefined : 'Fixed once round 1 starts.'}
-        />
-      </div>
-    </>
-  )
-}
-
-function DeckRequiredSwitch({
-  checked,
-  disabled,
-  onChange,
-}: {
-  checked: boolean
-  disabled: boolean
-  onChange: (required: boolean) => void
+  onPairingSystem,
+  onTopCut,
+}: Pick<HostDeskProps, 'busy' | 'onDeckRequired' | 'onBestOf' | 'onPairingSystem' | 'onTopCut'> & {
+  event: EventDetail['event']
 }) {
+  const open = event.status === 'registration'
+  const locked = busy || !open
+  const fixed = 'Fixed once round 1 starts.'
   return (
-    <label className="mt-2 flex items-center justify-between gap-4 rounded-lg border border-line px-4 py-3">
-      <span className="flex flex-col">
-        <span className="text-sm font-semibold">Require a deck</span>
-        <span className="text-xs text-paper-dim">
-          Players must register a 60-card deck to join. Fixed once round 1 starts.
-        </span>
-      </span>
-      <Switch checked={checked} disabled={disabled} onCheckedChange={onChange} />
-    </label>
+    <fieldset className="mt-2 flex flex-col gap-3">
+      <legend className="sr-only">Event setup</legend>
+      <div className="rounded-lg border border-line px-4 py-3">
+        <PairingSystemField value={event.pairingSystem} onChange={onPairingSystem} disabled={locked} />
+      </div>
+      {event.pairingSystem === 'swiss' ? (
+        <SettingSwitch
+          title="Top cut"
+          description={`The best players play a bracket after the Swiss rounds. ${fixed}`}
+          checked={event.topCut}
+          disabled={locked}
+          onChange={onTopCut}
+        />
+      ) : null}
+      <div className="rounded-lg border border-line px-4 py-3">
+        <BestOfField value={event.bestOf} onChange={onBestOf} disabled={locked} hint={open ? undefined : fixed} />
+      </div>
+      <SettingSwitch
+        title="Require a deck"
+        description={`Players must register a 60-card deck to join. ${fixed}`}
+        checked={event.deckRequired}
+        disabled={locked}
+        onChange={onDeckRequired}
+      />
+    </fieldset>
   )
 }
 

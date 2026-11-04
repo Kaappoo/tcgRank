@@ -10,7 +10,7 @@ import { Button, buttonVariants } from '#/components/ui/button.tsx'
 import { useEventActions } from '#/hooks/use-event-actions.ts'
 import { useHydrated } from '#/hooks/use-hydrated.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
-import { formatLabel, statusLabel } from '#/lib/format.ts'
+import { formatLabel, setupSummary, statusLabel } from '#/lib/format.ts'
 import { eventByCodeQuery, eventQuery, myDecksQuery } from '#/lib/queries.ts'
 
 export const Route = createFileRoute('/join/$code')({
@@ -50,6 +50,7 @@ function ConfirmJoin() {
         <div className="relative flex flex-col gap-4 pr-[22%]">
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{formatLabel(event.format)}</Badge>
+            <Badge variant="outline">{setupSummary(event)}</Badge>
             <Badge variant={event.status === 'running' ? 'live' : 'muted'}>
               {statusLabel(event.status, event.currentRound)}
             </Badge>
