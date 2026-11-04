@@ -1,5 +1,6 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
+import { BracketScreen } from '#/components/events/bracket-screen.tsx'
 import { QrCode } from '#/components/events/join-qr.tsx'
 import { joinUrl } from '#/lib/join.ts'
 import { MatchClock } from '#/components/events/match-clock.tsx'
@@ -20,7 +21,8 @@ export const Route = createFileRoute('/events/$eventId/screen')({
 /**
  * Full-screen view for the store TV or a laptop on the counter:
  * the join QR, the round clock and an alphabetical pairing list
- * so players find their table without crowding the host.
+ * so players find their table without crowding the host. During a bracket it
+ * shows the tables in play large, with the bracket beside them.
  */
 function StoreScreen() {
   const { eventId } = Route.useParams()
@@ -28,6 +30,35 @@ function StoreScreen() {
   const { event, rounds, matches } = data
   const round = rounds.find((r) => r.number === event.currentRound) ?? null
   const origin = typeof window === 'undefined' ? absoluteUrl('/') : window.location.origin
+
+  const clock =
+    round && round.status === 'active' ? (
+      <MatchClock
+        endsAt={round.endsAt}
+        pausedRemainingMs={round.pausedRemainingMs}
+        roundMinutes={event.roundMinutes}
+        offsetMs={data.serverNow - dataUpdatedAt}
+        referenceNow={data.serverNow}
+        size="lg"
+      />
+    ) : null
+
+  // A bracket round (single elimination from round 1, or the top cut) gets the bracket screen.
+  if (round?.elimination) {
+    return (
+      <BracketScreen
+        detail={data}
+        clock={clock}
+        qr={
+          <QrCode
+            value={new URL(`/events/${eventId}`, origin).toString()}
+            label="Scan to follow the bracket"
+            className="size-full"
+          />
+        }
+      />
+    )
+  }
 
   const seats = matches
     .filter((m) => m.roundNumber === event.currentRound)
@@ -50,16 +81,7 @@ function StoreScreen() {
           </span>
         </div>
         <h1 className="font-display text-5xl">{event.name}</h1>
-        {round && round.status === 'active' ? (
-          <MatchClock
-            endsAt={round.endsAt}
-            pausedRemainingMs={round.pausedRemainingMs}
-            roundMinutes={event.roundMinutes}
-            offsetMs={data.serverNow - dataUpdatedAt}
-            referenceNow={data.serverNow}
-            size="lg"
-          />
-        ) : null}
+        {clock}
         <div className="mt-auto flex items-end gap-6">
           <QrCode value={joinUrl(origin, event.joinCode)} label="Scan to join" className="size-56 shrink-0" />
           <div className="flex flex-col gap-2">

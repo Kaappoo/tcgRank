@@ -1,5 +1,5 @@
 import type { BestOf } from '#/domain/best-of.ts'
-import type { Stage } from '#/domain/bracket.ts'
+import { eventBracket, roundName, topCutLabel, type Stage } from '#/domain/bracket.ts'
 import { defaultCutSize, mainPhaseRounds, type PairingSystem } from '#/domain/event-setup.ts'
 import type { EventFormat, EventStatus } from '#/server/db/schema.ts'
 
@@ -88,10 +88,27 @@ export const podiumLine = (s: PodiumStanding, { topCut }: { readonly topCut: boo
   return topCut ? `${s.stage} · ${swiss}` : `${s.stage} · ${s.wins}–${s.losses}`
 }
 
-export const statusLabel = (status: EventStatus, currentRound: number): string => {
+/** "Registration open", "Round N live" (or "{round name} live", e.g. "Semifinal live"), "Final standings". */
+export const statusLabel = (status: EventStatus, currentRound: number, roundLabel: string | null = null): string => {
   if (status === 'registration') return 'Registration open'
   if (status === 'finished') return 'Final standings'
-  return `Round ${currentRound} live`
+  return `${roundLabel ?? `Round ${currentRound}`} live`
+}
+
+/**
+ * What the current round of a bracket is called while it's live: its stage ("Semifinal", "Final"), or "Round N"
+ * early in a bracket larger than 8. Null outside a bracket.
+ */
+export const bracketRoundLabel = (event: {
+  readonly pairingSystem: PairingSystem
+  readonly plannedRounds: number
+  readonly topCutSize: number | null
+  readonly currentRound: number
+}): string | null => {
+  const bracket = eventBracket(event)
+  if (!bracket || event.currentRound < bracket.firstRound) return null
+  // A top cut's first round reads "Top 8" ("Top 8 live"); later rounds by stage.
+  return topCutLabel(bracket, event.currentRound) ?? roundName(bracket, event.currentRound)
 }
 
 export const initials = (name: string): string =>

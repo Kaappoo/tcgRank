@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { CalendarDays, MonitorPlay, Share2, Store, Trophy, Users } from 'lucide-react'
-import { useMemo, useState, type ComponentProps } from 'react'
+import { useMemo, type ComponentProps } from 'react'
 import { z } from 'zod'
 import { AddGuestForm, GuestRowActions } from '#/components/events/guests.tsx'
 import { EntryPanel } from '#/components/events/entry-panel.tsx'
@@ -10,6 +10,7 @@ import { HostDesk } from '#/components/events/host-desk.tsx'
 import { JoinQrCard } from '#/components/events/join-qr.tsx'
 import { MatchClock } from '#/components/events/match-clock.tsx'
 import { PairingCard } from '#/components/events/pairing-card.tsx'
+import { PairingsPanel } from '#/components/events/pairings-panel.tsx'
 import { ReportResult } from '#/components/events/report-result.tsx'
 import { RoundTables } from '#/components/events/round-tables.tsx'
 import { StandingsTable } from '#/components/events/standings-table.tsx'
@@ -21,12 +22,11 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from '#/components/ui/tabs.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { errorMessage, useEventActions } from '#/hooks/use-event-actions.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
-import { eventBracket, roundName } from '#/domain/bracket.ts'
 import { formatLabel, podiumLine, setupSummary, statusLabel } from '#/lib/format.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
 import { cn } from '#/lib/utils.ts'
-import type { EventDetail, RoundView, StandingView } from '#/server/events/views.ts'
+import type { EventDetail, StandingView } from '#/server/events/views.ts'
 
 export const Route = createFileRoute('/events/$eventId/')({
   /** `deck`: a deck just created while joining, to preselect. */
@@ -258,13 +258,7 @@ function EventTabs({
   onAddGuest: (guest: { name: string } | { guestId: string }, done: () => void) => void
   onRemoveGuest: (guestId: string) => void
 }) {
-  const { event, matches, rounds, standings, players, viewer } = detail
-  // A choice made in an earlier round lapses when the next round is paired, so the new pairings show.
-  const [chosen, setChosen] = useState<{ readonly during: number; readonly round: number } | null>(null)
-  const shownRound = chosen?.during === event.currentRound ? chosen.round : event.currentRound
-  const roundMatches = matches.filter((m) => m.roundNumber === shownRound)
-  const bracket = eventBracket(event)
-  const roundLabel = (r: RoundView) => (r.elimination && bracket ? roundName(bracket, r.number) : `Round ${r.number}`)
+  const { event, rounds, standings, players, viewer } = detail
   const defaultTab = event.status === 'finished' ? 'standings' : event.currentRound > 0 ? 'pairings' : 'players'
 
   return (
@@ -282,25 +276,8 @@ function EventTabs({
       </TabsList>
 
       <TabsPanel value="pairings">
-        {rounds.length > 1 ? (
-          <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Choose round">
-            {rounds.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                aria-pressed={r.number === shownRound}
-                onClick={() => setChosen({ during: event.currentRound, round: r.number })}
-                className="h-9 cursor-pointer rounded-full border border-line-strong px-4 text-sm font-semibold transition-colors aria-pressed:border-orange aria-pressed:bg-orange aria-pressed:text-on-orange"
-              >
-                {roundLabel(r)}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <RoundTables
-          matches={roundMatches}
-          bestOf={event.bestOf}
-          elimination={rounds.find((r) => r.number === shownRound)?.elimination ?? false}
+        <PairingsPanel
+          detail={detail}
           viewerId={viewer?.userId}
           canEdit={viewer?.isHost}
           onSetResult={onHostResult}
