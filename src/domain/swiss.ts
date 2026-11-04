@@ -1,7 +1,8 @@
 import { Effect, Random } from 'effect'
 import { computeStandings, type MatchRecord } from './standings.ts'
 
-interface Pairing {
+/** One table of a round. Byes come last, with no player 2. */
+export interface Pairing {
   readonly table: number
   readonly player1Id: string
   /** `null` means player 1 receives a bye. */

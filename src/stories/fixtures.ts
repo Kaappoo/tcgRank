@@ -38,6 +38,8 @@ const standing = (
   winPercentage: wins / Math.max(1, wins + losses + draws),
   opponentWinPercentage: omw,
   opponentOpponentWinPercentage: 0.5,
+  gameWinPercentage: wins / Math.max(1, wins + losses + draws),
+  headToHead: false,
   dropped: false,
 })
 

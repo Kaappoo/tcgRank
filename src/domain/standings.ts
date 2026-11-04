@@ -5,6 +5,10 @@
  * - Win % = wins / matches played, excluding byes, floored at 25%.
  * - OMW% (Opponents' Match Win %) = average Win % of every opponent faced.
  * - OOMW% = average OMW% of every opponent faced.
+ *
+ * Swiss breaks ties on points with OMW% then OOMW%. Round robin uses
+ * head-to-head (only for a tie between exactly two players), then game-win %,
+ * then OMW%.
  */
 
 const POINTS = { win: 3, draw: 1, loss: 0 } as const
@@ -17,7 +21,12 @@ export interface MatchRecord {
   readonly player2Id: string | null
   /** `null` while the match is still being played. */
   readonly outcome: Outcome | null
+  /** Games won by each player; game-win % needs them. Missing counts as 0. */
+  readonly player1Games?: number | null
+  readonly player2Games?: number | null
 }
+
+export type Tiebreakers = 'swiss' | 'round_robin'
 
 export interface Standing {
   readonly playerId: string
@@ -31,6 +40,10 @@ export interface Standing {
   readonly winPercentage: number
   readonly opponentWinPercentage: number
   readonly opponentOpponentWinPercentage: number
+  /** Share of games won across played matches (byes left out); 0 before any game. */
+  readonly gameWinPercentage: number
+  /** Placed above the one other player on the same points by beating them (round robin only). */
+  readonly headToHead: boolean
 }
 
 interface Tally {
@@ -39,9 +52,11 @@ interface Tally {
   draws: number
   byes: number
   opponents: Array<string>
+  gamesWon: number
+  gamesPlayed: number
 }
 
-const emptyTally = (): Tally => ({ wins: 0, losses: 0, draws: 0, byes: 0, opponents: [] })
+const emptyTally = (): Tally => ({ wins: 0, losses: 0, draws: 0, byes: 0, opponents: [], gamesWon: 0, gamesPlayed: 0 })
 
 const matchPoints = (t: Pick<Tally, 'wins' | 'draws' | 'byes'>): number =>
   (t.wins + t.byes) * POINTS.win + t.draws * POINTS.draw
@@ -77,6 +92,12 @@ const tallyResults = (playerIds: ReadonlyArray<string>, matches: ReadonlyArray<M
     const p2 = get(m.player2Id)
     p1.opponents.push(m.player2Id)
     p2.opponents.push(m.player1Id)
+    const games1 = m.player1Games ?? 0
+    const games2 = m.player2Games ?? 0
+    p1.gamesWon += games1
+    p2.gamesWon += games2
+    p1.gamesPlayed += games1 + games2
+    p2.gamesPlayed += games1 + games2
     switch (m.outcome) {
       case 'p1':
         p1.wins += 1
@@ -95,15 +116,57 @@ const tallyResults = (playerIds: ReadonlyArray<string>, matches: ReadonlyArray<M
   return tallies
 }
 
-const compareStandings = (a: Omit<Standing, 'rank'>, b: Omit<Standing, 'rank'>): number =>
+type Row = Omit<Standing, 'rank'>
+
+const compareSwiss = (a: Row, b: Row): number =>
   b.points - a.points ||
   b.opponentWinPercentage - a.opponentWinPercentage ||
   b.opponentOpponentWinPercentage - a.opponentOpponentWinPercentage ||
   a.playerId.localeCompare(b.playerId)
 
+const compareRoundRobin = (a: Row, b: Row): number =>
+  b.points - a.points ||
+  b.gameWinPercentage - a.gameWinPercentage ||
+  b.opponentWinPercentage - a.opponentWinPercentage ||
+  a.playerId.localeCompare(b.playerId)
+
+/** Who won the match between `a` and `b`, or null when they drew or have not met. */
+const headToHeadWinner = (a: string, b: string, matches: ReadonlyArray<MatchRecord>): string | null => {
+  for (const m of matches) {
+    const between = (m.player1Id === a && m.player2Id === b) || (m.player1Id === b && m.player2Id === a)
+    if (!between) continue
+    if (m.outcome === 'p1') return m.player1Id
+    if (m.outcome === 'p2') return m.player2Id
+  }
+  return null
+}
+
+/** Sorted round-robin rows, with head-to-head settling each tie between exactly two players. */
+const orderRoundRobin = (rows: ReadonlyArray<Row>, matches: ReadonlyArray<MatchRecord>): Array<Row> => {
+  const sorted = [...rows].sort(compareRoundRobin)
+  const ordered: Array<Row> = []
+  for (let i = 0; i < sorted.length;) {
+    let end = i
+    while (end < sorted.length && sorted[end]!.points === sorted[i]!.points) end++
+    const tied = sorted.slice(i, end)
+    const [first, second] = tied
+    const winner =
+      tied.length === 2 && first && second ? headToHeadWinner(first.playerId, second.playerId, matches) : null
+    if (winner && first && second) {
+      const [top, bottom] = winner === first.playerId ? [first, second] : [second, first]
+      ordered.push({ ...top, headToHead: true }, bottom)
+    } else {
+      ordered.push(...tied)
+    }
+    i = end
+  }
+  return ordered
+}
+
 export const computeStandings = (
   playerIds: ReadonlyArray<string>,
   matches: ReadonlyArray<MatchRecord>,
+  options: { readonly tiebreakers?: Tiebreakers } = {},
 ): ReadonlyArray<Standing> => {
   const tallies = tallyResults(playerIds, matches)
 
@@ -126,10 +189,13 @@ export const computeStandings = (
       winPercentage: wp.get(playerId) ?? MIN_WIN_PERCENTAGE,
       opponentWinPercentage: omw.get(playerId) ?? 0,
       opponentOpponentWinPercentage: average(t.opponents.map((o) => omw.get(o) ?? 0)),
+      gameWinPercentage: t.gamesPlayed === 0 ? 0 : t.gamesWon / t.gamesPlayed,
+      headToHead: false,
     }
   })
 
-  return rows.sort(compareStandings).map((row, index) => ({ ...row, rank: index + 1 }))
+  const ordered = options.tiebreakers === 'round_robin' ? orderRoundRobin(rows, matches) : rows.sort(compareSwiss)
+  return ordered.map((row, index) => ({ ...row, rank: index + 1 }))
 }
 
 /** Formats a W-L-T record the way players say it out loud: "3-1-0". */
