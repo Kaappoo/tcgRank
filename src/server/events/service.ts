@@ -1,12 +1,14 @@
 import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm'
-import { Clock, Context, Effect, Layer } from 'effect'
+import { Clock, Context, Effect, Layer, Random } from 'effect'
 import { invalidScoreReason, matchOutcome, scoreRules, type BestOf } from '#/domain/best-of.ts'
 import { newId, newJoinCode, normalizeJoinCode } from '#/domain/ids.ts'
 import { mainPhaseRounds, type PairingSystem } from '#/domain/event-setup.ts'
+import { entriesClosedReason } from '#/domain/open-entry.ts'
 import { deckIneligibility } from '#/domain/registration.ts'
 import { adjustClock, pauseClock, resumeClock, startClock } from '#/domain/match-clock.ts'
-import { computeStandings } from '#/domain/standings.ts'
-import { pairRound } from '#/domain/swiss.ts'
+import { scheduleRound } from '#/domain/round-robin.ts'
+import { computeStandings, type Tiebreakers } from '#/domain/standings.ts'
+import { pairRound, type Pairing } from '#/domain/swiss.ts'
 import { pairingSystemLabel } from '#/lib/format.ts'
 import type { CreateEventInput } from '#/shared/schemas.ts'
 import { optionalUser, requireUser } from '../current-user.ts'
@@ -19,6 +21,7 @@ import {
   rounds,
   user,
   type EventRow,
+  type EventPlayerRow,
   type EventStatus,
   type MatchRow,
 } from '../db/schema.ts'
@@ -35,6 +38,10 @@ import {
 } from './views.ts'
 
 const TOP_CUT_SWISS_ONLY = 'Only Swiss events can have a top cut'
+
+/** Round robin breaks ties its own way; every other system uses the Swiss tiebreakers. */
+const tiebreakersFor = (pairingSystem: PairingSystem): Tiebreakers =>
+  pairingSystem === 'round_robin' ? 'round_robin' : 'swiss'
 
 const playerRefColumns = {
   id: user.id,
@@ -116,6 +123,7 @@ const make = Effect.gen(function* () {
       bestOf: r.bestOf,
       pairingSystem: r.pairingSystem,
       topCut: r.topCut,
+      entriesClosedReason: entriesClosedReason(r),
       playerCount: countByEvent.get(r.id) ?? 0,
       host: hosts.get(r.hostId) ?? unknownPlayer(r.hostId),
     }))
@@ -206,6 +214,7 @@ const make = Effect.gen(function* () {
     const standings: Array<StandingView> = computeStandings(
       players.map((p) => p.id),
       matchRows.filter((m) => m.confirmedAt !== null),
+      { tiebreakers: tiebreakersFor(event.pairingSystem) },
     ).map((s) => ({
       ...s,
       player: refs.get(s.playerId) ?? unknownPlayer(s.playerId),
@@ -308,6 +317,9 @@ const make = Effect.gen(function* () {
         where: and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.userId, me.id)),
       }),
     )
+    // A player still in the event may fill in a missing deck; anyone else needs open entry.
+    const closed = existing?.droppedAtRound === null ? null : entriesClosedReason(event)
+    if (closed) return yield* new InvalidState({ reason: closed })
     const registered = deckId !== undefined ? deckId : (existing?.deckId ?? null)
     if (event.deckRequired && registered === null) {
       return yield* new InvalidState({ reason: 'This event requires a registered deck' })
@@ -395,6 +407,8 @@ const make = Effect.gen(function* () {
     const me = yield* requireUser
     const event = yield* loadHostedEvent(eventId)
     if (event.status === 'finished') return yield* new InvalidState({ reason: 'This event has already finished' })
+    const closed = entriesClosedReason(event)
+    if (closed) return yield* new InvalidState({ reason: closed })
 
     let guest: { id: string; name: string }
     if ('guestId' in who) {
@@ -591,6 +605,44 @@ const make = Effect.gen(function* () {
       { concurrency: 'unbounded' },
     )
 
+  /**
+   * The pairings for the next round under the event's pairing system. Round 1 of a round robin draws the schedule,
+   * returned so it can be stored (and entries close with it); otherwise `schedule` is empty.
+   */
+  const pairNextRound = Effect.fn('EventsService.pairNextRound')(function* (
+    event: EventRow,
+    entries: ReadonlyArray<EventPlayerRow>,
+    history: ReadonlyArray<MatchRow>,
+    roundNumber: number,
+  ) {
+    const dropped = new Set(entries.filter((e) => e.droppedAtRound !== null).map((e) => e.userId))
+    switch (event.pairingSystem) {
+      case 'swiss': {
+        const pairings: ReadonlyArray<Pairing> = yield* pairRound({
+          activePlayerIds: entries.filter((e) => !dropped.has(e.userId)).map((e) => e.userId),
+          allPlayerIds: entries.map((e) => e.userId),
+          matches: history,
+        })
+        return { pairings, schedule: [] }
+      }
+      case 'round_robin': {
+        if (event.currentRound === 0) {
+          const schedule = [...(yield* Random.shuffle(entries.map((e) => e.userId)))]
+          return { pairings: scheduleRound({ schedule, round: roundNumber, dropped }), schedule }
+        }
+        const schedule = entries
+          .filter((e) => e.schedulePosition !== null)
+          .sort((a, b) => a.schedulePosition! - b.schedulePosition!)
+          .map((e) => e.userId)
+        return { pairings: scheduleRound({ schedule, round: roundNumber, dropped }), schedule: [] }
+      }
+      case 'single_elimination':
+        return yield* new InvalidState({
+          reason: `${pairingSystemLabel(event.pairingSystem)} pairing isn't available yet`,
+        })
+    }
+  })
+
   const startNextRound = Effect.fn('EventsService.startNextRound')(function* (eventId: string) {
     const event = yield* loadHostedEvent(eventId)
     if (event.status === 'finished') return yield* new InvalidState({ reason: 'This event has already finished' })
@@ -600,23 +652,18 @@ const make = Effect.gen(function* () {
     const active = entries.filter((e) => e.droppedAtRound === null).map((e) => e.userId)
     if (active.length < 2) return yield* new InvalidState({ reason: 'You need at least two players to pair a round' })
 
-    if (event.pairingSystem !== 'swiss') {
-      return yield* new InvalidState({
-        reason: `${pairingSystemLabel(event.pairingSystem)} pairing isn't available yet`,
-      })
-    }
     const plannedRounds = mainPhaseRounds({ ...event, playerCount: entries.length })
     const roundNumber = event.currentRound + 1
     if (event.currentRound >= plannedRounds) {
-      return yield* new InvalidState({ reason: `All ${plannedRounds} Swiss rounds have been played` })
+      return yield* new InvalidState({
+        reason:
+          event.pairingSystem === 'round_robin'
+            ? `All ${plannedRounds} rounds of the schedule have been played`
+            : `All ${plannedRounds} Swiss rounds have been played`,
+      })
     }
 
-    const pairings = yield* pairRound({
-      activePlayerIds: active,
-      allPlayerIds: entries.map((e) => e.userId),
-      matches: history,
-    })
-
+    const { pairings, schedule } = yield* pairNextRound(event, entries, history, roundNumber)
     const now = yield* Clock.currentTimeMillis
     const clock = startClock(now, event.roundMinutes)
     const roundId = newId()
@@ -654,6 +701,12 @@ const make = Effect.gen(function* () {
           .update(events)
           .set({ status: 'running', currentRound: roundNumber, plannedRounds })
           .where(eq(events.id, eventId)),
+        ...schedule.map((userId, position) =>
+          d
+            .update(eventPlayers)
+            .set({ schedulePosition: position + 1 })
+            .where(and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.userId, userId))),
+        ),
       ]),
     )
     return { roundNumber }
@@ -669,6 +722,7 @@ const make = Effect.gen(function* () {
     const standings = computeStandings(
       entries.map((e) => e.userId),
       history,
+      { tiebreakers: tiebreakersFor(event.pairingSystem) },
     )
     const now = new Date(yield* Clock.currentTimeMillis)
     yield* db.query((d) =>

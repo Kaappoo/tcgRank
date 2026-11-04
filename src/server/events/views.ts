@@ -71,6 +71,8 @@ export interface EventSummary {
   readonly pairingSystem: PairingSystem
   /** A Swiss event that cuts to a bracket after its Swiss rounds. Always false outside Swiss. */
   readonly topCut: boolean
+  /** Why new players and rejoins are refused (worded for the cause), or null while entry is open. */
+  readonly entriesClosedReason: string | null
   readonly playerCount: number
   readonly host: PlayerRef
 }
