@@ -7,7 +7,7 @@ import { Button } from '#/components/ui/button.tsx'
 import { Field, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import type { BestOf } from '#/domain/best-of.ts'
-import { eventBracket, finalRound, roundName, stageName, topCutLabel, type Bracket } from '#/domain/bracket.ts'
+import { eventBracket, finalRound, roundTitle, stageName } from '#/domain/bracket.ts'
 import {
   allowedCutSizes,
   defaultCutSize,
@@ -141,7 +141,7 @@ export function HostDesk({
             <div className="flex items-baseline justify-between text-sm">
               <span className="font-semibold">
                 {topCut && event.currentRound >= topCut.firstRound
-                  ? cutRoundLine(topCut, event.currentRound)
+                  ? roundTitle(topCut, event.currentRound)
                   : `${currentStage ? `${currentStage} · ` : ''}Round ${event.currentRound} of ${plannedRounds}${event.topCut ? ' · then top cut' : ''}`}
               </span>
               <span className="tabular text-paper-dim">
@@ -202,10 +202,6 @@ export function HostDesk({
     </section>
   )
 }
-
-/** A top cut round's line on the desk: "Top 8 · Quarterfinal" for the first, then "Semifinal", "Final". */
-const cutRoundLine = (bracket: Bracket, roundNumber: number): string =>
-  [topCutLabel(bracket, roundNumber), roundName(bracket, roundNumber)].filter(Boolean).join(' · ')
 
 /**
  * The cut step after the last Swiss round: the cut size (default from attendance, never more than the players still

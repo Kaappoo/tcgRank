@@ -147,6 +147,12 @@ export const roundName = (bracket: Bracket, roundNumber: number): string =>
 export const topCutLabel = (bracket: Bracket, roundNumber: number): string | null =>
   bracket.topCutSize !== undefined && roundNumber === bracket.firstRound ? `Top ${bracket.topCutSize}` : null
 
+/** A round's full title where a line names it: "Top 8 · Quarterfinal" for a top cut's first round, else its name. */
+export const roundTitle = (bracket: Bracket, roundNumber: number): string => {
+  const cut = topCutLabel(bracket, roundNumber)
+  return cut ? `${cut} · ${roundName(bracket, roundNumber)}` : roundName(bracket, roundNumber)
+}
+
 /**
  * The round each player was knocked out in, or null for the champion (and
  * anyone still in). A player who lost a match is out in that round; one who

@@ -10,6 +10,7 @@ import {
   sharedPlacements,
   slotOrder,
   stageName,
+  roundTitle,
   topCutLabel,
   topCutPlacements,
   type BracketMatch,
@@ -173,6 +174,13 @@ describe('eventBracket', () => {
     const cut = eventBracket({ pairingSystem: 'swiss', plannedRounds: 5, topCutSize: 8 })!
     expect([5, 6, 7, 8].map((r) => topCutLabel(cut, r))).toEqual([null, 'Top 8', null, null])
     expect([6, 7, 8].map((r) => roundName(cut, r))).toEqual(['Quarterfinal', 'Semifinal', 'Final'])
+  })
+
+  it('titles a top cut\'s rounds "Top 8 · Quarterfinal", then by stage', () => {
+    const cut = eventBracket({ pairingSystem: 'swiss', plannedRounds: 5, topCutSize: 8 })!
+    expect([6, 7, 8].map((r) => roundTitle(cut, r))).toEqual(['Top 8 · Quarterfinal', 'Semifinal', 'Final'])
+    const top2 = eventBracket({ pairingSystem: 'swiss', plannedRounds: 3, topCutSize: 2 })!
+    expect(roundTitle(top2, 4)).toBe('Top 2 · Final')
   })
 
   it('a single-elimination bracket has no "Top N" label', () => {

@@ -1,4 +1,4 @@
-import { bracketRounds, roundName, type Bracket } from '#/domain/bracket.ts'
+import { bracketRounds, roundTitle, type Bracket } from '#/domain/bracket.ts'
 import type { EventDetail, MatchView, PlayerRef } from '#/server/events/views.ts'
 
 /** A player in a bracket box: their seed, or null for a seat not yet decided. */
@@ -55,7 +55,9 @@ const bracketFrom = ({ rounds, matches }: BracketSource): Bracket | null => {
     .reduce<number | null>((n, r) => Math.min(n ?? r.number, r.number), null)
   if (first === null) return null
   const slots = Math.max(0, ...matches.filter((m) => m.roundNumber === first).map((m) => (m.bracketSlot ?? 0) + 1))
-  return { firstRound: first, rounds: bracketRounds(slots * 2) }
+  const size = slots * 2
+  // A bracket that starts after round 1 is a Swiss event's top cut, whose first round reads "Top N".
+  return { firstRound: first, rounds: bracketRounds(size), ...(first > 1 ? { topCutSize: size } : {}) }
 }
 
 const statusOf = (m: MatchView): BracketMatchStatus => {
@@ -124,7 +126,7 @@ export const bracketModel = (source: BracketSource): BracketModel | null => {
         status: 'waiting',
       }
     })
-    rounds.push({ number, name: roundName(bracket, number), paired, boxes })
+    rounds.push({ number, name: roundTitle(bracket, number), paired, boxes })
   }
   return { bracket, rounds, current }
 }
