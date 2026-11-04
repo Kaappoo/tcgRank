@@ -3,6 +3,7 @@ import { useServerFn } from '@tanstack/react-start'
 import { toast } from '#/components/ui/toast.tsx'
 import type { BestOf } from '#/domain/best-of.ts'
 import type { PairingSystem, TopCutSize } from '#/domain/event-setup.ts'
+import { roundPairedTitle } from '#/lib/format.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import {
   addGuest,
@@ -74,7 +75,12 @@ export function useEventActions(eventId: string) {
     startRound: useMutation({
       mutationFn: () => start({ data: { eventId } }),
       onSuccess: ({ roundNumber }) =>
-        refresh().then(() => toast.success(`Round ${roundNumber} is paired`, 'Players can see their table now.')),
+        refresh().then(() => {
+          // Named from the refreshed event, so a bracket round reads by its stage ("Semifinals are paired").
+          const event = queryClient.getQueryData(eventQuery(eventId).queryKey)?.event
+          const title = event ? roundPairedTitle({ ...event, currentRound: roundNumber }) : `Round ${roundNumber} is paired`
+          toast.success(title, 'Players can see their table now.')
+        }),
       onError,
     }),
     cut: useMutation({

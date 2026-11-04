@@ -25,6 +25,7 @@ const detailWith = (event: Partial<EventDetail['event']>): EventDetail => ({
     description: null,
     joinCode: 'ABC234',
     roundMinutes: 50,
+    topCutRoundMinutes: null,
     finishedAt: null,
     ...event,
   },
@@ -193,6 +194,7 @@ describe('HostDesk round robin', () => {
         endsAt: 3_000_000,
         pausedRemainingMs: null,
         elimination: false,
+        minutes: 50,
       },
     ],
     matches: played(round, status),
@@ -228,6 +230,7 @@ describe('HostDesk single elimination', () => {
       endsAt: 3_000_000,
       pausedRemainingMs: null,
       elimination: true,
+      minutes: 50,
     })),
     matches: [
       {
@@ -297,6 +300,7 @@ describe('HostDesk Swiss top cut', () => {
       endsAt: 3_000_000,
       pausedRemainingMs: null,
       elimination: i + 1 > 5,
+      minutes: i + 1 > 5 ? 70 : 50,
     })),
     matches: [
       {
@@ -374,6 +378,11 @@ describe('HostDesk Swiss top cut', () => {
     expect(screen.getByText(line)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: button })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'End event early' })).not.toBeInTheDocument()
+  })
+
+  it('runs the clock of a top cut round on the top cut round timer', () => {
+    renderDesk(swissCut(6, 'playing', { topCutSize: 8 }))
+    expect(screen.getByText('70 min round')).toBeInTheDocument()
   })
 
   it('finishes after the top cut final', () => {

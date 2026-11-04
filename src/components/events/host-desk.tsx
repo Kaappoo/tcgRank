@@ -84,7 +84,7 @@ export function HostDesk({
             <MatchClock
               endsAt={round.endsAt}
               pausedRemainingMs={round.pausedRemainingMs}
-              roundMinutes={event.roundMinutes}
+              roundMinutes={round.minutes}
               offsetMs={offsetMs}
               referenceNow={detail.serverNow}
               size="md"

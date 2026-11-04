@@ -8,8 +8,8 @@ import { cn } from '#/lib/utils.ts'
 
 /**
  * Standings with the tiebreaker columns of the event's pairing system: Swiss shows OMW and OOMW, round robin GW% and
- * OMW. Final standings of a top cut event keep the Swiss columns, badge each cut player with their stage and close the
- * cut with a "Top N cut" divider.
+ * OMW. Once a Swiss event has cut, its standings keep the Swiss columns, badge each cut player with their stage and
+ * close the cut with a "Top N cut" divider, while the cut is played and once it has finished.
  */
 export function StandingsTable({
   standings,
@@ -22,7 +22,7 @@ export function StandingsTable({
   highlightId?: string | null
   final?: boolean
   tiebreakers?: Tiebreakers
-  /** Set on a finished top cut event: the players in the cut come first. */
+  /** Set once a Swiss event has cut: the players in the cut come first. */
   topCutSize?: number | null
 }) {
   const roundRobin = tiebreakers === 'round_robin'

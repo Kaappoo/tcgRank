@@ -25,7 +25,7 @@ export interface MatchView {
   readonly status: MatchStatus
   /** Position in an elimination round's bracket; null outside elimination rounds. */
   readonly bracketSlot: number | null
-  /** The loser dropped during the unreported match, so it was recorded as the opponent's win. */
+  /** An elimination match lost by a drop (during it, or before it in a top cut): recorded as the opponent's win. */
   readonly dropped: boolean
 }
 
@@ -38,6 +38,8 @@ export interface RoundView {
   readonly pausedRemainingMs: number | null
   /** A round of a top cut or a single-elimination event: matches can't tie and losers are out. */
   readonly elimination: boolean
+  /** Minutes on this round's clock: the top cut round timer in a top cut, the event's round timer otherwise. */
+  readonly minutes: number
 }
 
 export interface EntrantView extends PlayerRef {
@@ -63,7 +65,7 @@ export interface GuestView {
 export interface StandingView extends Standing {
   readonly player: PlayerRef
   readonly dropped: boolean
-  /** How far a player got in a finished bracket ("Champion", "Finalist", "Semifinal"…); null otherwise. */
+  /** How far a player got in a bracket ("Champion", "Finalist", "Semifinal"…): once finished, and in a top cut being played. */
   readonly stage: string | null
 }
 
@@ -94,6 +96,8 @@ export interface EventDetail {
     readonly description: string | null
     readonly joinCode: string
     readonly roundMinutes: number
+    /** The top cut round timer the host set at the cut; null before the cut and without one. */
+    readonly topCutRoundMinutes: number | null
     readonly finishedAt: number | null
   }
   readonly players: ReadonlyArray<EntrantView>
@@ -109,10 +113,6 @@ export interface EventDetail {
   /** Lets clients correct for clock skew when rendering the match timer. */
   readonly serverNow: number
 }
-
-/** A drop during an unreported elimination match records it with no reporter; every report names one. */
-export const droppedMatch = (m: { outcome: MatchOutcome | null; reportedById: string | null }): boolean =>
-  (m.outcome === 'p1' || m.outcome === 'p2') && m.reportedById === null
 
 export const matchStatus = (m: { outcome: MatchOutcome | null; confirmedAt: Date | null }): MatchStatus =>
   m.confirmedAt ? 'confirmed' : m.outcome ? 'reported' : 'playing'

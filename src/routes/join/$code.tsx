@@ -48,7 +48,7 @@ function ConfirmJoin() {
             <Badge variant="outline">{formatLabel(event.format)}</Badge>
             <Badge variant="outline">{setupSummary(event)}</Badge>
             <Badge variant={event.status === 'running' ? 'live' : 'muted'}>
-              {statusLabel(event.status, event.currentRound)}
+              {statusLabel(event)}
             </Badge>
           </div>
           <h1 className="font-display text-4xl">{event.name}</h1>

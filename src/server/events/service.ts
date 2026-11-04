@@ -6,9 +6,11 @@ import {
   eventBracket,
   finalRound,
   firstBracketRound,
+  lostByDrop,
   nextBracketRound,
   placementStage,
   sharedPlacements,
+  stagesSoFar,
   topCutPlacements,
   type Bracket,
   type BracketPairing,
@@ -38,7 +40,6 @@ import {
 } from '../db/schema.ts'
 import { Forbidden, InvalidState, NotFound } from '../errors.ts'
 import {
-  droppedMatch,
   matchStatus,
   type EntrantView,
   type EventDetail,
@@ -115,7 +116,21 @@ const standingsView = (
     dropped: dropped.has(s.playerId),
     stage,
   })
-  if (event.status !== 'finished') return live.map((s) => view(s, null))
+  if (event.status !== 'finished') {
+    // While a top cut is played its players come first, by seed, each with the stage they have reached so far.
+    const cut = topCutOf(event)
+    if (!cut) return live.map((s) => view(s, null))
+    const stages = stagesSoFar(
+      cut,
+      matchRows.filter((m) => m.bracketSlot !== null && m.roundNumber >= cut.firstRound),
+      dropped,
+    )
+    const seeds = new Map(players.map((p) => [p.id, p.seed]))
+    const cutSeed = (s: Standing) => (stages.has(s.playerId) ? (seeds.get(s.playerId) ?? 0) : Number.POSITIVE_INFINITY)
+    return [...live]
+      .sort((a, b) => cutSeed(a) - cutSeed(b) || a.rank - b.rank)
+      .map((s) => view(s, stages.get(s.playerId) ?? null))
+  }
 
   const placed = new Map(players.map((p) => [p.id, p]))
   const placement = (s: Standing) => placed.get(s.playerId)?.finalRank ?? s.rank
@@ -135,6 +150,13 @@ const standingsView = (
     .sort((a, b) => placement(a) - placement(b) || seed(a) - seed(b) || a.rank - b.rank)
     .map((s) => view({ ...s, rank: placement(s) }, stageOf(s)))
 }
+
+/** Minutes on a round's clock: a top cut's rounds run on the timer set at the cut, every other round on the event's. */
+const roundTimer = (
+  event: Pick<EventRow, 'roundMinutes' | 'topCutSize' | 'topCutRoundMinutes'>,
+  elimination: boolean,
+): number =>
+  elimination && event.topCutSize !== null ? (event.topCutRoundMinutes ?? event.roundMinutes) : event.roundMinutes
 
 /** The bracket of a Swiss event that has cut; null before the cut and for every other event. */
 const topCutOf = (event: EventRow): Bracket | null => {
@@ -205,7 +227,12 @@ const make = Effect.gen(function* () {
           )
           .pipe(Effect.map((rows) => new Map(rows.map((r) => [r.id, r]))))
 
-  const toMatchView = (m: MatchRow, refs: Map<string, PlayerRef>): MatchView => ({
+  /** `droppedAtRound` of the event's players and whether the match's round is an elimination round. */
+  const toMatchView = (
+    m: MatchRow,
+    refs: Map<string, PlayerRef>,
+    { droppedAtRound, elimination }: { droppedAtRound: ReadonlyMap<string, number | null>; elimination: boolean },
+  ): MatchView => ({
     id: m.id,
     roundNumber: m.roundNumber,
     table: m.table,
@@ -217,7 +244,7 @@ const make = Effect.gen(function* () {
     reportedById: m.reportedById,
     status: matchStatus(m),
     bracketSlot: m.bracketSlot,
-    dropped: droppedMatch(m),
+    dropped: elimination && lostByDrop(m, (id) => droppedAtRound.get(id) ?? null),
   })
 
   const summaries = Effect.fn('EventsService.summaries')(function* (rows: ReadonlyArray<EventRow>) {
@@ -332,7 +359,11 @@ const make = Effect.gen(function* () {
     for (const e of entries) refs.set(e.id, { id: e.id, name: e.name, username: e.username, image: e.image })
 
     const players: Array<EntrantView> = entries
-    const matchViews = matchRows.map((m) => toMatchView(m, refs))
+    const droppedAtRound = new Map(entries.map((e) => [e.id, e.droppedAtRound]))
+    const eliminationRounds = new Set(roundRows.filter((r) => r.elimination).map((r) => r.id))
+    const matchViews = matchRows.map((m) =>
+      toMatchView(m, refs, { droppedAtRound, elimination: eliminationRounds.has(m.roundId) }),
+    )
     const standings = standingsView(event, players, matchRows, refs)
     const [summary] = yield* summaries([event])
     const currentMatch = me
@@ -348,6 +379,7 @@ const make = Effect.gen(function* () {
         description: event.description,
         joinCode: event.joinCode,
         roundMinutes: event.roundMinutes,
+        topCutRoundMinutes: event.topCutRoundMinutes,
         finishedAt: event.finishedAt?.getTime() ?? null,
       },
       players,
@@ -359,6 +391,7 @@ const make = Effect.gen(function* () {
         endsAt: r.endsAt?.getTime() ?? null,
         pausedRemainingMs: r.pausedRemainingMs,
         elimination: r.elimination,
+        minutes: roundTimer(event, r.elimination),
       })),
       matches: matchViews,
       standings,
@@ -575,8 +608,8 @@ const make = Effect.gen(function* () {
   })
 
   /**
-   * A player who drops during an unreported elimination match loses it: the match is recorded and confirmed as the
-   * opponent's win, with the games as they stand and no reporter, which is how the round list tells it was a drop.
+   * A player who drops during an elimination match that has no confirmed result loses it: the match is recorded and
+   * confirmed as the opponent's win, with the games as they stand (or as reported), so the round can close.
    */
   const forfeitOnDrop = Effect.fn('EventsService.forfeitOnDrop')(function* (event: EventRow, userId: string) {
     if (event.status !== 'running') return
@@ -590,7 +623,7 @@ const make = Effect.gen(function* () {
             eq(matches.eventId, event.id),
             eq(matches.roundNumber, event.currentRound),
             eq(rounds.elimination, true),
-            isNull(matches.outcome),
+            isNull(matches.confirmedAt),
             or(eq(matches.player1Id, userId), eq(matches.player2Id, userId)),
           ),
         ),
@@ -772,7 +805,9 @@ const make = Effect.gen(function* () {
       const previous = history.flatMap((m) =>
         m.roundNumber === event.currentRound && m.bracketSlot !== null ? [{ ...m, slot: m.bracketSlot }] : [],
       )
-      return { pairings: nextBracketRound(previous, dropped), elimination: true, schedule: [], seeds: [] }
+      // A top cut never has byes: a player who dropped between its rounds loses by walkover instead.
+      const onDrop = event.topCutSize === null ? 'bye' : 'walkover'
+      return { pairings: nextBracketRound(previous, dropped, { onDrop }), elimination: true, schedule: [], seeds: [] }
     }
     switch (event.pairingSystem) {
       case 'swiss': {
@@ -807,7 +842,7 @@ const make = Effect.gen(function* () {
 
   /**
    * Stores a paired round in one batch: closes the active round, starts the new one on a clock of `roundMinutes`,
-   * inserts its matches (byes confirmed at once) and whatever round 1 or the cut draws, and moves the event on.
+   * inserts its matches (byes and walkovers confirmed at once) and whatever round 1 or the cut draws, and moves the event on.
    */
   const storeRound = Effect.fn('EventsService.storeRound')(function* (
     eventId: string,
@@ -849,6 +884,7 @@ const make = Effect.gen(function* () {
             ...(p.player2Id === null
               ? { outcome: 'bye' as const, player1Games: 2, reportedAt: startedAt, confirmedAt: startedAt }
               : {}),
+            ...('walkover' in p && p.walkover ? { outcome: p.walkover, reportedAt: startedAt, confirmedAt: startedAt } : {}),
           })),
         ),
         d
@@ -889,9 +925,7 @@ const make = Effect.gen(function* () {
 
     const next = yield* pairNextRound(event, entries, history, roundNumber)
     if (next.pairings.length === 0) return yield* new InvalidState({ reason: 'Nobody is left to pair' })
-    // Top cut rounds run on the timer the host set at the cut.
-    const roundMinutes = topCut ? (event.topCutRoundMinutes ?? event.roundMinutes) : event.roundMinutes
-    return yield* storeRound(eventId, roundNumber, next, roundMinutes, { plannedRounds })
+    return yield* storeRound(eventId, roundNumber, next, roundTimer(event, next.elimination), { plannedRounds })
   })
 
   /**
@@ -1005,8 +1039,24 @@ const make = Effect.gen(function* () {
   const matchView = Effect.fn('EventsService.matchView')(function* (matchId: string) {
     const m = yield* db.query((d) => d.query.matches.findFirst({ where: eq(matches.id, matchId) }))
     if (!m) return yield* new NotFound({ entity: 'Match', id: matchId })
-    const refs = yield* playerRefs([m.player1Id, m.player2Id ?? m.player1Id])
-    return toMatchView(m, refs)
+    const seated = m.player2Id === null ? [m.player1Id] : [m.player1Id, m.player2Id]
+    const [refs, entries, round] = yield* Effect.all(
+      [
+        playerRefs(seated),
+        db.query((d) =>
+          d
+            .select({ userId: eventPlayers.userId, droppedAtRound: eventPlayers.droppedAtRound })
+            .from(eventPlayers)
+            .where(and(eq(eventPlayers.eventId, m.eventId), inArray(eventPlayers.userId, seated))),
+        ),
+        db.query((d) => d.query.rounds.findFirst({ columns: { elimination: true }, where: eq(rounds.id, m.roundId) })),
+      ],
+      { concurrency: 'unbounded' },
+    )
+    return toMatchView(m, refs, {
+      droppedAtRound: new Map(entries.map((e) => [e.userId, e.droppedAtRound])),
+      elimination: round?.elimination ?? false,
+    })
   })
 
   const reportResult = Effect.fn('EventsService.reportResult')(function* (

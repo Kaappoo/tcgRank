@@ -40,7 +40,7 @@ export function EventRow({ event }: { event: EventSummary }) {
       <div className="flex items-center gap-3">
         <Badge variant={event.status === 'running' ? 'live' : event.status === 'finished' ? 'muted' : 'outline'}>
           {event.status === 'running' ? <LiveDot /> : null}
-          <span className="hidden sm:inline">{statusLabel(event.status, event.currentRound)}</span>
+          <span className="hidden sm:inline">{statusLabel(event)}</span>
           <span className="sm:hidden">
             {event.status === 'running' ? `R${event.currentRound}` : formatLabel(event.format)}
           </span>

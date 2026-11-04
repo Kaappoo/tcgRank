@@ -41,6 +41,10 @@ test.describe('Swiss top cut', () => {
     await expect(host.page.getByText('Top 4 · Semifinal').first()).toBeVisible()
     await host.page.getByRole('tab', { name: /^Players/ }).click()
     await expect(host.page.getByText('Entries are closed: the top cut has started').first()).toBeVisible()
+    // The header names the stage, and the standings show the cut while it is played.
+    await expect(host.page.getByText('Top 4 live')).toBeVisible()
+    await host.page.getByRole('tab', { name: 'Standings' }).click()
+    await expect(host.page.getByRole('cell', { name: 'Top 4 cut' })).toBeVisible()
     await host.page.getByRole('tab', { name: 'Pairings' }).click()
     await expect(host.page.getByRole('button', { name: 'End event early' })).toHaveCount(0)
     await expect(chip('Top cut')).toHaveAttribute('aria-pressed', 'true')
@@ -55,6 +59,8 @@ test.describe('Swiss top cut', () => {
     await expect(host.page.getByText('2/2 results in')).toBeVisible()
 
     await host.page.getByRole('button', { name: 'Pair final' }).click()
+    await expect(host.page.getByText('The final is paired')).toBeVisible()
+    await expect(host.page.getByText('Final live')).toBeVisible()
     await expect(host.page.getByRole('region', { name: 'Final', exact: true })).toBeVisible()
     await hostReportsRound(host.page, 'Final')
     await expect(host.page.getByText('1/1 results in')).toBeVisible()

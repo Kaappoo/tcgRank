@@ -36,7 +36,7 @@ export const Route = createFileRoute('/events/$eventId/')({
     meta: loaderData
       ? seo({
           title: `${loaderData.event.name} · tcgRank`,
-          description: `${statusLabel(loaderData.event.status, loaderData.event.currentRound)} at ${loaderData.event.storeName} — ${loaderData.event.playerCount} players. Join with code ${loaderData.event.joinCode}.`,
+          description: `${statusLabel(loaderData.event)} at ${loaderData.event.storeName} — ${loaderData.event.playerCount} players. Join with code ${loaderData.event.joinCode}.`,
           image: absoluteUrl(`/api/og/event/${params.eventId}`),
         })
       : [],
@@ -72,7 +72,7 @@ function EventHub() {
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={event.status === 'running' ? 'live' : event.status === 'finished' ? 'muted' : 'outline'}>
             {event.status === 'running' ? <LiveDot /> : null}
-            {statusLabel(event.status, event.currentRound)}
+            {statusLabel(event)}
           </Badge>
           <Badge variant="outline">{formatLabel(event.format)}</Badge>
           <Badge variant="outline">{setupSummary(event)}</Badge>
@@ -148,7 +148,7 @@ function EventHub() {
                   <MatchClock
                     endsAt={currentRound.endsAt}
                     pausedRemainingMs={currentRound.pausedRemainingMs}
-                    roundMinutes={event.roundMinutes}
+                    roundMinutes={currentRound.minutes}
                     offsetMs={offsetMs}
                     referenceNow={detail.serverNow}
                     size="md"
@@ -291,12 +291,14 @@ function EventTabs({
           highlightId={viewer?.userId}
           final={event.status === 'finished'}
           tiebreakers={event.pairingSystem === 'round_robin' ? 'round_robin' : 'swiss'}
-          topCutSize={event.status === 'finished' ? event.topCutSize : null}
+          topCutSize={event.topCutSize}
         />
         <p className="mt-3 text-xs text-paper-dim">
-          {event.status === 'finished' && event.topCutSize !== null
-            ? 'Final placement follows the stage reached in the top cut, then Swiss rank; everyone else follows in Swiss order. The columns show the Swiss rounds. '
-            : ''}
+          {event.topCutSize === null
+            ? ''
+            : event.status === 'finished'
+              ? 'Final placement follows the stage reached in the top cut, then Swiss rank; everyone else follows in Swiss order. The columns show the Swiss rounds. '
+              : 'The top cut is listed first, by seed, with the stage each player has reached. The columns show the Swiss rounds. '}
           {event.pairingSystem === 'single_elimination'
             ? 'Final placement follows the round a player went out in; players out in the same round share it. Byes only advance a player.'
             : event.pairingSystem === 'round_robin'

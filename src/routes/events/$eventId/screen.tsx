@@ -36,7 +36,7 @@ function StoreScreen() {
       <MatchClock
         endsAt={round.endsAt}
         pausedRemainingMs={round.pausedRemainingMs}
-        roundMinutes={event.roundMinutes}
+        roundMinutes={round.minutes}
         offsetMs={data.serverNow - dataUpdatedAt}
         referenceNow={data.serverNow}
         size="lg"
@@ -77,7 +77,7 @@ function StoreScreen() {
           <Logo className="text-2xl" />
           <span className="inline-flex items-center gap-2 text-lg font-semibold text-orange">
             {event.status === 'running' ? <LiveDot /> : null}
-            {statusLabel(event.status, event.currentRound)}
+            {statusLabel(event)}
           </span>
         </div>
         <h1 className="font-display text-5xl">{event.name}</h1>

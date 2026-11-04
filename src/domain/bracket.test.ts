@@ -104,6 +104,14 @@ describe('nextBracketRound', () => {
     expect(next.map((p) => p.table)).toEqual([1, 2])
   })
 
+  it('in a top cut, pairs a player who dropped and gives their opponent the win by walkover', () => {
+    const first = play(1, firstBracketRound(seeded(8)))
+    const next = nextBracketRound(first, new Set(['s4', 's2']), { onDrop: 'walkover' })
+    expect(slots(next)).toEqual(['s1-s4', 's2-s3'])
+    expect(next.map((p) => p.walkover ?? null)).toEqual(['p1', 'p2'])
+    expect(slots(nextBracketRound(first, new Set(['s1', 's4']), { onDrop: 'walkover' }))).toEqual(['s2-s3'])
+  })
+
   it('leaves a slot empty when both players dropped', () => {
     const first = play(1, firstBracketRound(seeded(8)))
     expect(slots(nextBracketRound(first, new Set(['s1', 's4'])))).toEqual(['s2-s3'])

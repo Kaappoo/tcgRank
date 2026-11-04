@@ -177,11 +177,12 @@ export const bracketDetail: EventDetail = {
     description: null,
     joinCode: 'CUP234',
     roundMinutes: 50,
+    topCutRoundMinutes: null,
     finishedAt: null,
   },
   players: [ana, bruno, carla, diego, elisa, felipe, gabi],
   rounds: [
-    { id: 'r1', number: 1, status: 'finished', startedAt: 0, endsAt: 0, pausedRemainingMs: null, elimination: true },
+    { id: 'r1', number: 1, status: 'finished', startedAt: 0, endsAt: 0, pausedRemainingMs: null, elimination: true, minutes: 50 },
     {
       id: 'r2',
       number: 2,
@@ -190,6 +191,7 @@ export const bracketDetail: EventDetail = {
       endsAt: 50 * 60_000,
       pausedRemainingMs: null,
       elimination: true,
+      minutes: 50,
     },
   ],
   matches: bracketMatches,

@@ -1110,6 +1110,21 @@ describe('Single elimination', () => {
     ),
   )
 
+  it.effect('a dropped match stays dropped after the host corrects it, since the drop round says so', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* bracket(2)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const [match] = (yield* events.detail(eventId)).matches
+        const leaverIsP1 = match!.player1.id === players[0]!.id
+        yield* events.leave(eventId).pipe(asUser(players[0]!))
+        yield* events.reportResult(match!.id, leaverIsP1 ? 1 : 2, leaverIsP1 ? 2 : 1).pipe(asUser(host))
+        const after = (yield* events.detail(eventId)).matches.find((m) => m.id === match!.id)!
+        expect(after).toMatchObject({ status: 'confirmed', dropped: true })
+      }),
+    ),
+  )
+
   it.effect('a removed guest loses their unreported match; a reported one stands', () =>
     run(
       Effect.gen(function* () {
@@ -1128,6 +1143,23 @@ describe('Single elimination', () => {
         const garys = after.matches.find((m) => m.player1.id === guestId || m.player2?.id === guestId)!
         if (garys.id !== reported.id) expect(garys).toMatchObject({ status: 'confirmed', dropped: true })
         expect(after.matches.find((m) => m.id === reported.id)).toMatchObject({ dropped: false })
+      }),
+    ),
+  )
+
+  it.effect('a player who leaves while their reported result waits for confirmation loses it, so the round closes', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* bracket(2)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const [match] = (yield* events.detail(eventId)).matches
+        const leaver = players.find((p) => p.id === match!.player1.id)!
+        // The leaver reported their own win; the opponent hasn't confirmed it yet.
+        yield* events.reportResult(match!.id, 2, 1).pipe(asUser(leaver))
+        yield* events.leave(eventId).pipe(asUser(leaver))
+        const after = (yield* events.detail(eventId)).matches.find((m) => m.id === match!.id)!
+        expect(after).toMatchObject({ status: 'confirmed', outcome: 'p2', dropped: true })
+        yield* events.finishEvent(eventId).pipe(asUser(host))
       }),
     ),
   )
@@ -1348,8 +1380,11 @@ describe('Swiss top cut', () => {
         expect(final).toBe(3)
         const detail = yield* events.detail(eventId)
         const round = detail.rounds.find((r) => r.number === 3)!
-        expect(round).toMatchObject({ elimination: true })
+        expect(round).toMatchObject({ elimination: true, minutes: 70 })
         expect(round.endsAt! - round.startedAt).toBe(70 * 60_000)
+        // The clock reads each round's own timer: the Swiss round ran on the event's.
+        expect(detail.rounds.find((r) => r.number === 1)).toMatchObject({ minutes: 50 })
+        expect(detail.event.topCutRoundMinutes).toBe(70)
         const finalMatches = detail.matches.filter((m) => m.roundNumber === 3)
         expect(finalMatches).toHaveLength(1)
         expect(finalMatches.every((m) => m.player2 !== null)).toBe(true)
@@ -1397,6 +1432,59 @@ describe('Swiss top cut', () => {
           losses: swiss.get(s4)!.losses,
           points: swiss.get(s4)!.points,
         })
+      }),
+    ),
+  )
+
+  it.effect('a player who drops between cut rounds loses the next match by walkover, never giving a bye', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* topCutEvent(8, 1)
+        yield* playRound(eventId, host)
+        const order = yield* swissOrder(eventId)
+        yield* events.cutToTop(eventId, 4, 50).pipe(asUser(host))
+        yield* reportAll(eventId, host, 2)
+        // Seed 1 won their semifinal, then leaves before the final.
+        yield* events.leave(eventId).pipe(asUser(players.find((p) => p.id === order[0])!))
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+
+        const detail = yield* events.detail(eventId)
+        const final = detail.matches.filter((m) => m.roundNumber === 3)
+        expect(final).toHaveLength(1)
+        expect(final[0]!.player2).not.toBeNull()
+        const seed1IsP1 = final[0]!.player1.id === order[0]
+        expect(final[0]).toMatchObject({ status: 'confirmed', outcome: seed1IsP1 ? 'p2' : 'p1', dropped: true })
+
+        yield* events.finishEvent(eventId).pipe(asUser(host))
+        const { standings } = yield* events.detail(eventId)
+        expect(standings.slice(0, 2).map((s) => [s.playerId, s.stage])).toEqual([
+          [order[1], 'Champion'],
+          [order[0], 'Finalist'],
+        ])
+      }),
+    ),
+  )
+
+  it.effect('while the cut is played, the standings list the cut first with the stage each player reached', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* topCutEvent(8, 1)
+        yield* playRound(eventId, host)
+        const order = yield* swissOrder(eventId)
+        // The Swiss leader drops: they keep their Swiss rank but fall below the cut.
+        yield* events.leave(eventId).pipe(asUser(players.find((p) => p.id === order[0])!))
+        yield* events.cutToTop(eventId, 4, 50).pipe(asUser(host))
+
+        const live = (yield* events.detail(eventId)).standings
+        expect(live.map((s) => s.playerId)).toEqual([...order.slice(1, 5), order[0], ...order.slice(5)])
+        expect(live.map((s) => s.rank)).toEqual([2, 3, 4, 5, 1, 6, 7, 8])
+        expect(live.map((s) => s.stage)).toEqual([...Array(4).fill('Semifinal'), ...Array(4).fill(null)])
+
+        yield* reportAll(eventId, host, 2)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const final = (yield* events.detail(eventId)).standings
+        // Seeds 1 and 2 reached the final; seeds 3 and 4 went out in the semifinals.
+        expect(final.slice(0, 4).map((s) => s.stage)).toEqual(['Final', 'Final', 'Semifinal', 'Semifinal'])
       }),
     ),
   )

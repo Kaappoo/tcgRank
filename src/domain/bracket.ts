@@ -67,13 +67,28 @@ export const slotOrder = (size: number): Array<number> => {
 export interface BracketPairing extends Pairing {
   /** Winners of slots 2k and 2k+1 meet in slot k of the next round. */
   readonly slot: number
+  /** Set when one player dropped before a top cut round: the other wins this match by walkover. */
+  readonly walkover?: 'p1' | 'p2'
+}
+
+interface Seat {
+  readonly slot: number
+  readonly a: string
+  readonly b: string | null
+  readonly walkover?: 'p1' | 'p2'
 }
 
 /** Matches get tables 1, 2… in slot order; byes come after them. */
-const numberTables = (seats: ReadonlyArray<{ slot: number; a: string; b: string | null }>): Array<BracketPairing> => {
+const numberTables = (seats: ReadonlyArray<Seat>): Array<BracketPairing> => {
   const matches = seats.filter((s) => s.b !== null)
   const byes = seats.filter((s) => s.b === null)
-  return [...matches, ...byes].map((s, i) => ({ table: i + 1, slot: s.slot, player1Id: s.a, player2Id: s.b }))
+  return [...matches, ...byes].map((s, i) => ({
+    table: i + 1,
+    slot: s.slot,
+    player1Id: s.a,
+    player2Id: s.b,
+    ...(s.walkover ? { walkover: s.walkover } : {}),
+  }))
 }
 
 /**
@@ -107,24 +122,33 @@ const winnerOf = (m: Pick<BracketMatch, 'player1Id' | 'player2Id' | 'outcome'>):
 /**
  * The next round from the previous round's matches: the winners of slots 2k
  * and 2k+1 meet in slot k. A winner who dropped before this round gives their
- * opponent a bye; if both dropped, the slot stays empty.
+ * opponent a bye (`onDrop: 'bye'`, single elimination), or is paired and loses
+ * by walkover (`onDrop: 'walkover'`, a top cut, which never has byes). If both
+ * dropped, the slot stays empty.
  */
 export const nextBracketRound = (
   previous: ReadonlyArray<Pick<BracketMatch, 'slot' | 'player1Id' | 'player2Id' | 'outcome'>>,
   dropped: ReadonlySet<string> = new Set(),
+  { onDrop = 'bye' }: { readonly onDrop?: 'bye' | 'walkover' } = {},
 ): Array<BracketPairing> => {
   const winners = new Map<number, string>()
   for (const m of previous) {
     const winner = winnerOf(m)
-    if (winner !== null && !dropped.has(winner)) winners.set(m.slot, winner)
+    if (winner !== null && (onDrop === 'walkover' || !dropped.has(winner))) winners.set(m.slot, winner)
   }
   const slotCount = Math.ceil((Math.max(-1, ...previous.map((m) => m.slot)) + 1) / 2)
-  const seats = []
+  const seats: Array<Seat> = []
   for (let slot = 0; slot < slotCount; slot++) {
     const a = winners.get(2 * slot) ?? null
     const b = winners.get(2 * slot + 1) ?? null
-    if (a !== null) seats.push({ slot, a, b })
-    else if (b !== null) seats.push({ slot, a: b, b: null })
+    if (a === null || b === null) {
+      const lone = a ?? b
+      if (lone !== null) seats.push({ slot, a: lone, b: null })
+      continue
+    }
+    const [outA, outB] = [dropped.has(a), dropped.has(b)]
+    if (outA && outB) continue
+    seats.push({ slot, a, b, ...(outA ? { walkover: 'p2' as const } : outB ? { walkover: 'p1' as const } : {}) })
   }
   return numberTables(seats)
 }
@@ -167,6 +191,16 @@ const loserOf = (m: ExitMatch): string | null => {
   return winner === m.player1Id ? m.player2Id : m.player1Id
 }
 
+/**
+ * Whether a decided elimination match was lost by a drop: its loser had dropped by the match's round (during it, or
+ * before it as a walkover). Read from the drop round, so a host correction of the games keeps it.
+ */
+export const lostByDrop = (m: ExitMatch, droppedAtRound: (playerId: string) => number | null): boolean => {
+  const loser = loserOf(m)
+  const dropRound = loser === null ? null : droppedAtRound(loser)
+  return dropRound !== null && dropRound <= m.roundNumber
+}
+
 export const bracketExits = (
   bracket: Bracket,
   matches: ReadonlyArray<ExitMatch>,
@@ -183,6 +217,29 @@ export const bracketExits = (
   // A drop between rounds goes out in the next round; nobody goes out after the final.
   const missedNext = (id: string, round: number) => (dropped.has(id) && round < finalRound(bracket) ? round + 1 : null)
   return new Map([...lastPlayed].map(([id, round]) => [id, lost.get(id) ?? missedNext(id, round)]))
+}
+
+/**
+ * How far each player has got in a bracket still being played: the stage they went out in, or the round they are
+ * in (or last won) while still in.
+ */
+export const stagesSoFar = (
+  bracket: Bracket,
+  matches: ReadonlyArray<ExitMatch>,
+  dropped: ReadonlySet<string> = new Set(),
+): Map<string, string> => {
+  const lastSeated = new Map<string, number>()
+  for (const m of matches) {
+    for (const id of m.player2Id === null ? [m.player1Id] : [m.player1Id, m.player2Id]) {
+      lastSeated.set(id, Math.max(lastSeated.get(id) ?? 0, m.roundNumber))
+    }
+  }
+  return new Map(
+    [...bracketExits(bracket, matches, dropped)].map(([id, exit]) => [
+      id,
+      exit === null ? roundName(bracket, lastSeated.get(id)!) : placementStage(bracket, exit),
+    ]),
+  )
 }
 
 /**

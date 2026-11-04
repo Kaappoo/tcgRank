@@ -46,6 +46,7 @@ const detailWith = (event: Partial<EventDetail['event']>, entry: EntrantView | n
     description: null,
     joinCode: 'ABC234',
     roundMinutes: 50,
+    topCutRoundMinutes: null,
     finishedAt: null,
     ...event,
   },
