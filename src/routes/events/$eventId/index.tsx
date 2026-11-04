@@ -23,6 +23,7 @@ import { toast } from '#/components/ui/toast.tsx'
 import { errorMessage, useEventActions } from '#/hooks/use-event-actions.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
 import { formatLabel, podiumLine, setupSummary, statusLabel } from '#/lib/format.ts'
+import { tiebreakersFor } from '#/domain/standings.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
 import { cn } from '#/lib/utils.ts'
@@ -290,7 +291,7 @@ function EventTabs({
           standings={standings}
           highlightId={viewer?.userId}
           final={event.status === 'finished'}
-          tiebreakers={event.pairingSystem === 'round_robin' ? 'round_robin' : 'swiss'}
+          tiebreakers={tiebreakersFor(event.pairingSystem)}
           topCutSize={event.topCutSize}
         />
         <p className="mt-3 text-xs text-paper-dim">

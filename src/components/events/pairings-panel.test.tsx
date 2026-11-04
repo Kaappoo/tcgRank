@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import type { EventDetail, MatchView } from '#/server/events/views.ts'
+import { eventProgress } from '#/domain/progress.ts'
 import { bracketDetail } from '#/stories/fixtures.ts'
 import { PairingsPanel } from './pairings-panel.tsx'
 
@@ -17,15 +18,18 @@ const swissMatch = (roundNumber: number): MatchView => ({
 const topCut = (rounds: number): EventDetail => {
   const swiss = [1, 2].map((n) => ({ ...bracketDetail.rounds[0]!, id: `s${n}`, number: n, elimination: false }))
   const cut = bracketDetail.rounds.map((r) => ({ ...r, number: r.number + shift })).slice(0, rounds)
+  const event = {
+    ...bracketDetail.event,
+    pairingSystem: 'swiss' as const,
+    topCut: true,
+    topCutSize: rounds > 0 ? (8 as const) : null,
+    currentRound: shift + rounds,
+    plannedRounds: 2,
+  }
   return {
     ...bracketDetail,
-    event: {
-      ...bracketDetail.event,
-      pairingSystem: 'swiss',
-      topCut: true,
-      currentRound: shift + rounds,
-      plannedRounds: 2,
-    },
+    event,
+    progress: eventProgress(event, bracketDetail.players.length),
     rounds: [...swiss.map((r) => (rounds === 0 && r.number === 2 ? { ...r, status: 'active' as const } : r)), ...cut],
     matches: [
       swissMatch(1),

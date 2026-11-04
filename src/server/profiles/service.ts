@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import { Context, Effect, Layer } from 'effect'
 import { bracketExits, eventBracket, placementStage, roundName } from '#/domain/bracket.ts'
+import { countsInRecord } from '#/domain/standings.ts'
 import type { ProfileInput } from '#/shared/schemas.ts'
 import { requireUser } from '../current-user.ts'
 import { Db } from '../db/client.ts'
@@ -72,12 +73,6 @@ export const resultFor = (
   return won ? 'win' : 'loss'
 }
 
-/**
- * The record rule: every played match counts, and a Swiss or round-robin bye counts as a win. A bye in an
- * elimination round only advances the player, so it counts as nothing.
- */
-const countsInRecord = (result: MatchResult, elimination: boolean): boolean => !(result === 'bye' && elimination)
-
 const roundLabel = (event: EventRow, roundNumber: number, elimination: boolean): string => {
   const bracket = elimination ? eventBracket(event) : null
   return bracket && roundNumber >= bracket.firstRound ? roundName(bracket, roundNumber) : `Round ${roundNumber}`
@@ -107,7 +102,7 @@ const historyEntry = (
     roundLabel: roundLabel(event, match.roundNumber, elimination),
     opponent: opponentId ? (opponents.get(opponentId) ?? null) : null,
     result,
-    inRecord: countsInRecord(result, elimination),
+    inRecord: countsInRecord({ bye: result === 'bye', elimination }),
     score: asP1 ? `${match.player1Games}–${match.player2Games}` : `${match.player2Games}–${match.player1Games}`,
   }
 }

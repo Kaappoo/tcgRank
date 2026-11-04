@@ -67,7 +67,10 @@ export function BracketPath({
   detail,
   viewerId,
   ...tables
-}: { detail: Pick<EventDetail, 'event' | 'rounds' | 'matches' | 'players'>; viewerId?: string | null } & TablesProps) {
+}: {
+  detail: Pick<EventDetail, 'event' | 'rounds' | 'matches' | 'players' | 'progress'>
+  viewerId?: string | null
+} & TablesProps) {
   const model = useMemo(() => bracketModel(detail), [detail])
   if (!model) return null
   const played = model.rounds.filter((r) => r.paired).reverse()

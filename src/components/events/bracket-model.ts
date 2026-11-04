@@ -1,4 +1,4 @@
-import { bracketRounds, roundTitle, type Bracket } from '#/domain/bracket.ts'
+import { roundTitle, type Bracket } from '#/domain/bracket.ts'
 import type { EventDetail, MatchView, PlayerRef } from '#/server/events/views.ts'
 
 /** A player in a bracket box: their seed, or null for a seat not yet decided. */
@@ -42,23 +42,7 @@ export interface BracketModel {
   readonly current: number
 }
 
-type BracketSource = Pick<EventDetail, 'rounds' | 'matches' | 'players'>
-
-/**
- * Where the bracket sits, read from the elimination rounds already paired:
- * it starts at the first of them, and that round's slots give its size. This
- * holds for a single-elimination event and for the top cut after Swiss rounds.
- */
-const bracketFrom = ({ rounds, matches }: BracketSource): Bracket | null => {
-  const first = rounds
-    .filter((r) => r.elimination)
-    .reduce<number | null>((n, r) => Math.min(n ?? r.number, r.number), null)
-  if (first === null) return null
-  const slots = Math.max(0, ...matches.filter((m) => m.roundNumber === first).map((m) => (m.bracketSlot ?? 0) + 1))
-  const size = slots * 2
-  // A bracket that starts after round 1 is a Swiss event's top cut, whose first round reads "Top N".
-  return { firstRound: first, rounds: bracketRounds(size), ...(first > 1 ? { topCutSize: size } : {}) }
-}
+type BracketSource = Pick<EventDetail, 'rounds' | 'matches' | 'players' | 'progress'>
 
 const statusOf = (m: MatchView): BracketMatchStatus => {
   if (m.player2 === null) return 'bye'
@@ -78,8 +62,8 @@ const winnerSide = (m: MatchView): 'a' | 'b' | null => {
  * filled in from the winners known so far. Null before the first elimination round.
  */
 export const bracketModel = (source: BracketSource): BracketModel | null => {
-  const bracket = bracketFrom(source)
-  if (bracket === null) return null
+  const { bracket } = source.progress
+  if (bracket === null || !source.rounds.some((r) => r.elimination)) return null
   const seeds = new Map(source.players.map((p) => [p.id, p.seed]))
   const seat = (p: PlayerRef): BracketSeat => ({ id: p.id, name: p.name, seed: seeds.get(p.id) ?? null })
 

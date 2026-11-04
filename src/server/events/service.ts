@@ -2,26 +2,22 @@ import { and, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm'
 import { Clock, Context, Effect, Layer, Random } from 'effect'
 import { invalidScoreReason, matchOutcome, scoreRules, type BestOf } from '#/domain/best-of.ts'
 import {
-  bracketExits,
   eventBracket,
   finalRound,
   firstBracketRound,
   lostByDrop,
   nextBracketRound,
-  placementStage,
-  sharedPlacements,
-  stagesSoFar,
-  topCutPlacements,
-  type Bracket,
   type BracketPairing,
 } from '#/domain/bracket.ts'
 import { newId, newJoinCode, normalizeJoinCode } from '#/domain/ids.ts'
 import { allowedCutSizes, mainPhaseRounds, type PairingSystem, type TopCutSize } from '#/domain/event-setup.ts'
+import { bracketPlacements, placedStandings, standingsMatches } from '#/domain/placement.ts'
+import { eventProgress, nextRoundRefusal } from '#/domain/progress.ts'
 import { entriesClosedReason } from '#/domain/open-entry.ts'
 import { deckIneligibility } from '#/domain/registration.ts'
 import { adjustClock, pauseClock, resumeClock, startClock } from '#/domain/match-clock.ts'
 import { scheduleRound } from '#/domain/round-robin.ts'
-import { computeStandings, type Standing, type Tiebreakers } from '#/domain/standings.ts'
+import { computeStandings, tiebreakersFor } from '#/domain/standings.ts'
 import { pairRound, type Pairing } from '#/domain/swiss.ts'
 import type { CreateEventInput } from '#/shared/schemas.ts'
 import { optionalUser, requireUser } from '../current-user.ts'
@@ -52,51 +48,9 @@ import {
 
 const TOP_CUT_SWISS_ONLY = 'Only Swiss events can have a top cut'
 
-/** Round robin breaks ties its own way; every other system uses the Swiss tiebreakers. */
-const tiebreakersFor = (pairingSystem: PairingSystem): Tiebreakers =>
-  pairingSystem === 'round_robin' ? 'round_robin' : 'swiss'
-
-/** A bye in an elimination round only advances the player: it counts as nothing in the record. */
-const countsInRecord = (m: Pick<MatchRow, 'bracketSlot' | 'player2Id'>) => m.bracketSlot === null || m.player2Id !== null
-
 /**
- * The matches standings count: every confirmed one except elimination byes. Once a Swiss event has cut, only its Swiss
- * rounds count, so the standings keep the Swiss record and the cut is seeded and placed by Swiss rank.
- */
-const standingsMatches = (
-  event: Pick<EventRow, 'pairingSystem' | 'plannedRounds' | 'topCutSize'>,
-  matchRows: ReadonlyArray<MatchRow>,
-) => {
-  const cut = eventBracket(event)?.topCutSize !== undefined ? event.plannedRounds : Number.POSITIVE_INFINITY
-  return matchRows.filter((m) => m.confirmedAt !== null && countsInRecord(m) && m.roundNumber <= cut)
-}
-
-/**
- * Where each player of a bracket went out and the placement that gives. A single-elimination event shares it by round
- * (1, 2, 3, 3, 5…); a top cut orders players knocked out together by Swiss rank, then everyone else in Swiss order.
- * Players who dropped between rounds go out in the round they missed.
- */
-const bracketPlacements = (
-  bracket: Bracket,
-  entries: ReadonlyArray<Pick<EventPlayerRow, 'userId' | 'droppedAtRound'>>,
-  history: ReadonlyArray<MatchRow>,
-  swissOrder: ReadonlyArray<string>,
-) => {
-  const dropped = new Set(entries.filter((e) => e.droppedAtRound !== null).map((e) => e.userId))
-  const exits = bracketExits(
-    bracket,
-    history.filter((m) => m.bracketSlot !== null && m.roundNumber >= bracket.firstRound),
-    dropped,
-  )
-  return {
-    exits,
-    placements: bracket.topCutSize === undefined ? sharedPlacements(exits) : topCutPlacements(exits, swissOrder),
-  }
-}
-
-/**
- * Standings as shown: live while the event runs. Once finished they follow the stored placement (a shared one by
- * seed), so the podium can read standings[0], and each bracket player gets the stage they reached.
+ * Standings as shown: the live standings, placed by `placedStandings` (the top cut first while it is played, the stored
+ * placement once finished), with each player's name and whether they dropped.
  */
 const standingsView = (
   event: EventRow,
@@ -109,46 +63,11 @@ const standingsView = (
     standingsMatches(event, matchRows),
     { tiebreakers: tiebreakersFor(event.pairingSystem) },
   )
-  const dropped = new Set(players.filter((p) => p.droppedAtRound !== null).map((p) => p.id))
-  const view = (s: Standing, stage: string | null): StandingView => ({
+  return placedStandings(event, live, players, matchRows).map((s) => ({
     ...s,
     player: refs.get(s.playerId) ?? unknownPlayer(s.playerId),
-    dropped: dropped.has(s.playerId),
-    stage,
-  })
-  if (event.status !== 'finished') {
-    // While a top cut is played its players come first, by seed, each with the stage they have reached so far.
-    const cut = topCutOf(event)
-    if (!cut) return live.map((s) => view(s, null))
-    const stages = stagesSoFar(
-      cut,
-      matchRows.filter((m) => m.bracketSlot !== null && m.roundNumber >= cut.firstRound),
-      dropped,
-    )
-    const seeds = new Map(players.map((p) => [p.id, p.seed]))
-    const cutSeed = (s: Standing) => (stages.has(s.playerId) ? (seeds.get(s.playerId) ?? 0) : Number.POSITIVE_INFINITY)
-    return [...live]
-      .sort((a, b) => cutSeed(a) - cutSeed(b) || a.rank - b.rank)
-      .map((s) => view(s, stages.get(s.playerId) ?? null))
-  }
-
-  const placed = new Map(players.map((p) => [p.id, p]))
-  const placement = (s: Standing) => placed.get(s.playerId)?.finalRank ?? s.rank
-  const seed = (s: Standing) => placed.get(s.playerId)?.seed ?? Number.POSITIVE_INFINITY
-  const bracket = eventBracket(event)
-  const exits = bracket
-    ? bracketPlacements(
-        bracket,
-        players.map((p) => ({ userId: p.id, droppedAtRound: p.droppedAtRound })),
-        matchRows,
-        [],
-      ).exits
-    : new Map<string, number | null>()
-  const stageOf = (s: Standing) =>
-    bracket && exits.has(s.playerId) ? placementStage(bracket, exits.get(s.playerId) ?? null) : null
-  return [...live]
-    .sort((a, b) => placement(a) - placement(b) || seed(a) - seed(b) || a.rank - b.rank)
-    .map((s) => view({ ...s, rank: placement(s) }, stageOf(s)))
+    dropped: players.some((p) => p.id === s.playerId && p.droppedAtRound !== null),
+  }))
 }
 
 /** Minutes on a round's clock: a top cut's rounds run on the timer set at the cut, every other round on the event's. */
@@ -157,23 +76,6 @@ const roundTimer = (
   elimination: boolean,
 ): number =>
   elimination && event.topCutSize !== null ? (event.topCutRoundMinutes ?? event.roundMinutes) : event.roundMinutes
-
-/** The bracket of a Swiss event that has cut; null before the cut and for every other event. */
-const topCutOf = (event: EventRow): Bracket | null => {
-  const bracket = eventBracket(event)
-  return bracket?.topCutSize !== undefined ? bracket : null
-}
-
-/** Why no further round can be paired (every round the event plays is done), or null while one can. */
-const allRoundsPlayed = (event: EventRow, plannedRounds: number, topCut: Bracket | null): string | null => {
-  if (topCut) return event.currentRound >= finalRound(topCut) ? 'The final has been played' : null
-  if (event.currentRound < plannedRounds) return null
-  return {
-    swiss: `All ${plannedRounds} Swiss rounds have been played`,
-    round_robin: `All ${plannedRounds} rounds of the schedule have been played`,
-    single_elimination: 'The final has been played',
-  }[event.pairingSystem]
-}
 
 /** The pairings for the next round, plus what round 1 draws: a round-robin schedule or bracket seeds. */
 interface NextRound {
@@ -184,6 +86,13 @@ interface NextRound {
   /** Player ids in seed order; empty unless round 1 of a bracket. */
   readonly seeds: ReadonlyArray<string>
 }
+
+/** A next round with nothing drawn unless `draws` says so. */
+const nextRound = (
+  pairings: NextRound['pairings'],
+  elimination: boolean,
+  draws: Partial<Pick<NextRound, 'schedule' | 'seeds'>> = {},
+): NextRound => ({ pairings, elimination, schedule: draws.schedule ?? [], seeds: draws.seeds ?? [] })
 
 const playerRefColumns = {
   id: user.id,
@@ -395,6 +304,7 @@ const make = Effect.gen(function* () {
       })),
       matches: matchViews,
       standings,
+      progress: eventProgress(event, entries.length),
       viewer: me
         ? {
             userId: me.id,
@@ -807,7 +717,7 @@ const make = Effect.gen(function* () {
       )
       // A top cut never has byes: a player who dropped between its rounds loses by walkover instead.
       const onDrop = event.topCutSize === null ? 'bye' : 'walkover'
-      return { pairings: nextBracketRound(previous, dropped, { onDrop }), elimination: true, schedule: [], seeds: [] }
+      return nextRound(nextBracketRound(previous, dropped, { onDrop }), true)
     }
     switch (event.pairingSystem) {
       case 'swiss': {
@@ -817,23 +727,23 @@ const make = Effect.gen(function* () {
           allPlayerIds: entries.map((e) => e.userId),
           matches: history,
         })
-        return { pairings, elimination: false, schedule: [], seeds: [] }
+        return nextRound(pairings, false)
       }
       case 'round_robin': {
         if (event.currentRound === 0) {
           const schedule = [...(yield* Random.shuffle(entries.map((e) => e.userId)))]
-          return { pairings: scheduleRound({ schedule, round: roundNumber, dropped }), elimination: false, schedule, seeds: [] }
+          return nextRound(scheduleRound({ schedule, round: roundNumber, dropped }), false, { schedule })
         }
         const schedule = entries
           .filter((e) => e.schedulePosition !== null)
           .sort((a, b) => a.schedulePosition! - b.schedulePosition!)
           .map((e) => e.userId)
-        return { pairings: scheduleRound({ schedule, round: roundNumber, dropped }), elimination: false, schedule: [], seeds: [] }
+        return nextRound(scheduleRound({ schedule, round: roundNumber, dropped }), false)
       }
       case 'single_elimination': {
         if (event.currentRound === 0) {
           const seeds = [...(yield* Random.shuffle(entries.filter((e) => !dropped.has(e.userId)).map((e) => e.userId)))]
-          return { pairings: firstBracketRound(seeds), elimination: true, schedule: [], seeds }
+          return nextRound(firstBracketRound(seeds), true, { seeds })
         }
         return nextOfBracket()
       }
@@ -919,9 +829,8 @@ const make = Effect.gen(function* () {
 
     const plannedRounds = mainPhaseRounds({ ...event, playerCount: entries.length })
     const roundNumber = event.currentRound + 1
-    const topCut = topCutOf(event)
-    const done = allRoundsPlayed(event, plannedRounds, topCut)
-    if (done) return yield* new InvalidState({ reason: done })
+    const refusal = nextRoundRefusal(event, plannedRounds)
+    if (refusal) return yield* new InvalidState({ reason: refusal })
 
     const next = yield* pairNextRound(event, entries, history, roundNumber)
     if (next.pairings.length === 0) return yield* new InvalidState({ reason: 'Nobody is left to pair' })
@@ -963,7 +872,7 @@ const make = Effect.gen(function* () {
     return yield* storeRound(
       eventId,
       event.currentRound + 1,
-      { pairings: firstBracketRound(seeds), elimination: true, schedule: [], seeds },
+      nextRound(firstBracketRound(seeds), true, { seeds }),
       roundMinutes,
       { plannedRounds, topCutSize: size, topCutRoundMinutes: roundMinutes },
     )
@@ -989,7 +898,7 @@ const make = Effect.gen(function* () {
     const placements = bracket
       ? bracketPlacements(
           bracket,
-          entries,
+          entries.map((e) => ({ id: e.userId, droppedAtRound: e.droppedAtRound })),
           history,
           standings.map((s) => s.playerId),
         ).placements

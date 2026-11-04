@@ -27,7 +27,7 @@ export function BracketScreen({
   clock,
   qr,
 }: {
-  detail: Pick<EventDetail, 'event' | 'rounds' | 'matches' | 'players'>
+  detail: Pick<EventDetail, 'event' | 'rounds' | 'matches' | 'players' | 'progress'>
   clock: ReactNode
   qr: ReactNode
 }) {

@@ -7,11 +7,10 @@ import { Button } from '#/components/ui/button.tsx'
 import { Field, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import type { BestOf } from '#/domain/best-of.ts'
-import { eventBracket, finalRound, roundTitle, stageName, type Bracket } from '#/domain/bracket.ts'
+import { roundTitle, stageName, type Bracket } from '#/domain/bracket.ts'
 import {
   allowedCutSizes,
   defaultCutSize,
-  mainPhaseRounds,
   TOP_CUT_SIZES,
   type PairingSystem,
   type TopCutSize,
@@ -60,13 +59,8 @@ export function HostDesk({
   const withoutDeck = event.deckRequired
     ? players.filter((p) => p.droppedAtRound === null && !p.isGuest && !p.deckId).length
     : 0
-  const plannedRounds = mainPhaseRounds({ ...event, playerCount: players.length })
+  const { mainPhaseRounds: plannedRounds, bracket, isLastRound: lastRound, cutDue } = detail.progress
   const roundComplete = roundMatches.length > 0 && confirmed === roundMatches.length
-  const bracket = eventBracket({ ...event, plannedRounds })
-  const topCut = bracket?.topCutSize !== undefined ? bracket : null
-  const lastRound = event.currentRound >= (topCut ? finalRound(topCut) : plannedRounds)
-  // After the last Swiss round of an event with a top cut, the next step is the cut.
-  const cutDue = event.topCut && topCut === null && lastRound && event.currentRound > 0
   const stageOf = (roundNumber: number) => (bracket ? stageName(bracket, roundNumber) : null)
   // A half-played bracket has no champion, so it can't be published early.
   const bracketStarted = rounds.some((r) => r.elimination)

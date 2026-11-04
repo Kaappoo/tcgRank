@@ -1,9 +1,11 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { eventProgress } from '#/domain/progress.ts'
 import type { EventDetail } from '#/server/events/views.ts'
 import { HostDesk } from './host-desk.tsx'
 
+/** `progress` is worked out from the event and players at render time, as the service does. */
 const detailWith = (event: Partial<EventDetail['event']>): EventDetail => ({
   event: {
     id: 'e1',
@@ -33,6 +35,7 @@ const detailWith = (event: Partial<EventDetail['event']>): EventDetail => ({
   rounds: [],
   matches: [],
   standings: [],
+  progress: eventProgress({ topCutSize: null, plannedRounds: 0, currentRound: 0, pairingSystem: 'swiss', topCut: false }, 0),
   viewer: { userId: 'host', isHost: true, entry: null, currentMatch: null },
   serverNow: 0,
 })
@@ -60,7 +63,7 @@ const renderDesk = (detail: EventDetail) => {
   const onFinish = vi.fn()
   const view = render(
     <HostDesk
-      detail={detail}
+      detail={{ ...detail, progress: eventProgress(detail.event, detail.players.length) }}
       offsetMs={0}
       busy={false}
       onStartRound={vi.fn()}

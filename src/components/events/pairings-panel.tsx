@@ -15,7 +15,10 @@ export function PairingsPanel({
   detail,
   viewerId,
   ...tables
-}: { detail: Pick<EventDetail, 'event' | 'rounds' | 'matches' | 'players'>; viewerId?: string | null } & TablesProps) {
+}: {
+  detail: Pick<EventDetail, 'event' | 'rounds' | 'matches' | 'players' | 'progress'>
+  viewerId?: string | null
+} & TablesProps) {
   const { event, rounds, matches } = detail
   // A choice made in an earlier round lapses when the next round is paired, so the new pairings show.
   const [chosen, setChosen] = useState<{ readonly during: number; readonly round: number } | null>(null)

@@ -154,6 +154,10 @@ export const nextBracketRound = (
 }
 
 export type Stage = 'Final' | 'Semifinal' | 'Quarterfinal'
+/** What a bracket round is called: its stage, or "Round N" counted within the bracket before the stages. */
+type RoundName = Stage | `Round ${number}`
+/** How far a player got in a bracket: "Champion", "Finalist", or the round they went out in (or are in). */
+export type PlacementStage = 'Champion' | 'Finalist' | RoundName
 const STAGES: ReadonlyArray<Stage> = ['Final', 'Semifinal', 'Quarterfinal']
 
 /** The stage a round of the bracket is, or null for earlier rounds (and rounds outside it). */
@@ -164,7 +168,7 @@ export const stageName = (bracket: Bracket, roundNumber: number): Stage | null =
 }
 
 /** What a round of the bracket is called: its stage, or "Round N" (counted within the bracket) before that. */
-export const roundName = (bracket: Bracket, roundNumber: number): string =>
+export const roundName = (bracket: Bracket, roundNumber: number): RoundName =>
   stageName(bracket, roundNumber) ?? `Round ${roundNumber - bracket.firstRound + 1}`
 
 /** "Top 8" on a top cut's first round, where a label names the cut; null for every other round. */
@@ -227,7 +231,7 @@ export const stagesSoFar = (
   bracket: Bracket,
   matches: ReadonlyArray<ExitMatch>,
   dropped: ReadonlySet<string> = new Set(),
-): Map<string, string> => {
+): Map<string, PlacementStage> => {
   const lastSeated = new Map<string, number>()
   for (const m of matches) {
     for (const id of m.player2Id === null ? [m.player1Id] : [m.player1Id, m.player2Id]) {
@@ -270,7 +274,7 @@ export const topCutPlacements = (
 }
 
 /** How far a player got, for the podium: "Champion", "Finalist", or the stage they went out in. */
-export const placementStage = (bracket: Bracket, exit: number | null): string => {
+export const placementStage = (bracket: Bracket, exit: number | null): PlacementStage => {
   if (exit === null) return 'Champion'
   if (exit === finalRound(bracket)) return 'Finalist'
   return roundName(bracket, exit)

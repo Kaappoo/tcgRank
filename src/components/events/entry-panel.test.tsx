@@ -54,6 +54,7 @@ const detailWith = (event: Partial<EventDetail['event']>, entry: EntrantView | n
   rounds: [],
   matches: [],
   standings: [],
+  progress: { mainPhaseRounds: 3, bracket: null, isLastRound: false, cutDue: false },
   viewer: { userId: me.id, isHost: false, entry, currentMatch: null },
   serverNow: 0,
 })

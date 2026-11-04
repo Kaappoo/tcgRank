@@ -1,5 +1,7 @@
 import type { BestOf } from '#/domain/best-of.ts'
+import type { PlacementStage } from '#/domain/bracket.ts'
 import type { PairingSystem, TopCutSize } from '#/domain/event-setup.ts'
+import type { EventProgress } from '#/domain/progress.ts'
 import type { Standing } from '#/domain/standings.ts'
 import type { EventFormat, EventStatus, MatchOutcome } from '../db/schema.ts'
 
@@ -66,7 +68,7 @@ export interface StandingView extends Standing {
   readonly player: PlayerRef
   readonly dropped: boolean
   /** How far a player got in a bracket ("Champion", "Finalist", "Semifinal"…): once finished, and in a top cut being played. */
-  readonly stage: string | null
+  readonly stage: PlacementStage | null
 }
 
 export interface EventSummary {
@@ -104,6 +106,8 @@ export interface EventDetail {
   readonly rounds: ReadonlyArray<RoundView>
   readonly matches: ReadonlyArray<MatchView>
   readonly standings: ReadonlyArray<StandingView>
+  /** Where the event stands in its rounds (the bracket, the last round, the cut), so views don't re-derive the rules. */
+  readonly progress: EventProgress
   readonly viewer: {
     readonly userId: string
     readonly isHost: boolean

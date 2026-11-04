@@ -11,6 +11,8 @@
  * then OMW%.
  */
 
+import type { PairingSystem } from './event-setup.ts'
+
 const POINTS = { win: 3, draw: 1, loss: 0 } as const
 export const MIN_WIN_PERCENTAGE = 0.25
 
@@ -27,6 +29,17 @@ export interface MatchRecord {
 }
 
 export type Tiebreakers = 'swiss' | 'round_robin'
+
+/** Round robin breaks ties its own way; every other system uses the Swiss tiebreakers. */
+export const tiebreakersFor = (pairingSystem: PairingSystem): Tiebreakers =>
+  pairingSystem === 'round_robin' ? 'round_robin' : 'swiss'
+
+/**
+ * The record rule: every played match counts, and a Swiss or round-robin bye counts as a win. A bye in an
+ * elimination round only advances the player, so it counts as nothing.
+ */
+export const countsInRecord = ({ bye, elimination }: { readonly bye: boolean; readonly elimination: boolean }): boolean =>
+  !(bye && elimination)
 
 export interface Standing {
   readonly playerId: string

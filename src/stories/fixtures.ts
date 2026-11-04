@@ -196,6 +196,7 @@ export const bracketDetail: EventDetail = {
   ],
   matches: bracketMatches,
   standings: [],
+  progress: { mainPhaseRounds: 3, bracket: { firstRound: 1, rounds: 3 }, isLastRound: false, cutDue: false },
   viewer: { userId: 'diego', isHost: false, entry: diego, currentMatch: bracketMatches[4]! },
   serverNow: 0,
 }

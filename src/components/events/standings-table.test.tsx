@@ -24,7 +24,7 @@ describe('StandingsTable', () => {
   })
 
   it('marks a top cut with a "Top N cut" divider after its last player and a stage badge on each cut player', async () => {
-    const stages = ['Champion', 'Finalist']
+    const stages = ['Champion', 'Finalist'] as const
     const rows = standings.map((s, i) => ({ ...s, rank: i + 1, stage: stages[i] ?? null }))
     await renderWithRouter(<StandingsTable standings={rows} final topCutSize={2} />)
     const [first, second, divider, third] = screen.getAllByRole('row').slice(1)
