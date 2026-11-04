@@ -18,6 +18,7 @@ const detailWith = (event: Partial<EventDetail['event']>): EventDetail => ({
     bestOf: 3,
     pairingSystem: 'swiss',
     topCut: false,
+    topCutSize: null,
     entriesClosedReason: null,
     playerCount: 0,
     host: { id: 'host', name: 'Oak', username: 'oak', image: null },

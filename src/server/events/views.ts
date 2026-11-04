@@ -1,5 +1,5 @@
 import type { BestOf } from '#/domain/best-of.ts'
-import type { PairingSystem } from '#/domain/event-setup.ts'
+import type { PairingSystem, TopCutSize } from '#/domain/event-setup.ts'
 import type { Standing } from '#/domain/standings.ts'
 import type { EventFormat, EventStatus, MatchOutcome } from '../db/schema.ts'
 
@@ -81,6 +81,8 @@ export interface EventSummary {
   readonly pairingSystem: PairingSystem
   /** A Swiss event that cuts to a bracket after its Swiss rounds. Always false outside Swiss. */
   readonly topCut: boolean
+  /** The size of the top cut once the event has cut (2, 4 or 8); null before the cut and without one. */
+  readonly topCutSize: TopCutSize | null
   /** Why new players and rejoins are refused (worded for the cause), or null while entry is open. */
   readonly entriesClosedReason: string | null
   readonly playerCount: number

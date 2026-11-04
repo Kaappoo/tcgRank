@@ -39,6 +39,7 @@ const detailWith = (event: Partial<EventDetail['event']>, entry: EntrantView | n
     bestOf: 3,
     pairingSystem: 'swiss',
     topCut: false,
+    topCutSize: null,
     entriesClosedReason: null,
     playerCount: 1,
     host: { id: 'host', name: 'Oak', username: 'oak', image: null },

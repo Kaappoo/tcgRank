@@ -209,6 +209,7 @@ const make = Effect.gen(function* () {
       bestOf: r.bestOf,
       pairingSystem: r.pairingSystem,
       topCut: r.topCut,
+      topCutSize: r.topCutSize,
       entriesClosedReason: entriesClosedReason(r),
       playerCount: countByEvent.get(r.id) ?? 0,
       host: hosts.get(r.hostId) ?? unknownPlayer(r.hostId),

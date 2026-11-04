@@ -13,6 +13,8 @@ import type { Pairing } from './swiss.ts'
 export interface Bracket {
   readonly firstRound: number
   readonly rounds: number
+  /** The cut size when the bracket is a Swiss event's top cut. */
+  readonly topCutSize?: number
 }
 
 /** Rounds of a bracket for `playerCount` players: ceil(log2 N), at least 1. */
@@ -25,15 +27,25 @@ export const bracketOf = ({ firstRound, playerCount }: { firstRound: number; pla
 
 /**
  * The bracket an event plays, once its rounds are fixed: a single-elimination
- * event is a bracket from round 1. Null for events without one.
+ * event is a bracket from round 1; a Swiss event that has cut plays its top cut
+ * from the round after the Swiss rounds. Null for events without one.
  */
 export const eventBracket = (event: {
   readonly pairingSystem: PairingSystem
   readonly plannedRounds: number
-}): Bracket | null =>
-  event.pairingSystem === 'single_elimination' && event.plannedRounds > 0
+  readonly topCutSize: number | null
+}): Bracket | null => {
+  if (event.pairingSystem === 'swiss' && event.topCutSize !== null) {
+    return {
+      firstRound: event.plannedRounds + 1,
+      rounds: bracketRounds(event.topCutSize),
+      topCutSize: event.topCutSize,
+    }
+  }
+  return event.pairingSystem === 'single_elimination' && event.plannedRounds > 0
     ? { firstRound: 1, rounds: event.plannedRounds }
     : null
+}
 
 export const finalRound = (bracket: Bracket): number => bracket.firstRound + bracket.rounds - 1
 
@@ -131,6 +143,10 @@ export const stageName = (bracket: Bracket, roundNumber: number): Stage | null =
 export const roundName = (bracket: Bracket, roundNumber: number): string =>
   stageName(bracket, roundNumber) ?? `Round ${roundNumber - bracket.firstRound + 1}`
 
+/** "Top 8" on a top cut's first round, where a label names the cut; null for every other round. */
+export const topCutLabel = (bracket: Bracket, roundNumber: number): string | null =>
+  bracket.topCutSize !== undefined && roundNumber === bracket.firstRound ? `Top ${bracket.topCutSize}` : null
+
 /**
  * The round each player was knocked out in, or null for the champion (and
  * anyone still in). A player who lost a match is out in that round; one who
@@ -172,6 +188,22 @@ export const sharedPlacements = (exits: ReadonlyMap<string, number | null>): Map
   const reach = (exit: number | null) => exit ?? Number.POSITIVE_INFINITY
   const all = [...exits.values()].map(reach)
   return new Map([...exits].map(([id, exit]) => [id, 1 + all.filter((r) => r > reach(exit)).length]))
+}
+
+/**
+ * Top cut placement: players in the cut by the stage they reached (deeper
+ * first), then by Swiss rank among those knocked out in the same round; then
+ * everyone else in Swiss order. Every player gets their own placement.
+ */
+export const topCutPlacements = (
+  exits: ReadonlyMap<string, number | null>,
+  swissOrder: ReadonlyArray<string>,
+): Map<string, number> => {
+  // The champion reaches furthest; players outside the cut reach nothing.
+  const reach = (id: string) => (exits.has(id) ? (exits.get(id) ?? Number.MAX_SAFE_INTEGER) : -1)
+  const swissRank = new Map(swissOrder.map((id, i) => [id, i]))
+  const order = [...swissOrder].sort((a, b) => reach(b) - reach(a) || swissRank.get(a)! - swissRank.get(b)!)
+  return new Map(order.map((id, i) => [id, i + 1]))
 }
 
 /** How far a player got, for the podium: "Champion", "Finalist", or the stage they went out in. */

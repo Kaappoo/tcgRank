@@ -17,6 +17,10 @@ export type TopCutSize = (typeof TOP_CUT_SIZES)[number]
 export const defaultCutSize = (playerCount: number): TopCutSize | null =>
   playerCount < 9 ? null : playerCount <= 20 ? 4 : 8
 
+/** The cut sizes a host can pick: 2, 4 or 8, never more than the players still in. */
+export const allowedCutSizes = (activePlayers: number): Array<TopCutSize> =>
+  TOP_CUT_SIZES.filter((size) => size <= activePlayers)
+
 /** Everyone plays everyone once: N−1 rounds for an even field, N for an odd one (one bye each). */
 const roundRobinRounds = (playerCount: number): number => {
   const n = Math.max(2, playerCount)

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   bracketExits,
   bracketOf,
+  eventBracket,
   firstBracketRound,
   nextBracketRound,
   placementStage,
@@ -9,6 +10,8 @@ import {
   sharedPlacements,
   slotOrder,
   stageName,
+  topCutLabel,
+  topCutPlacements,
   type BracketMatch,
 } from './bracket.ts'
 import { mainPhaseRounds } from './event-setup.ts'
@@ -146,6 +149,38 @@ describe('rounds and stage names', () => {
   })
 })
 
+describe('eventBracket', () => {
+  it('a single-elimination event is a bracket from round 1', () => {
+    expect(eventBracket({ pairingSystem: 'single_elimination', plannedRounds: 3, topCutSize: null })).toMatchObject({
+      firstRound: 1,
+      rounds: 3,
+    })
+  })
+
+  it('a Swiss event has no bracket until it cuts', () => {
+    expect(eventBracket({ pairingSystem: 'swiss', plannedRounds: 5, topCutSize: null })).toBeNull()
+  })
+
+  it.each([
+    [2, 6, 1],
+    [4, 6, 2],
+    [8, 6, 3],
+  ])('a top %i after 5 Swiss rounds starts at round %i and plays %i rounds', (topCutSize, firstRound, rounds) => {
+    expect(eventBracket({ pairingSystem: 'swiss', plannedRounds: 5, topCutSize })).toMatchObject({ firstRound, rounds })
+  })
+
+  it('labels a top cut\'s first round "Top N" and no other round', () => {
+    const cut = eventBracket({ pairingSystem: 'swiss', plannedRounds: 5, topCutSize: 8 })!
+    expect([5, 6, 7, 8].map((r) => topCutLabel(cut, r))).toEqual([null, 'Top 8', null, null])
+    expect([6, 7, 8].map((r) => roundName(cut, r))).toEqual(['Quarterfinal', 'Semifinal', 'Final'])
+  })
+
+  it('a single-elimination bracket has no "Top N" label', () => {
+    const bracket = eventBracket({ pairingSystem: 'single_elimination', plannedRounds: 3, topCutSize: null })!
+    expect(topCutLabel(bracket, 1)).toBeNull()
+  })
+})
+
 describe('placement', () => {
   /** Plays a whole bracket of `n` seeds where the better seed always wins. */
   const playOut = (n: number, dropped: ReadonlySet<string> = new Set()) => {
@@ -197,5 +232,36 @@ describe('placement', () => {
 
   it('knocked out in an early round of a 16-player bracket reads "Round 1"', () => {
     expect(placementStage(bracketOf({ firstRound: 1, playerCount: 16 }), 1)).toBe('Round 1')
+  })
+})
+
+describe('top cut placement', () => {
+  const swissOrder = Array.from({ length: 10 }, (_, i) => `p${i + 1}`)
+  const cut = eventBracket({ pairingSystem: 'swiss', plannedRounds: 4, topCutSize: 4 })!
+  // Semifinals (round 5): p4 beats p1, p2 beats p3. Final (round 6): p2 beats p4.
+  const semis = play(5, firstBracketRound(swissOrder.slice(0, 4)), (a, b) =>
+    a === 'p4' || b === 'p4' ? a === 'p4' : a < b,
+  )
+  const final = play(6, nextBracketRound(semis), (a) => a === 'p2')
+
+  it('orders the cut by stage reached, then Swiss rank; everyone else follows in Swiss order', () => {
+    const placements = topCutPlacements(bracketExits(cut, [...semis, ...final]), swissOrder)
+    expect([...placements].sort((a, b) => a[1] - b[1]).map(([id]) => id)).toEqual([
+      'p2',
+      'p4',
+      'p1',
+      'p3',
+      'p5',
+      'p6',
+      'p7',
+      'p8',
+      'p9',
+      'p10',
+    ])
+  })
+
+  it('gives every player their own placement', () => {
+    const placements = topCutPlacements(bracketExits(cut, [...semis, ...final]), swissOrder)
+    expect(new Set(placements.values()).size).toBe(10)
   })
 })

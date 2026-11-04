@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultCutSize, mainPhaseRounds } from './event-setup.ts'
+import { allowedCutSizes, defaultCutSize, mainPhaseRounds } from './event-setup.ts'
 
 describe('mainPhaseRounds', () => {
   it.each([
@@ -58,5 +58,19 @@ describe('defaultCutSize', () => {
     [200, 8],
   ])('%i players → %s', (playerCount, size) => {
     expect(defaultCutSize(playerCount)).toBe(size)
+  })
+})
+
+describe('allowedCutSizes', () => {
+  it.each([
+    [1, []],
+    [2, [2]],
+    [3, [2]],
+    [4, [2, 4]],
+    [7, [2, 4]],
+    [8, [2, 4, 8]],
+    [40, [2, 4, 8]],
+  ])('%i active players can cut to %j', (activePlayers, sizes) => {
+    expect(allowedCutSizes(activePlayers)).toEqual(sizes)
   })
 })
