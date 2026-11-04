@@ -1,0 +1,165 @@
+/**
+ * Single-elimination bracket rules, shared by single-elimination events and the
+ * Swiss top cut: the standard slot order, byes to the top seeds, pairing each
+ * round from the winners of the last, stage names and shared placement. A
+ * bracket may start at any round number (a top cut follows the Swiss rounds).
+ * Pure, no IO.
+ */
+import type { Outcome } from './standings.ts'
+import type { Pairing } from './swiss.ts'
+
+/** Where a bracket sits in an event: its first round number and how many rounds it plays. */
+export interface Bracket {
+  readonly firstRound: number
+  readonly rounds: number
+}
+
+/** Rounds of a bracket for `playerCount` players: ceil(log2 N), at least 1. */
+export const bracketRounds = (playerCount: number): number => Math.ceil(Math.log2(Math.max(2, playerCount)))
+
+export const bracketOf = ({ firstRound, playerCount }: { firstRound: number; playerCount: number }): Bracket => ({
+  firstRound,
+  rounds: bracketRounds(playerCount),
+})
+
+export const finalRound = (bracket: Bracket): number => bracket.firstRound + bracket.rounds - 1
+
+/**
+ * Seeds in slot order for a bracket of `size` seats (a power of two): seats 2k
+ * and 2k+1 meet in slot k. For 8: 1v8, 4v5 | 2v7, 3v6, so seeds 1 and 2 can
+ * only meet in the final.
+ */
+export const slotOrder = (size: number): Array<number> => {
+  let order = [1]
+  while (order.length < size) {
+    const seats = order.length * 2
+    order = order.flatMap((seed) => [seed, seats + 1 - seed])
+  }
+  return order
+}
+
+/** A table of an elimination round, with its place in the bracket. */
+export interface BracketPairing extends Pairing {
+  /** Winners of slots 2k and 2k+1 meet in slot k of the next round. */
+  readonly slot: number
+}
+
+/** Matches get tables 1, 2… in slot order; byes come after them. */
+const numberTables = (seats: ReadonlyArray<{ slot: number; a: string; b: string | null }>): Array<BracketPairing> => {
+  const matches = seats.filter((s) => s.b !== null)
+  const byes = seats.filter((s) => s.b === null)
+  return [...matches, ...byes].map((s, i) => ({ table: i + 1, slot: s.slot, player1Id: s.a, player2Id: s.b }))
+}
+
+/**
+ * Round 1 of a bracket from players in seed order (seed 1 first). When the
+ * field isn't a power of two, the top seeds get byes: the next power of two
+ * minus attendance of them.
+ */
+export const firstBracketRound = (seeded: ReadonlyArray<string>): Array<BracketPairing> => {
+  const order = slotOrder(2 ** bracketRounds(seeded.length))
+  const seats = []
+  for (let slot = 0; slot < order.length / 2; slot++) {
+    const a = seeded[order[2 * slot]! - 1]
+    const b = seeded[order[2 * slot + 1]! - 1] ?? null
+    if (a !== undefined) seats.push({ slot, a, b })
+  }
+  return numberTables(seats)
+}
+
+/** An elimination match as stored: its round, slot, players and result. */
+export interface BracketMatch {
+  readonly roundNumber: number
+  readonly slot: number
+  readonly player1Id: string
+  readonly player2Id: string | null
+  readonly outcome: Outcome | null
+}
+
+const winnerOf = (m: Pick<BracketMatch, 'player1Id' | 'player2Id' | 'outcome'>): string | null =>
+  m.outcome === 'p1' || m.outcome === 'bye' ? m.player1Id : m.outcome === 'p2' ? m.player2Id : null
+
+/**
+ * The next round from the previous round's matches: the winners of slots 2k
+ * and 2k+1 meet in slot k. A winner who dropped before this round gives their
+ * opponent a bye; if both dropped, the slot stays empty.
+ */
+export const nextBracketRound = (
+  previous: ReadonlyArray<Pick<BracketMatch, 'slot' | 'player1Id' | 'player2Id' | 'outcome'>>,
+  dropped: ReadonlySet<string> = new Set(),
+): Array<BracketPairing> => {
+  const winners = new Map<number, string>()
+  for (const m of previous) {
+    const winner = winnerOf(m)
+    if (winner !== null && !dropped.has(winner)) winners.set(m.slot, winner)
+  }
+  const slotCount = Math.ceil((Math.max(-1, ...previous.map((m) => m.slot)) + 1) / 2)
+  const seats = []
+  for (let slot = 0; slot < slotCount; slot++) {
+    const a = winners.get(2 * slot) ?? null
+    const b = winners.get(2 * slot + 1) ?? null
+    if (a !== null) seats.push({ slot, a, b })
+    else if (b !== null) seats.push({ slot, a: b, b: null })
+  }
+  return numberTables(seats)
+}
+
+export type Stage = 'Final' | 'Semifinal' | 'Quarterfinal'
+const STAGES: ReadonlyArray<Stage> = ['Final', 'Semifinal', 'Quarterfinal']
+
+/** The stage a round of the bracket is, or null for earlier rounds (and rounds outside it). */
+export const stageName = (bracket: Bracket, roundNumber: number): Stage | null => {
+  const last = finalRound(bracket)
+  if (roundNumber < bracket.firstRound || roundNumber > last) return null
+  return STAGES[last - roundNumber] ?? null
+}
+
+/** What a round of the bracket is called: its stage, or "Round N" (counted within the bracket) before that. */
+export const roundName = (bracket: Bracket, roundNumber: number): string =>
+  stageName(bracket, roundNumber) ?? `Round ${roundNumber - bracket.firstRound + 1}`
+
+/**
+ * The round each player was knocked out in, or null for the champion (and
+ * anyone still in). A player who lost a match is out in that round; one who
+ * dropped between rounds is out in the round after the last one they played.
+ */
+export const bracketExits = (
+  bracket: Bracket,
+  matches: ReadonlyArray<Pick<BracketMatch, 'roundNumber' | 'player1Id' | 'player2Id' | 'outcome'>>,
+  dropped: ReadonlySet<string> = new Set(),
+): Map<string, number | null> => {
+  const lastPlayed = new Map<string, number>()
+  const lost = new Map<string, number>()
+  for (const m of matches) {
+    for (const id of [m.player1Id, m.player2Id]) {
+      if (id !== null) lastPlayed.set(id, Math.max(lastPlayed.get(id) ?? 0, m.roundNumber))
+    }
+    const winner = winnerOf(m)
+    const loser = winner === null || m.player2Id === null ? null : winner === m.player1Id ? m.player2Id : m.player1Id
+    if (loser !== null) lost.set(loser, m.roundNumber)
+  }
+  const exits = new Map<string, number | null>()
+  for (const [id, round] of lastPlayed) {
+    const out = lost.get(id) ?? (dropped.has(id) && round < finalRound(bracket) ? round + 1 : null)
+    exits.set(id, out)
+  }
+  return exits
+}
+
+/**
+ * Single-elimination placement: players knocked out in the same round share
+ * it (1, 2, 3, 3, 5…). A player's placement is one more than the number of
+ * players who got further.
+ */
+export const sharedPlacements = (exits: ReadonlyMap<string, number | null>): Map<string, number> => {
+  const reach = (exit: number | null) => exit ?? Number.POSITIVE_INFINITY
+  const all = [...exits.values()].map(reach)
+  return new Map([...exits].map(([id, exit]) => [id, 1 + all.filter((r) => r > reach(exit)).length]))
+}
+
+/** How far a player got, for the podium: "Champion", "Finalist", or the stage they went out in. */
+export const placementStage = (bracket: Bracket, exit: number | null): string => {
+  if (exit === null) return 'Champion'
+  if (exit === finalRound(bracket)) return 'Finalist'
+  return roundName(bracket, exit)
+}

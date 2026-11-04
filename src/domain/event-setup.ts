@@ -2,6 +2,7 @@
  * Event setup rules: the pairing system, whether a Swiss event has a top cut,
  * and how many rounds the main phase plays. Pure, no IO.
  */
+import { bracketRounds } from './bracket.ts'
 import { recommendedRounds } from './swiss.ts'
 
 export const PAIRING_SYSTEMS = ['swiss', 'round_robin', 'single_elimination'] as const
@@ -21,9 +22,6 @@ const roundRobinRounds = (playerCount: number): number => {
   const n = Math.max(2, playerCount)
   return n % 2 === 0 ? n - 1 : n
 }
-
-/** Rounds of a single-elimination bracket: ceil(log2 N). */
-const eliminationRounds = (playerCount: number): number => Math.ceil(Math.log2(Math.max(2, playerCount)))
 
 export interface MainPhaseInput {
   readonly pairingSystem: PairingSystem
@@ -45,6 +43,6 @@ export const mainPhaseRounds = ({ pairingSystem, topCut, plannedRounds, playerCo
     case 'round_robin':
       return roundRobinRounds(playerCount)
     case 'single_elimination':
-      return eliminationRounds(playerCount)
+      return bracketRounds(playerCount)
   }
 }
