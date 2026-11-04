@@ -116,3 +116,34 @@ describe('RoundTables host correction', () => {
     expect(onSetResult).toHaveBeenCalledWith('m1', 1, 0, expect.any(Function))
   })
 })
+
+describe('RoundTables in an elimination round', () => {
+  it('stops the host entering a tie', async () => {
+    render(
+      <RoundTables
+        matches={[{ ...reported, player1Games: 1, player2Games: 1, outcome: null, status: 'playing' }]}
+        bestOf={3}
+        elimination
+        canEdit
+        onSetResult={vi.fn()}
+      />,
+    )
+    await openCorrection()
+    expect(await screen.findByRole('status')).toHaveTextContent(/Elimination matches can’t tie/)
+    expect(screen.getByRole('button', { name: 'Send result' })).toBeDisabled()
+  })
+
+  it('shows a match lost by a drop as "Dropped"', () => {
+    render(
+      <RoundTables
+        matches={[
+          { ...reported, player1Games: 0, player2Games: 0, reportedById: null, status: 'confirmed', dropped: true },
+        ]}
+        bestOf={3}
+        elimination
+      />,
+    )
+    expect(screen.getByText('Dropped')).toBeInTheDocument()
+    expect(screen.queryByText('0–0')).not.toBeInTheDocument()
+  })
+})

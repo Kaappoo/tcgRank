@@ -12,13 +12,23 @@ export interface ReportResultProps {
   readonly match: MatchView
   readonly viewerId: string
   readonly bestOf: BestOf
+  /** An elimination round: the match can't end in a tie. */
+  readonly elimination?: boolean
   readonly isPending?: boolean
   readonly onReport: (games: { player1Games: number; player2Games: number }) => void
   readonly onConfirm: () => void
 }
 
 /** Result reporting at the table: step in the games, send, and the opponent confirms. */
-export function ReportResult({ match, viewerId, bestOf, isPending, onReport, onConfirm }: ReportResultProps) {
+export function ReportResult({
+  match,
+  viewerId,
+  bestOf,
+  elimination = false,
+  isPending,
+  onReport,
+  onConfirm,
+}: ReportResultProps) {
   const [editing, setEditing] = useState(false)
   const current = describeResult(match, viewerId)
   const reportedByMe = match.reportedById === viewerId
@@ -75,7 +85,7 @@ export function ReportResult({ match, viewerId, bestOf, isPending, onReport, onC
         <span className="text-xs text-paper-dim">{bestOfLabel(bestOf)}</span>
       </div>
       <ScoreStepper
-        rules={scoreRules(bestOf)}
+        rules={scoreRules(bestOf, { allowEqualGames: !elimination })}
         sides={{ kind: 'mine' }}
         initial={myGames(match, viewerId)}
         agreesWith={opponentReport(match, viewerId)}

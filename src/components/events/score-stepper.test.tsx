@@ -133,7 +133,7 @@ describe('ScoreStepper', () => {
     expect(screen.queryByText(/Not all games reported/)).not.toBeInTheDocument()
   })
 
-  it('refuses equal games when the rules do', () => {
+  it('refuses equal games when the rules do, with the elimination tie rules in place of the result', () => {
     render(
       <ScoreStepper
         rules={scoreRules(3, { allowEqualGames: false })}
@@ -143,6 +143,8 @@ describe('ScoreStepper', () => {
       />,
     )
     expect(screen.getByRole('button', { name: 'Send result' })).toBeDisabled()
-    expect(screen.getByText('This match can’t end in a tie')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Elimination matches can’t tie: on time, fewest Prize cards or the game 1 winner takes it; at 1–1, play a tiebreaker game.',
+    )
   })
 })

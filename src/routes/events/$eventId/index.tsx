@@ -21,11 +21,12 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from '#/components/ui/tabs.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { errorMessage, useEventActions } from '#/hooks/use-event-actions.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
+import { eventBracket, roundName } from '#/domain/bracket.ts'
 import { formatLabel, setupSummary, statusLabel } from '#/lib/format.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
 import { cn } from '#/lib/utils.ts'
-import type { EventDetail, StandingView } from '#/server/events/views.ts'
+import type { EventDetail, RoundView, StandingView } from '#/server/events/views.ts'
 
 export const Route = createFileRoute('/events/$eventId/')({
   /** `deck`: a deck just created while joining, to preselect. */
@@ -158,6 +159,7 @@ function EventHub() {
                   match={viewer.currentMatch}
                   viewerId={viewer.userId}
                   bestOf={event.bestOf}
+                  elimination={currentRound.elimination}
                   isPending={actions.report.isPending || actions.confirm.isPending}
                   onReport={(games) => actions.report.mutate({ matchId: viewer.currentMatch!.id, ...games })}
                   onConfirm={() => actions.confirm.mutate(viewer.currentMatch!.id)}
@@ -200,6 +202,10 @@ function EventHub() {
   )
 }
 
+/** "3 pts · 3-0-0", or in a bracket the stage and the bracket record without byes: "Champion · 3–0". */
+const podiumLine = (s: StandingView) =>
+  s.stage ? `${s.stage} · ${s.wins}–${s.losses}` : `${s.points} pts · ${s.wins + s.byes}-${s.losses}-${s.draws}`
+
 /** Final standings get a podium: the champion is the loudest thing on the page. */
 function Podium({ standings }: { standings: ReadonlyArray<StandingView> }) {
   const [first, ...rest] = standings
@@ -218,9 +224,7 @@ function Podium({ standings }: { standings: ReadonlyArray<StandingView> }) {
           <Avatar name={first.player.name} src={first.player.image} size="xl" className="ring-4 ring-orange" />
           <div className="min-w-0">
             <p className="truncate font-display text-4xl sm:text-5xl">{first.player.name}</p>
-            <p className="tabular text-paper-dim">
-              {first.points} pts · {first.wins + first.byes}-{first.losses}-{first.draws}
-            </p>
+            <p className="tabular text-paper-dim">{podiumLine(first)}</p>
           </div>
         </div>
       </div>
@@ -230,7 +234,9 @@ function Podium({ standings }: { standings: ReadonlyArray<StandingView> }) {
             <span className="font-numerals w-8 text-3xl text-paper-dim">{s.rank}</span>
             <Avatar name={s.player.name} src={s.player.image} size="sm" />
             <span className="truncate font-semibold">{s.player.name}</span>
-            <span className="tabular ml-auto text-sm text-paper-dim">{s.points} pts</span>
+            <span className="tabular ml-auto text-sm text-paper-dim">
+              {s.stage ? podiumLine(s) : `${s.points} pts`}
+            </span>
           </li>
         ))}
       </ol>
@@ -256,9 +262,12 @@ function EventTabs({
   onRemoveGuest: (guestId: string) => void
 }) {
   const { event, matches, rounds, standings, players, viewer } = detail
-  const [roundNumber, setRoundNumber] = useState(event.currentRound)
-  const shownRound = roundNumber || event.currentRound
+  // A choice made in an earlier round lapses when the next round is paired, so the new pairings show.
+  const [chosen, setChosen] = useState<{ readonly during: number; readonly round: number } | null>(null)
+  const shownRound = chosen?.during === event.currentRound ? chosen.round : event.currentRound
   const roundMatches = matches.filter((m) => m.roundNumber === shownRound)
+  const bracket = eventBracket(event)
+  const roundLabel = (r: RoundView) => (r.elimination && bracket ? roundName(bracket, r.number) : `Round ${r.number}`)
   const defaultTab = event.status === 'finished' ? 'standings' : event.currentRound > 0 ? 'pairings' : 'players'
 
   return (
@@ -283,10 +292,10 @@ function EventTabs({
                 key={r.id}
                 type="button"
                 aria-pressed={r.number === shownRound}
-                onClick={() => setRoundNumber(r.number)}
+                onClick={() => setChosen({ during: event.currentRound, round: r.number })}
                 className="h-9 cursor-pointer rounded-full border border-line-strong px-4 text-sm font-semibold transition-colors aria-pressed:border-orange aria-pressed:bg-orange aria-pressed:text-on-orange"
               >
-                Round {r.number}
+                {roundLabel(r)}
               </button>
             ))}
           </div>
@@ -294,6 +303,7 @@ function EventTabs({
         <RoundTables
           matches={roundMatches}
           bestOf={event.bestOf}
+          elimination={rounds.find((r) => r.number === shownRound)?.elimination ?? false}
           viewerId={viewer?.userId}
           canEdit={viewer?.isHost}
           onSetResult={onHostResult}
@@ -309,7 +319,9 @@ function EventTabs({
           tiebreakers={event.pairingSystem === 'round_robin' ? 'round_robin' : 'swiss'}
         />
         <p className="mt-3 text-xs text-paper-dim">
-          {event.pairingSystem === 'round_robin'
+          {event.pairingSystem === 'single_elimination'
+            ? 'Final placement follows the round a player went out in; players out in the same round share it. Byes only advance a player.'
+            : event.pairingSystem === 'round_robin'
             ? 'Win 3 · Tie 1 · Loss 0 · Bye 3. A tie between two players goes to the winner of their match (H2H), then game-win % (GW%), then opponents’ win % (OMW, min 25%).'
             : 'Win 3 · Tie 1 · Loss 0. Ties broken by opponents’ win % (OMW, min 25%), then their opponents’.'}
           {event.status !== 'finished' ? ' Only confirmed results count.' : ''}

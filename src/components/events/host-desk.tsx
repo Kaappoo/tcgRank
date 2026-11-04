@@ -4,8 +4,9 @@ import { PairingSystemField } from '#/components/forms/pairing-system-field.tsx'
 import { SettingSwitch } from '#/components/forms/setting-switch.tsx'
 import { Button } from '#/components/ui/button.tsx'
 import type { BestOf } from '#/domain/best-of.ts'
+import { eventBracket, stageName } from '#/domain/bracket.ts'
 import { mainPhaseRounds, type PairingSystem } from '#/domain/event-setup.ts'
-import { setupLine } from '#/lib/format.ts'
+import { pairRoundLabel, setupLine } from '#/lib/format.ts'
 import type { EventDetail } from '#/server/events/views.ts'
 import { MatchClock } from './match-clock.tsx'
 
@@ -47,6 +48,11 @@ export function HostDesk({
   const plannedRounds = mainPhaseRounds({ ...event, playerCount: players.length })
   const roundComplete = roundMatches.length > 0 && confirmed === roundMatches.length
   const lastRound = event.currentRound >= plannedRounds
+  const bracket = eventBracket({ ...event, plannedRounds })
+  const stageOf = (roundNumber: number) => (bracket ? stageName(bracket, roundNumber) : null)
+  const currentStage = stageOf(event.currentRound)
+  // A half-played bracket has no champion, so it can't be published early.
+  const bracketStarted = rounds.some((r) => r.elimination)
 
   if (event.status === 'finished') return null
 
@@ -93,6 +99,7 @@ export function HostDesk({
             <p className="text-sm text-paper-dim">
               {setupLine(event, players.length)}. Pair round 1 once everyone has scanned in.
               {event.pairingSystem === 'round_robin' ? ' Pairing round 1 draws the schedule and closes entries.' : ''}
+              {event.pairingSystem === 'single_elimination' ? ' Pairing round 1 draws the seeds and closes entries.' : ''}
             </p>
             {event.pairingSystem === 'round_robin' && players.length > LONG_ROUND_ROBIN ? (
               <p className="text-sm text-loss">
@@ -117,7 +124,7 @@ export function HostDesk({
           <div className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between text-sm">
               <span className="font-semibold">
-                Round {event.currentRound} of {plannedRounds}
+                {currentStage ? `${currentStage} · ` : ''}Round {event.currentRound} of {plannedRounds}
               </span>
               <span className="tabular text-paper-dim">
                 {confirmed}/{roundMatches.length} results in
@@ -150,14 +157,14 @@ export function HostDesk({
             disabled={busy || (event.currentRound > 0 && !roundComplete) || activePlayers < 2}
             onClick={onStartRound}
           >
-            <Shuffle /> {event.currentRound === 0 ? 'Pair round 1' : `Pair round ${event.currentRound + 1}`}
+            <Shuffle /> {pairRoundLabel(event.currentRound + 1, stageOf(event.currentRound + 1))}
           </Button>
         )}
         {!lastRound && (event.currentRound === 0 || roundComplete) ? <MissingDecks count={withoutDeck} /> : null}
         {event.currentRound > 0 && !roundComplete ? (
           <p className="text-xs text-paper-dim">Next round unlocks when every table has a confirmed result.</p>
         ) : null}
-        {!lastRound && event.currentRound > 0 && roundComplete ? (
+        {!lastRound && event.currentRound > 0 && roundComplete && !bracketStarted ? (
           <Button variant="ghost" size="sm" disabled={busy} onClick={onFinish}>
             End event early
           </Button>

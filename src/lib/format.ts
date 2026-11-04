@@ -1,4 +1,5 @@
 import type { BestOf } from '#/domain/best-of.ts'
+import type { Stage } from '#/domain/bracket.ts'
 import { defaultCutSize, mainPhaseRounds, type PairingSystem } from '#/domain/event-setup.ts'
 import type { EventFormat, EventStatus } from '#/server/db/schema.ts'
 
@@ -57,6 +58,16 @@ export const setupLine = (
       return `Single elimination: ${roundsOf(rounds, event.roundMinutes)}, ${bestOfLabel(event.bestOf).toLowerCase()}`
   }
 }
+
+const STAGE_PAIRINGS: Record<Stage, string> = {
+  Final: 'final',
+  Semifinal: 'semifinals',
+  Quarterfinal: 'quarterfinals',
+}
+
+/** The host's pairing button: "Pair semifinals", "Pair final", or "Pair round N" outside the named stages. */
+export const pairRoundLabel = (roundNumber: number, stage: Stage | null): string =>
+  stage ? `Pair ${STAGE_PAIRINGS[stage]}` : `Pair round ${roundNumber}`
 
 export const statusLabel = (status: EventStatus, currentRound: number): string => {
   if (status === 'registration') return 'Registration open'
