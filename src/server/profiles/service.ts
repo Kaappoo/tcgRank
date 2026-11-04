@@ -3,7 +3,7 @@ import { Context, Effect, Layer } from 'effect'
 import type { ProfileInput } from '#/shared/schemas.ts'
 import { requireUser } from '../current-user.ts'
 import { Db } from '../db/client.ts'
-import { eventPlayers, events, matches, user, type MatchOutcome } from '../db/schema.ts'
+import { eventPlayers, events, matches, rounds, user, type MatchOutcome } from '../db/schema.ts'
 import { InvalidState, NotFound } from '../errors.ts'
 import type { PlayerRef } from '../events/views.ts'
 
@@ -17,6 +17,8 @@ export interface MatchHistoryEntry {
   readonly roundNumber: number
   readonly opponent: PlayerRef | null
   readonly result: MatchResult
+  /** False for a bye in an elimination round: it shows as "Bye" but counts as nothing in the record. */
+  readonly inRecord: boolean
   readonly score: string
 }
 
@@ -66,6 +68,12 @@ export const resultFor = (
   return won ? 'win' : 'loss'
 }
 
+/**
+ * The record rule: every played match counts, and a Swiss or round-robin bye counts as a win. A bye in an
+ * elimination round only advances the player, so it counts as nothing.
+ */
+const countsInRecord = (result: MatchResult, elimination: boolean): boolean => !(result === 'bye' && elimination)
+
 const make = Effect.gen(function* () {
   const db = yield* Db
 
@@ -87,16 +95,17 @@ const make = Effect.gen(function* () {
         ),
         db.query((d) =>
           d
-            .select({ match: matches, eventName: events.name })
+            .select({ match: matches, eventName: events.name, elimination: rounds.elimination })
             .from(matches)
             .innerJoin(events, eq(events.id, matches.eventId))
+            .innerJoin(rounds, and(eq(rounds.eventId, matches.eventId), eq(rounds.number, matches.roundNumber)))
             .where(
               and(
                 or(eq(matches.player1Id, row.id), eq(matches.player2Id, row.id)),
                 sql`${matches.confirmedAt} is not null`,
               ),
             )
-            .orderBy(desc(matches.confirmedAt)),
+            .orderBy(desc(matches.confirmedAt), desc(matches.roundNumber)),
         ),
         db.query((d) =>
           d
@@ -138,9 +147,10 @@ const make = Effect.gen(function* () {
 
     const history: Array<MatchHistoryEntry> = []
     const perEvent = new Map<string, { wins: number; losses: number; draws: number }>()
-    for (const { match, eventName } of matchRows) {
+    for (const { match, eventName, elimination } of matchRows) {
       const result = resultFor(row.id, match)
       if (!result) continue
+      const inRecord = countsInRecord(result, elimination)
       const asP1 = match.player1Id === row.id
       const opponentId = asP1 ? match.player2Id : match.player1Id
       history.push({
@@ -151,8 +161,10 @@ const make = Effect.gen(function* () {
         roundNumber: match.roundNumber,
         opponent: opponentId ? (opponents.get(opponentId) ?? null) : null,
         result,
+        inRecord,
         score: asP1 ? `${match.player1Games}–${match.player2Games}` : `${match.player2Games}–${match.player1Games}`,
       })
+      if (!inRecord) continue
       const tally = perEvent.get(match.eventId) ?? { wins: 0, losses: 0, draws: 0 }
       if (result === 'win' || result === 'bye') tally.wins++
       else if (result === 'loss') tally.losses++
@@ -160,9 +172,10 @@ const make = Effect.gen(function* () {
       perEvent.set(match.eventId, tally)
     }
 
-    const wins = history.filter((h) => h.result === 'win' || h.result === 'bye').length
-    const losses = history.filter((h) => h.result === 'loss').length
-    const draws = history.filter((h) => h.result === 'draw').length
+    const record = history.filter((h) => h.inRecord)
+    const wins = record.filter((h) => h.result === 'win' || h.result === 'bye').length
+    const losses = record.filter((h) => h.result === 'loss').length
+    const draws = record.filter((h) => h.result === 'draw').length
     const ranks = entries.map((e) => e.finalRank).filter((r): r is number => r !== null)
 
     return {
@@ -181,7 +194,7 @@ const make = Effect.gen(function* () {
         wins,
         losses,
         draws,
-        winRate: history.length === 0 ? 0 : wins / history.length,
+        winRate: record.length === 0 ? 0 : wins / record.length,
         bestFinish: ranks.length === 0 ? null : Math.min(...ranks),
       },
       events: entries.map(({ event, finalRank }) => ({

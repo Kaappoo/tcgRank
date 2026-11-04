@@ -1,11 +1,54 @@
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 import { DEFAULT_BEST_OF } from '#/domain/best-of.ts'
+import type { PairingSystem } from '#/domain/event-setup.ts'
+import type { CreateEventInput } from '#/shared/schemas.ts'
 import { EventsService } from '../events/service.ts'
+import type { MatchView } from '../events/views.ts'
+import type { SessionUser } from '../current-user.ts'
 import { asUser, insertUser, withDb } from '../testing.ts'
 import { ProfilesService, resultFor } from './service.ts'
 
 const TestLayer = withDb(Layer.mergeAll(ProfilesService.layer, EventsService.layer))
+
+const newEvent: CreateEventInput = {
+  name: 'Cup',
+  storeName: 'Nimbasa Games',
+  format: 'standard',
+  plannedRounds: 0,
+  roundMinutes: 50,
+  startsAt: new Date(),
+  deckRequired: false,
+  bestOf: DEFAULT_BEST_OF,
+  pairingSystem: 'swiss',
+  topCut: false,
+}
+
+/** A host and three players in an event of the given pairing system, round 1 paired. */
+const threePlayers = Effect.fn('threePlayers')(function* (pairingSystem: PairingSystem) {
+  const events = yield* EventsService
+  const host = yield* insertUser('Elesa')
+  const players = [yield* insertUser('Ash'), yield* insertUser('Gary'), yield* insertUser('Misty')]
+  const { id } = yield* events.create({ ...newEvent, name: 'Gym Night', pairingSystem }).pipe(asUser(host))
+  for (const p of players) yield* events.join(id).pipe(asUser(p))
+  yield* events.startNextRound(id).pipe(asUser(host))
+  const byPlayer = (playerId: string) => players.find((p) => p.id === playerId)!
+  return { events, host, id, byPlayer }
+})
+
+/** The host confirms the round's one played match as a 2–0 win for the player it names. */
+const hostReports = Effect.fn('hostReports')(function* (
+  host: SessionUser,
+  eventId: string,
+  roundNumber: number,
+  winner: (m: MatchView) => string,
+) {
+  const events = yield* EventsService
+  const match = (yield* events.detail(eventId)).matches.find((m) => m.roundNumber === roundNumber && m.player2)!
+  const p1Wins = winner(match) === match.player1.id
+  yield* events.reportResult(match.id, p1Wins ? 2 : 0, p1Wins ? 0 : 2).pipe(asUser(host))
+  return match
+})
 
 describe('resultFor', () => {
   it('maps stored outcomes to the player perspective', () => {
@@ -57,6 +100,38 @@ describe('ProfilesService', () => {
 
       const hostProfile = yield* profiles.byUsername(host.username!)
       expect(hostProfile.stats.eventsHosted).toBe(1)
+    }).pipe(Effect.provide(TestLayer)),
+  )
+
+  it.effect('a bye in a bracket shows in the match list but counts as nothing in the record', () =>
+    Effect.gen(function* () {
+      const profiles = yield* ProfilesService
+      const { events, host, id, byPlayer } = yield* threePlayers('single_elimination')
+      const bye = (yield* events.detail(id)).matches.find((m) => m.player2 === null)!
+      const seedOne = byPlayer(bye.player1.id)
+      // Seed 1 had the bye, then loses the final.
+      yield* hostReports(host, id, 1, (m) => m.player1.id)
+      yield* events.startNextRound(id).pipe(asUser(host))
+      yield* hostReports(host, id, 2, (m) => (m.player1.id === seedOne.id ? m.player2!.id : m.player1.id))
+      yield* events.finishEvent(id).pipe(asUser(host))
+
+      const profile = yield* profiles.byUsername(seedOne.username!)
+      expect(profile.matches.map((m) => m.result)).toEqual(['loss', 'bye'])
+      expect(profile.stats).toMatchObject({ wins: 0, losses: 1, draws: 0, winRate: 0 })
+      expect(profile.events[0]).toMatchObject({ wins: 0, losses: 1, draws: 0 })
+    }).pipe(Effect.provide(TestLayer)),
+  )
+
+  it.effect('a Swiss bye counts as a win', () =>
+    Effect.gen(function* () {
+      const profiles = yield* ProfilesService
+      const { events, id, byPlayer } = yield* threePlayers('swiss')
+      const bye = (yield* events.detail(id)).matches.find((m) => m.player2 === null)!
+
+      const profile = yield* profiles.byUsername(byPlayer(bye.player1.id).username!)
+      expect(profile.matches.map((m) => m.result)).toEqual(['bye'])
+      expect(profile.stats).toMatchObject({ wins: 1, losses: 0, winRate: 1 })
+      expect(profile.events[0]).toMatchObject({ wins: 1 })
     }).pipe(Effect.provide(TestLayer)),
   )
 
