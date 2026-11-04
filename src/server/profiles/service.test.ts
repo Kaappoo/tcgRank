@@ -110,9 +110,9 @@ describe('ProfilesService', () => {
       const bye = (yield* events.detail(id)).matches.find((m) => m.player2 === null)!
       const seedOne = byPlayer(bye.player1.id)
       // Seed 1 had the bye, then loses the final.
-      yield* hostReports(host, id, 1, (m) => m.player1.id)
+      const semifinal = yield* hostReports(host, id, 1, (m) => m.player1.id)
       yield* events.startNextRound(id).pipe(asUser(host))
-      yield* hostReports(host, id, 2, (m) => (m.player1.id === seedOne.id ? m.player2!.id : m.player1.id))
+      const final = yield* hostReports(host, id, 2, (m) => (m.player1.id === seedOne.id ? m.player2!.id : m.player1.id))
       yield* events.finishEvent(id).pipe(asUser(host))
 
       const profile = yield* profiles.byUsername(seedOne.username!)
@@ -120,6 +120,16 @@ describe('ProfilesService', () => {
       expect(profile.matches.map((m) => m.roundLabel)).toEqual(['Final', 'Semifinal'])
       expect(profile.stats).toMatchObject({ wins: 0, losses: 1, draws: 0, winRate: 0 })
       expect(profile.events[0]).toMatchObject({ wins: 0, losses: 1, draws: 0 })
+
+      const champion = final.player1.id === seedOne.id ? final.player2! : final.player1
+      const stagesReached = yield* Effect.forEach([seedOne.id, champion.id, semifinal.player2!.id], (playerId) =>
+        profiles.byUsername(byPlayer(playerId).username!),
+      )
+      expect(stagesReached.map((p) => [p.events[0]!.finalRank, p.events[0]!.stage, p.stats.bestFinish])).toEqual([
+        [2, 'Finalist', 2],
+        [1, 'Champion', 1],
+        [3, 'Semifinal', 3],
+      ])
     }).pipe(Effect.provide(TestLayer)),
   )
 
@@ -133,7 +143,7 @@ describe('ProfilesService', () => {
       expect(profile.matches.map((m) => m.result)).toEqual(['bye'])
       expect(profile.matches.map((m) => m.roundLabel)).toEqual(['Round 1'])
       expect(profile.stats).toMatchObject({ wins: 1, losses: 0, winRate: 1 })
-      expect(profile.events[0]).toMatchObject({ wins: 1 })
+      expect(profile.events[0]).toMatchObject({ wins: 1, stage: null })
     }).pipe(Effect.provide(TestLayer)),
   )
 

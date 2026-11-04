@@ -1,10 +1,10 @@
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import { Context, Effect, Layer } from 'effect'
-import { eventBracket, roundName } from '#/domain/bracket.ts'
+import { bracketExits, eventBracket, placementStage, roundName } from '#/domain/bracket.ts'
 import type { ProfileInput } from '#/shared/schemas.ts'
 import { requireUser } from '../current-user.ts'
 import { Db } from '../db/client.ts'
-import { eventPlayers, events, matches, rounds, user, type EventRow, type MatchOutcome } from '../db/schema.ts'
+import { eventPlayers, events, matches, rounds, user, type EventRow, type MatchOutcome, type MatchRow } from '../db/schema.ts'
 import { InvalidState, NotFound } from '../errors.ts'
 import type { PlayerRef } from '../events/views.ts'
 
@@ -31,6 +31,8 @@ export interface EventHistoryEntry {
   readonly startsAt: number
   readonly status: 'registration' | 'running' | 'finished'
   readonly finalRank: number | null
+  /** How far the player got in a finished event with a bracket ("Champion", "Semifinal"…); null otherwise. */
+  readonly stage: string | null
   readonly playerCount: number
   readonly wins: number
   readonly losses: number
@@ -94,7 +96,7 @@ const make = Effect.gen(function* () {
       [
         db.query((d) =>
           d
-            .select({ event: events, finalRank: eventPlayers.finalRank })
+            .select({ event: events, finalRank: eventPlayers.finalRank, droppedAtRound: eventPlayers.droppedAtRound })
             .from(eventPlayers)
             .innerJoin(events, eq(events.id, eventPlayers.eventId))
             .where(eq(eventPlayers.userId, row.id))
@@ -154,6 +156,7 @@ const make = Effect.gen(function* () {
 
     const history: Array<MatchHistoryEntry> = []
     const perEvent = new Map<string, { wins: number; losses: number; draws: number }>()
+    const bracketMatches = new Map<string, Array<MatchRow>>()
     for (const { match, event, elimination } of matchRows) {
       const result = resultFor(row.id, match)
       if (!result) continue
@@ -171,6 +174,7 @@ const make = Effect.gen(function* () {
         inRecord,
         score: asP1 ? `${match.player1Games}–${match.player2Games}` : `${match.player2Games}–${match.player1Games}`,
       })
+      if (elimination) bracketMatches.set(match.eventId, [...(bracketMatches.get(match.eventId) ?? []), match])
       if (!inRecord) continue
       const tally = perEvent.get(match.eventId) ?? { wins: 0, losses: 0, draws: 0 }
       if (result === 'win' || result === 'bye') tally.wins++
@@ -183,6 +187,14 @@ const make = Effect.gen(function* () {
     const wins = record.filter((h) => h.result === 'win' || h.result === 'bye').length
     const losses = record.filter((h) => h.result === 'loss').length
     const draws = record.filter((h) => h.result === 'draw').length
+    /** How far the player got in a finished event's bracket: "Champion", "Finalist", "Semifinal"… */
+    const stageReached = (event: EventRow, droppedAtRound: number | null): string | null => {
+      const bracket = eventBracket(event)
+      if (!bracket || event.status !== 'finished') return null
+      const dropped = new Set(droppedAtRound === null ? [] : [row.id])
+      const exits = bracketExits(bracket, bracketMatches.get(event.id) ?? [], dropped)
+      return exits.has(row.id) ? placementStage(bracket, exits.get(row.id) ?? null) : null
+    }
     const ranks = entries.map((e) => e.finalRank).filter((r): r is number => r !== null)
 
     return {
@@ -204,13 +216,14 @@ const make = Effect.gen(function* () {
         winRate: record.length === 0 ? 0 : wins / record.length,
         bestFinish: ranks.length === 0 ? null : Math.min(...ranks),
       },
-      events: entries.map(({ event, finalRank }) => ({
+      events: entries.map(({ event, finalRank, droppedAtRound }) => ({
         eventId: event.id,
         name: event.name,
         storeName: event.storeName,
         startsAt: event.startsAt.getTime(),
         status: event.status,
         finalRank,
+        stage: stageReached(event, droppedAtRound),
         playerCount: counts.get(event.id) ?? 0,
         ...(perEvent.get(event.id) ?? { wins: 0, losses: 0, draws: 0 }),
       })),
