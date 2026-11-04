@@ -137,20 +137,21 @@ export const nextBracketRound = (
     if (winner !== null && (onDrop === 'walkover' || !dropped.has(winner))) winners.set(m.slot, winner)
   }
   const slotCount = Math.ceil((Math.max(-1, ...previous.map((m) => m.slot)) + 1) / 2)
-  const seats: Array<Seat> = []
-  for (let slot = 0; slot < slotCount; slot++) {
-    const a = winners.get(2 * slot) ?? null
-    const b = winners.get(2 * slot + 1) ?? null
-    if (a === null || b === null) {
-      const lone = a ?? b
-      if (lone !== null) seats.push({ slot, a: lone, b: null })
-      continue
-    }
-    const [outA, outB] = [dropped.has(a), dropped.has(b)]
-    if (outA && outB) continue
-    seats.push({ slot, a, b, ...(outA ? { walkover: 'p2' as const } : outB ? { walkover: 'p1' as const } : {}) })
+  const seats = Array.from({ length: slotCount }, (_, slot) =>
+    seatOf(slot, winners.get(2 * slot) ?? null, winners.get(2 * slot + 1) ?? null, dropped),
+  )
+  return numberTables(seats.filter((seat) => seat !== null))
+}
+
+/** Slot `slot` of a round from the winners feeding it: a match, a bye, a walkover, or nothing. */
+const seatOf = (slot: number, a: string | null, b: string | null, dropped: ReadonlySet<string>): Seat | null => {
+  if (a === null || b === null) {
+    const lone = a ?? b
+    return lone === null ? null : { slot, a: lone, b: null }
   }
-  return numberTables(seats)
+  if (dropped.has(a) && dropped.has(b)) return null
+  if (dropped.has(a)) return { slot, a, b, walkover: 'p2' }
+  return dropped.has(b) ? { slot, a, b, walkover: 'p1' } : { slot, a, b }
 }
 
 export type Stage = 'Final' | 'Semifinal' | 'Quarterfinal'
