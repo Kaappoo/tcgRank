@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Clock, Effect } from 'effect'
 import { DEFAULT_BEST_OF } from '#/domain/best-of.ts'
 import type { PairingSystem } from '#/domain/event-setup.ts'
 import { CurrentUser, type SessionUser } from './current-user.ts'
@@ -45,6 +45,7 @@ const as = <A, E, R>(who: SessionUser, effect: Effect.Effect<A, E, R>) =>
 export const seedDemo = Effect.fn('seed.demo')(function* ({ host, players }: DemoPeople) {
   const events = yield* EventsService
   const deckService = yield* DecksService
+  const now = new Date(yield* Clock.currentTimeMillis)
 
   for (const [i, p] of players.entries()) {
     const [name, archetype, list] = decks[i % decks.length]!
@@ -64,7 +65,7 @@ export const seedDemo = Effect.fn('seed.demo')(function* ({ host, players }: Dem
         format: 'standard',
         plannedRounds: options.plannedRounds ?? 3,
         roundMinutes: 50,
-        startsAt: new Date(),
+        startsAt: now,
         deckRequired: false,
         bestOf: DEFAULT_BEST_OF,
         pairingSystem,
