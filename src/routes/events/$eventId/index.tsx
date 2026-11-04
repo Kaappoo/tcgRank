@@ -302,16 +302,28 @@ function EventTabs({
       </TabsPanel>
 
       <TabsPanel value="standings">
-        <StandingsTable standings={standings} highlightId={viewer?.userId} final={event.status === 'finished'} />
+        <StandingsTable
+          standings={standings}
+          highlightId={viewer?.userId}
+          final={event.status === 'finished'}
+          tiebreakers={event.pairingSystem === 'round_robin' ? 'round_robin' : 'swiss'}
+        />
         <p className="mt-3 text-xs text-paper-dim">
-          Win 3 · Tie 1 · Loss 0. Ties broken by opponents&apos; win % (OMW, min 25%), then their opponents&apos;.
+          {event.pairingSystem === 'round_robin'
+            ? 'Win 3 · Tie 1 · Loss 0 · Bye 3. A tie between two players goes to the winner of their match (H2H), then game-win % (GW%), then opponents’ win % (OMW, min 25%).'
+            : 'Win 3 · Tie 1 · Loss 0. Ties broken by opponents’ win % (OMW, min 25%), then their opponents’.'}
           {event.status !== 'finished' ? ' Only confirmed results count.' : ''}
         </p>
       </TabsPanel>
 
       <TabsPanel value="players">
         {viewer?.isHost && event.status !== 'finished' ? (
-          <AddGuestForm players={players} busy={busy} onAdd={onAddGuest} />
+          <AddGuestForm
+            players={players}
+            busy={busy}
+            onAdd={onAddGuest}
+            closedReason={event.entriesClosedReason}
+          />
         ) : null}
         {players.length === 0 ? (
           <p className="py-6 text-paper-dim">Nobody has joined yet. Share the QR code to get people in.</p>

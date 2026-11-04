@@ -158,3 +158,44 @@ describe('HostDesk event setup', () => {
     expect(screen.getByText(/11 rounds.*run long/)).toBeInTheDocument()
   })
 })
+
+describe('HostDesk round robin', () => {
+  const played = (round: number, status: 'confirmed' | 'playing'): EventDetail['matches'] =>
+    [1, 2].map((table) => ({
+      id: `m${round}-${table}`,
+      roundNumber: round,
+      table,
+      player1: { id: `p${table}`, name: `Trainer ${table}`, username: null, image: null },
+      player2: { id: `p${table + 2}`, name: `Trainer ${table + 2}`, username: null, image: null },
+      player1Games: 2,
+      player2Games: 0,
+      outcome: status === 'confirmed' ? 'p1' : null,
+      reportedById: null,
+      status,
+    }))
+  const running = (round: number, status: 'confirmed' | 'playing'): EventDetail => ({
+    ...detailWith({ pairingSystem: 'round_robin', status: 'running', currentRound: round, plannedRounds: 7 }),
+    players: entrants(8),
+    rounds: [
+      { id: `r${round}`, number: round, status: 'active', startedAt: 0, endsAt: 3_000_000, pausedRemainingMs: null },
+    ],
+    matches: played(round, status),
+  })
+
+  it('warns during registration that pairing round 1 closes entries', () => {
+    renderDesk({ ...detailWith({ pairingSystem: 'round_robin' }), players: entrants(4) })
+    expect(screen.getByText(/Pairing round 1 draws the schedule and closes entries/)).toBeInTheDocument()
+  })
+
+  it('reads "Round 3 of 7" and pairs the next round of the schedule', () => {
+    renderDesk(running(3, 'confirmed'))
+    expect(screen.getByText('Round 3 of 7')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pair round 4' })).toBeEnabled()
+  })
+
+  it('ends with "Finish & publish standings" once the last round is confirmed', () => {
+    renderDesk(running(7, 'confirmed'))
+    expect(screen.getByText('Round 7 of 7')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Finish & publish standings' })).toBeEnabled()
+  })
+})

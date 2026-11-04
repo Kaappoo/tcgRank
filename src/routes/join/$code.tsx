@@ -4,6 +4,7 @@ import { CalendarDays, Store, Users } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { DeckPicker, SKIP_DECK } from '#/components/decks/deck-picker.tsx'
+import { ClosedEntryNote } from '#/components/events/entry-panel.tsx'
 import { Page } from '#/components/layout/page.tsx'
 import { Badge } from '#/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#/components/ui/button.tsx'
@@ -75,6 +76,13 @@ function ConfirmJoin() {
           <p className="text-paper-dim">This event has already finished.</p>
           <Link to="/events/$eventId" params={{ eventId: event.id }} className={buttonVariants({ size: 'lg' })}>
             See the results
+          </Link>
+        </div>
+      ) : event.entriesClosedReason ? (
+        <div className="flex flex-col gap-3">
+          <ClosedEntryNote reason={event.entriesClosedReason} />
+          <Link to="/events/$eventId" params={{ eventId: event.id }} className={buttonVariants({ size: 'lg' })}>
+            Follow the event
           </Link>
         </div>
       ) : (

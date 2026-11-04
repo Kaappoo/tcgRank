@@ -92,6 +92,7 @@ export function HostDesk({
             <p className="font-display text-3xl">{activePlayers} players checked in</p>
             <p className="text-sm text-paper-dim">
               {setupLine(event, players.length)}. Pair round 1 once everyone has scanned in.
+              {event.pairingSystem === 'round_robin' ? ' Pairing round 1 draws the schedule and closes entries.' : ''}
             </p>
             {event.pairingSystem === 'round_robin' && players.length > LONG_ROUND_ROBIN ? (
               <p className="text-sm text-loss">

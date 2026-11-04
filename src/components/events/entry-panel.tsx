@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { LogIn } from 'lucide-react'
-import { useState } from 'react'
+import { Lock, LogIn } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { DeckPicker, SKIP_DECK } from '#/components/decks/deck-picker.tsx'
 import { Button, buttonVariants } from '#/components/ui/button.tsx'
 import type { useEventActions } from '#/hooks/use-event-actions.ts'
@@ -23,9 +23,16 @@ export function EntryPanel({ detail, signedIn, busy, actions, createdDeck }: Ent
   const entry = viewer?.entry ?? null
 
   if (event.status === 'finished' || (viewer?.isHost && !entry)) return null
+  const registered = entry !== null && entry.droppedAtRound === null
+  if (event.entriesClosedReason && !registered) {
+    return (
+      <ClosedEntryNote reason={event.entriesClosedReason}>
+        {entry ? "You dropped, so you can't rejoin. " : ''}Follow the pairings and standings below.
+      </ClosedEntryNote>
+    )
+  }
   if (!signedIn) return <SignInToJoin joinCode={event.joinCode} />
 
-  const registered = entry !== null && entry.droppedAtRound === null
   // Once rounds run, a registered deck is locked; only a missing required deck can still be filled in.
   if (registered && event.status === 'running' && (entry.deckId !== null || !event.deckRequired)) {
     return (
@@ -36,8 +43,19 @@ export function EntryPanel({ detail, signedIn, busy, actions, createdDeck }: Ent
       </div>
     )
   }
+  return <RegisterDeck detail={detail} entry={entry} busy={busy} actions={actions} createdDeck={createdDeck} />
+}
+
+/** Shown in place of the join card once the event has closed entries. */
+export function ClosedEntryNote({ reason, children }: { reason: string; children?: ReactNode }) {
   return (
-    <RegisterDeck detail={detail} entry={entry} busy={busy} actions={actions} createdDeck={createdDeck} />
+    <section className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-5">
+      <Lock aria-hidden className="mt-0.5 size-4 shrink-0 text-paper-dim" />
+      <div className="flex flex-col gap-1">
+        <p className="font-semibold">{reason}</p>
+        {children ? <p className="text-sm text-paper-dim">{children}</p> : null}
+      </div>
+    </section>
   )
 }
 

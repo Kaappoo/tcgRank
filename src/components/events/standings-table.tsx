@@ -1,19 +1,23 @@
 import { Link } from '@tanstack/react-router'
 import { Avatar } from '#/components/ui/avatar.tsx'
 import { Badge } from '#/components/ui/badge.tsx'
-import { formatPercentage, formatRecord } from '#/domain/standings.ts'
+import { formatPercentage, formatRecord, type Tiebreakers } from '#/domain/standings.ts'
 import type { StandingView } from '#/server/events/views.ts'
 import { cn } from '#/lib/utils.ts'
 
+/** Standings with the tiebreaker columns of the event's pairing system: Swiss shows OMW and OOMW, round robin GW% and OMW. */
 export function StandingsTable({
   standings,
   highlightId,
   final,
+  tiebreakers = 'swiss',
 }: {
   standings: ReadonlyArray<StandingView>
   highlightId?: string | null
   final?: boolean
+  tiebreakers?: Tiebreakers
 }) {
+  const roundRobin = tiebreakers === 'round_robin'
   return (
     <div className="overflow-x-auto rounded-xl border border-line">
       <table className="w-full min-w-[34rem] text-sm">
@@ -32,16 +36,27 @@ export function StandingsTable({
             <th scope="col" className="px-3 py-3 text-right font-semibold">
               W-L-T
             </th>
-            <th scope="col" className="px-3 py-3 text-right font-semibold" title="Opponents' match win percentage">
-              OMW
-            </th>
+            {roundRobin ? (
+              <th scope="col" className="px-3 py-3 text-right font-semibold" title="Game-win percentage">
+                GW%
+              </th>
+            ) : null}
             <th
               scope="col"
-              className="px-4 py-3 text-right font-semibold"
-              title="Opponents' opponents' match win percentage"
+              className={cn('py-3 text-right font-semibold', roundRobin ? 'px-4' : 'px-3')}
+              title="Opponents' match win percentage"
             >
-              OOMW
+              OMW
             </th>
+            {roundRobin ? null : (
+              <th
+                scope="col"
+                className="px-4 py-3 text-right font-semibold"
+                title="Opponents' opponents' match win percentage"
+              >
+                OOMW
+              </th>
+            )}
           </tr>
         </thead>
         <tbody className="stagger">
@@ -76,16 +91,26 @@ export function StandingsTable({
                   )}
                   {s.playerId === highlightId ? <Badge variant="live">You</Badge> : null}
                   {s.dropped ? <Badge variant="muted">Dropped</Badge> : null}
+                  {s.headToHead ? (
+                    <Badge variant="outline" title="Placed above the player tied on points by beating them">
+                      H2H
+                    </Badge>
+                  ) : null}
                 </div>
               </td>
               <td className="tabular px-3 py-3 text-right font-bold">{s.points}</td>
               <td className="tabular px-3 py-3 text-right">{formatRecord(s)}</td>
-              <td className="tabular px-3 py-3 text-right text-paper-dim">
+              {roundRobin ? (
+                <td className="tabular px-3 py-3 text-right text-paper-dim">{formatPercentage(s.gameWinPercentage)}</td>
+              ) : null}
+              <td className={cn('tabular py-3 text-right text-paper-dim', roundRobin ? 'px-4' : 'px-3')}>
                 {formatPercentage(s.opponentWinPercentage)}
               </td>
-              <td className="tabular px-4 py-3 text-right text-paper-dim">
-                {formatPercentage(s.opponentOpponentWinPercentage)}
-              </td>
+              {roundRobin ? null : (
+                <td className="tabular px-4 py-3 text-right text-paper-dim">
+                  {formatPercentage(s.opponentOpponentWinPercentage)}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

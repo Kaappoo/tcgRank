@@ -106,4 +106,47 @@ describe('EntryPanel', () => {
     expect(screen.getByRole('button', { name: 'Drop from event' })).toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
+
+  describe('once entries are closed', () => {
+    const CLOSED = 'Entries are closed: the schedule has started'
+    const closed = {
+      status: 'running',
+      currentRound: 1,
+      pairingSystem: 'round_robin',
+      entriesClosedReason: CLOSED,
+    } as const
+
+    it('shows why instead of the join card', async () => {
+      const { actions } = fakeActions()
+      await renderPanel(detailWith(closed, null), actions)
+      expect(screen.getByText(CLOSED)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Join event' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    })
+
+    it('tells a dropped player they cannot rejoin', async () => {
+      const { actions } = fakeActions()
+      await renderPanel(detailWith(closed, { ...entrant('deck-1'), droppedAtRound: 1 }), actions)
+      expect(screen.getByText(CLOSED)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Rejoin event' })).not.toBeInTheDocument()
+    })
+
+    it('shows the note instead of asking a signed-out visitor to sign in to join', async () => {
+      const { actions } = fakeActions()
+      const client = new QueryClient()
+      await renderWithRouter(
+        <EntryPanel detail={detailWith(closed, null)} signedIn={false} busy={false} actions={actions} />,
+        client,
+      )
+      expect(screen.getByText(CLOSED)).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /Sign in to join/ })).not.toBeInTheDocument()
+    })
+
+    it('still lets a player in the event drop', async () => {
+      const { actions } = fakeActions()
+      await renderPanel(detailWith(closed, entrant('deck-1')), actions)
+      expect(screen.getByRole('button', { name: 'Drop from event' })).toBeInTheDocument()
+      expect(screen.queryByText(CLOSED)).not.toBeInTheDocument()
+    })
+  })
 })
