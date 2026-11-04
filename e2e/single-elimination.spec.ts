@@ -1,9 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
 import { createEvent, signedInPage, visit } from './helpers.ts'
 
-/** The host enters a 2–0 win for player 1 at every table of the round on show. */
-async function hostReportsRound(page: Page) {
-  const pencils = page.getByRole('button', { name: /^Set result for table/ })
+/** The host enters a 2–0 win for player 1 at every table of a bracket round (its section in Pairings). */
+async function hostReportsRound(page: Page, round: string) {
+  const pencils = page
+    .getByRole('region', { name: round, exact: true })
+    .getByRole('button', { name: /^Set result for table/ })
   const tables = await pencils.count()
   for (let i = 0; i < tables; i++) {
     await pencils.nth(i).click()
@@ -46,21 +48,22 @@ test.describe('single elimination', () => {
     await expect(dialog.getByRole('button', { name: 'Send result' })).toBeDisabled()
     await dialog.getByRole('button', { name: 'Cancel' }).click()
 
-    await hostReportsRound(host.page)
+    await hostReportsRound(host.page, 'Quarterfinal')
     await expect(host.page.getByText('4/4 results in')).toBeVisible()
     await expect(host.page.getByRole('button', { name: 'End event early' })).toHaveCount(0)
 
     await host.page.getByRole('button', { name: 'Pair semifinals' }).click()
     await expect(host.page.getByText('Semifinal · Round 2 of 3')).toBeVisible()
-    await expect(
-      host.page.getByRole('group', { name: 'Choose round' }).getByRole('button', { name: 'Semifinal' }),
-    ).toHaveAttribute('aria-pressed', 'true')
-    await hostReportsRound(host.page)
+    // The bracket view lists every round, newest first.
+    const sections = host.page.getByRole('tabpanel').getByRole('region')
+    await expect(sections.first()).toHaveAccessibleName('Semifinal')
+    await expect(sections.nth(1)).toHaveAccessibleName('Quarterfinal')
+    await hostReportsRound(host.page, 'Semifinal')
     await expect(host.page.getByText('2/2 results in')).toBeVisible()
 
     await host.page.getByRole('button', { name: 'Pair final' }).click()
     await expect(host.page.getByText('Final · Round 3 of 3')).toBeVisible()
-    await hostReportsRound(host.page)
+    await hostReportsRound(host.page, 'Final')
 
     await host.page.getByRole('button', { name: 'Finish & publish standings' }).click()
     const podium = host.page.getByRole('region', { name: 'Podium' })
