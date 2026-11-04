@@ -20,11 +20,19 @@ export async function visit(page: Page, path: string) {
   await page.locator('html[data-hydrated]').waitFor()
 }
 
-export async function createEvent(page: Page, name: string, { deckRequired = false } = {}) {
+export async function createEvent(
+  page: Page,
+  name: string,
+  {
+    deckRequired = false,
+    pairingSystem,
+  }: { deckRequired?: boolean; pairingSystem?: 'Round robin' | 'Single elimination' } = {},
+) {
   await visit(page, '/events/new')
   await page.getByLabel('Event name').fill(name)
   await page.getByLabel('Store').fill('Pallet Town Games')
   await page.getByRole('button', { name: '30 min' }).click()
+  if (pairingSystem) await page.getByRole('button', { name: pairingSystem, exact: true }).click()
   if (deckRequired) await page.getByRole('switch', { name: /Require a deck/ }).click()
   await page.getByRole('button', { name: 'Create event' }).click()
   await page.waitForURL(/\/events\/(?!new)[a-z0-9]+$/)
