@@ -6,25 +6,26 @@ import { RoundTables } from './round-tables.tsx'
 
 type TablesProps = Pick<ComponentProps<typeof RoundTables>, 'canEdit' | 'onSetResult' | 'correction'>
 
-const stepLine = (step: PathStep): { opponent: string; result: string } => {
-  switch (step.kind) {
-    case 'won':
-    case 'lost':
-      return {
-        opponent: step.opponent ? `vs ${step.opponent}` : '',
-        result: `${step.kind === 'won' ? 'W' : 'L'}${step.score ? ` ${step.score}` : ''}`,
-      }
-    case 'bye':
-      return { opponent: 'No opponent', result: 'Bye' }
-    case 'dropped':
-      return { opponent: 'You dropped', result: 'Dropped' }
-    case 'playing':
-      return { opponent: `vs ${step.opponent}`, result: `Table ${step.table}` }
-    case 'waiting':
-      return { opponent: step.opponent ? `vs ${step.opponent}` : 'vs TBD', result: 'Waiting' }
-    case 'out':
-      return { opponent: '', result: 'Out' }
-  }
+const versus = (opponent: string | null) => (opponent ? `vs ${opponent}` : '')
+
+/** A tile's two lines: who the viewer meets, and how it went. */
+const STEP_LINES: { [K in PathStep['kind']]: (step: Extract<PathStep, { kind: K }>) => [string, string] } = {
+  won: (s) => [versus(s.opponent), s.score ? `W ${s.score}` : 'W'],
+  lost: (s) => [versus(s.opponent), s.score ? `L ${s.score}` : 'L'],
+  bye: () => ['No opponent', 'Bye'],
+  dropped: () => ['You dropped', 'Dropped'],
+  playing: (s) => [versus(s.opponent), `Table ${s.table}`],
+  waiting: (s) => [s.opponent ? versus(s.opponent) : 'vs TBD', 'Waiting'],
+  out: () => ['', 'Out'],
+}
+
+const stepLines = (step: PathStep): [string, string] =>
+  (STEP_LINES[step.kind] as (s: PathStep) => [string, string])(step)
+
+const RESULT_TEXT: Partial<Record<PathStep['kind'], string>> = {
+  won: 'text-win',
+  lost: 'text-loss',
+  playing: 'text-orange',
 }
 
 /** One tile per round of the bracket: who the viewer met or meets, and how it went. */
@@ -37,7 +38,7 @@ function YourPath({ model, viewerId }: { model: BracketModel; viewerId: string }
       <ol className="grid auto-cols-[minmax(6.5rem,1fr)] grid-flow-col gap-2 overflow-x-auto">
         {path.map(({ round, step }) => {
           const now = step.kind === 'playing'
-          const { opponent, result } = stepLine(step)
+          const [opponent, result] = stepLines(step)
           return (
             <li
               key={round.number}
@@ -49,20 +50,7 @@ function YourPath({ model, viewerId }: { model: BracketModel; viewerId: string }
             >
               <span className={cn('text-xs font-semibold', now ? 'text-orange' : 'text-paper-dim')}>{round.name}</span>
               <span className="min-h-5 truncate text-sm font-semibold">{opponent}</span>
-              <span
-                className={cn(
-                  'font-numerals text-lg',
-                  step.kind === 'won'
-                    ? 'text-win'
-                    : step.kind === 'lost'
-                      ? 'text-loss'
-                      : now
-                        ? 'text-orange'
-                        : 'text-paper-dim',
-                )}
-              >
-                {result}
-              </span>
+              <span className={cn('font-numerals text-lg', RESULT_TEXT[step.kind] ?? 'text-paper-dim')}>{result}</span>
             </li>
           )
         })}

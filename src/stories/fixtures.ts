@@ -102,40 +102,53 @@ const gabi = seededPlayer('gabi', 'Gabi Nunes', 7)
 
 const ref = ({ id, name, username, image }: EntrantView) => ({ id, name, username, image })
 
+/** A bracket match being played; `played` gives it a confirmed score. */
 const bracketMatch = (
   roundNumber: number,
   table: number,
   slot: number,
   player1: EntrantView,
-  player2: EntrantView | null,
-  result: { games: readonly [number, number]; status: MatchView['status'] } | null,
-): MatchView => {
-  const [player1Games, player2Games] = player2 === null ? [2, 0] : (result?.games ?? [0, 0])
-  return {
-    id: `r${roundNumber}-t${table}`,
-    roundNumber,
-    table,
-    player1: ref(player1),
-    player2: player2 && ref(player2),
-    player1Games,
-    player2Games,
-    outcome: player2 === null ? 'bye' : result ? (player1Games > player2Games ? 'p1' : 'p2') : null,
-    reportedById: result || player2 === null ? player1.id : null,
-    status: player2 === null ? 'confirmed' : (result?.status ?? 'playing'),
-    bracketSlot: slot,
-    dropped: false,
-  }
-}
+  player2: EntrantView,
+): MatchView => ({
+  id: `r${roundNumber}-t${table}`,
+  roundNumber,
+  table,
+  player1: ref(player1),
+  player2: ref(player2),
+  player1Games: 0,
+  player2Games: 0,
+  outcome: null,
+  reportedById: null,
+  status: 'playing',
+  bracketSlot: slot,
+  dropped: false,
+})
 
-const final = { status: 'confirmed' } as const
+const played = (m: MatchView, player1Games: number, player2Games: number): MatchView => ({
+  ...m,
+  player1Games,
+  player2Games,
+  outcome: player1Games > player2Games ? 'p1' : 'p2',
+  reportedById: m.player1.id,
+  status: 'confirmed',
+})
+
+const bracketBye = (roundNumber: number, table: number, slot: number, player: EntrantView): MatchView => ({
+  ...bracketMatch(roundNumber, table, slot, player, player),
+  player2: null,
+  player1Games: 2,
+  outcome: 'bye',
+  reportedById: player.id,
+  status: 'confirmed',
+})
 
 const bracketMatches = [
-  bracketMatch(1, 1, 1, diego, elisa, { games: [2, 1], ...final }),
-  bracketMatch(1, 2, 2, bruno, gabi, { games: [2, 0], ...final }),
-  bracketMatch(1, 3, 3, carla, felipe, { games: [1, 2], ...final }),
-  bracketMatch(1, 4, 0, ana, null, null),
-  bracketMatch(2, 1, 0, ana, diego, null),
-  bracketMatch(2, 2, 1, bruno, felipe, { games: [2, 0], ...final }),
+  played(bracketMatch(1, 1, 1, diego, elisa), 2, 1),
+  played(bracketMatch(1, 2, 2, bruno, gabi), 2, 0),
+  played(bracketMatch(1, 3, 3, carla, felipe), 1, 2),
+  bracketBye(1, 4, 0, ana),
+  bracketMatch(2, 1, 0, ana, diego),
+  played(bracketMatch(2, 2, 1, bruno, felipe), 2, 0),
 ]
 
 /**

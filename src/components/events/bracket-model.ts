@@ -130,14 +130,31 @@ export const bracketModel = (source: BracketSource): BracketModel | null => {
 }
 
 /** How a seat still to be decided reads in a bracket box. */
-export const undecidedSeat = (table: number | null): string =>
-  table === null ? 'To be decided' : `Winner of table ${table}`
+const undecidedSeat = (table: number | null): string => (table === null ? 'To be decided' : `Winner of table ${table}`)
+
+const seatName = (box: BracketBox, side: 'a' | 'b'): string => {
+  const seat = box[side]
+  if (seat) return seat.name
+  if (box.status === 'bye') return 'Bye'
+  return box.match === null ? undecidedSeat(box.feeds[side]) : 'To be decided'
+}
+
+/** One seat of a bracket box as shown: its seed, what it reads (the player, "Bye", or who will take it) and games won. */
+export const seatLine = (box: BracketBox, side: 'a' | 'b') => ({
+  seed: box[side]?.seed ?? null,
+  name: seatName(box, side),
+  decided: box[side] !== null,
+  games: box.games?.[side === 'a' ? 0 : 1] ?? null,
+  won: box.winner === side,
+  lost: box.winner !== null && box.winner !== side,
+})
 
 const hasPlayer = (box: BracketBox, id: string) => box.a?.id === id || box.b?.id === id
 
 /** One tile of the viewer's path: what happened, or will happen, to them in a round. */
 export type PathStep =
-  | { readonly kind: 'won' | 'lost'; readonly opponent: string | null; readonly score: string | null }
+  | { readonly kind: 'won'; readonly opponent: string | null; readonly score: string | null }
+  | { readonly kind: 'lost'; readonly opponent: string | null; readonly score: string | null }
   | { readonly kind: 'bye' }
   | { readonly kind: 'dropped' }
   | { readonly kind: 'playing'; readonly opponent: string; readonly table: number }
@@ -149,6 +166,31 @@ const withViewer = (box: BracketBox | undefined, from: number, viewerId: string)
   box && { ...box, [from % 2 === 0 ? 'a' : 'b']: { id: viewerId, name: '', seed: null } }
 
 const firstName = (name: string) => name.split(/\s+/)[0] ?? name
+
+const opponentOf = (box: BracketBox, mine: 'a' | 'b'): string | null => {
+  const seat = mine === 'a' ? box.b : box.a
+  return seat ? firstName(seat.name) : null
+}
+
+/** The viewer's step in a box they sit in. */
+const stepIn = (box: BracketBox, viewerId: string): PathStep => {
+  const mine = box.a?.id === viewerId ? 'a' : 'b'
+  const opponent = opponentOf(box, mine)
+  if (box.status === 'bye') return { kind: 'bye' }
+  if (box.status === 'waiting') return { kind: 'waiting', opponent }
+  if (box.winner === null) return { kind: 'playing', opponent: opponent ?? '', table: box.table ?? 0 }
+  return resultStep(box, mine, opponent)
+}
+
+/** A decided match from the viewer's side: their games first. */
+const resultStep = (box: BracketBox, mine: 'a' | 'b', opponent: string | null): PathStep => {
+  const won = box.winner === mine
+  if (box.status === 'dropped' && !won) return { kind: 'dropped' }
+  const games = box.games && (mine === 'a' ? box.games : ([box.games[1], box.games[0]] as const))
+  return { kind: won ? 'won' : 'lost', opponent, score: games ? `${games[0]}–${games[1]}` : null }
+}
+
+const ends = (step: PathStep) => step.kind === 'lost' || step.kind === 'dropped' || step.kind === 'out'
 
 /**
  * The viewer's way through the bracket, one step per round. Null when the
@@ -163,25 +205,12 @@ export const pathOf = (
   let slot: number | null = null
   return model.rounds.map((round) => {
     // In a round not paired yet, the viewer's box is the one their last slot feeds.
-    const box =
-      round.boxes.find((b) => hasPlayer(b, viewerId)) ??
-      (round.paired || slot === null ? undefined : withViewer(round.boxes[slot >> 1], slot, viewerId))
+    const fed = round.paired || slot === null ? undefined : withViewer(round.boxes[slot >> 1], slot, viewerId)
+    const box = round.boxes.find((b) => hasPlayer(b, viewerId)) ?? fed
     if (box) slot = box.slot
-    const step = ((): PathStep => {
-      if (out) return { kind: 'out' }
-      if (!box) return round.paired ? { kind: 'out' } : { kind: 'waiting', opponent: null }
-      const mine = box.a?.id === viewerId ? 'a' : 'b'
-      const opponentSeat = mine === 'a' ? box.b : box.a
-      const opponent = opponentSeat ? firstName(opponentSeat.name) : null
-      if (box.status === 'bye') return { kind: 'bye' }
-      if (box.status === 'waiting') return { kind: 'waiting', opponent }
-      if (box.winner === null) return { kind: 'playing', opponent: opponent ?? '', table: box.table ?? 0 }
-      const won = box.winner === mine
-      if (box.status === 'dropped' && !won) return { kind: 'dropped' }
-      const games = box.games && (mine === 'a' ? box.games : ([box.games[1], box.games[0]] as const))
-      return { kind: won ? 'won' : 'lost', opponent, score: games ? `${games[0]}–${games[1]}` : null }
-    })()
-    if (step.kind === 'lost' || step.kind === 'dropped' || step.kind === 'out') out = true
+    const missing: PathStep = round.paired ? { kind: 'out' } : { kind: 'waiting', opponent: null }
+    const step: PathStep = out ? { kind: 'out' } : box ? stepIn(box, viewerId) : missing
+    out = ends(step)
     return { round, step }
   })
 }
@@ -195,6 +224,11 @@ export const nextUp = (model: BracketModel): string | null => {
   if (!next || next.paired) return null
   const side = (seatOf: BracketSeat | null, table: number | null) =>
     seatOf?.name ?? (table === null ? 'to be decided' : `the winner of table ${table}`)
-  const pairings = next.boxes.map((b) => `${side(b.a, b.feeds.a)} vs ${side(b.b, b.feeds.b)}`)
+  // A player already through reads first: "Bruno Costa vs the winner of table 1".
+  const pairings = next.boxes.map((b) =>
+    b.a === null && b.b !== null
+      ? `${b.b.name} vs ${side(null, b.feeds.a)}`
+      : `${side(b.a, b.feeds.a)} vs ${side(b.b, b.feeds.b)}`,
+  )
   return `${next.name} next: ${pairings.join(' · ')}`
 }

@@ -58,6 +58,15 @@ test.describe('single elimination', () => {
     const sections = host.page.getByRole('tabpanel').getByRole('region')
     await expect(sections.first()).toHaveAccessibleName('Semifinal')
     await expect(sections.nth(1)).toHaveAccessibleName('Quarterfinal')
+    // The store screen shows the semifinal tables large, the bracket and the final to come.
+    const screen = await host.context.newPage()
+    await visit(screen, `${url}/screen`)
+    await expect(screen.getByRole('heading', { name: 'Semifinal' })).toBeVisible()
+    await expect(screen.getByRole('region', { name: 'Bracket' }).getByText('Quarterfinal')).toBeVisible()
+    await expect(screen.getByText('Scan to follow the bracket')).toBeVisible()
+    await expect(screen.getByText('Final next: the winner of table 1 vs the winner of table 2')).toBeVisible()
+    await screen.close()
+
     await hostReportsRound(host.page, 'Semifinal')
     await expect(host.page.getByText('2/2 results in')).toBeVisible()
 
