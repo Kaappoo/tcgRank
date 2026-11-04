@@ -83,6 +83,57 @@ const roundLabel = (event: EventRow, roundNumber: number, elimination: boolean):
   return bracket && roundNumber >= bracket.firstRound ? roundName(bracket, roundNumber) : `Round ${roundNumber}`
 }
 
+/** A confirmed match of the player's, with its event and whether it was an elimination round. */
+interface PlayedMatch {
+  readonly match: MatchRow
+  readonly event: EventRow
+  readonly elimination: boolean
+}
+
+const historyEntry = (
+  playerId: string,
+  { match, event, elimination }: PlayedMatch,
+  opponents: ReadonlyMap<string, PlayerRef>,
+): MatchHistoryEntry | null => {
+  const result = resultFor(playerId, match)
+  if (!result) return null
+  const asP1 = match.player1Id === playerId
+  const opponentId = asP1 ? match.player2Id : match.player1Id
+  return {
+    matchId: match.id,
+    eventId: match.eventId,
+    eventName: event.name,
+    playedAt: (match.confirmedAt ?? match.reportedAt ?? new Date(0)).getTime(),
+    roundLabel: roundLabel(event, match.roundNumber, elimination),
+    opponent: opponentId ? (opponents.get(opponentId) ?? null) : null,
+    result,
+    inRecord: countsInRecord(result, elimination),
+    score: asP1 ? `${match.player1Games}–${match.player2Games}` : `${match.player2Games}–${match.player1Games}`,
+  }
+}
+
+/** W-L-T under the record rule. */
+const recordOf = (history: ReadonlyArray<MatchHistoryEntry>) => {
+  const counted = history.filter((h) => h.inRecord)
+  const count = (result: MatchResult) => counted.filter((h) => h.result === result).length
+  return { wins: count('win') + count('bye'), losses: count('loss'), draws: count('draw') }
+}
+
+/** How far a player got in a finished event's bracket ("Champion", "Finalist", "Semifinal"…), or null. */
+const stageReached = (
+  playerId: string,
+  event: EventRow,
+  droppedAtRound: number | null,
+  played: ReadonlyArray<PlayedMatch>,
+): string | null => {
+  const bracket = eventBracket(event)
+  if (!bracket || event.status !== 'finished') return null
+  const bracketMatches = played.filter((p) => p.elimination && p.event.id === event.id).map((p) => p.match)
+  const dropped = new Set(droppedAtRound === null ? [] : [playerId])
+  const exits = bracketExits(bracket, bracketMatches, dropped)
+  return exits.has(playerId) ? placementStage(bracket, exits.get(playerId) ?? null) : null
+}
+
 const make = Effect.gen(function* () {
   const db = yield* Db
 
@@ -154,47 +205,9 @@ const make = Effect.gen(function* () {
             )).map((c) => [c.eventId, Number(c.count)]),
           )
 
-    const history: Array<MatchHistoryEntry> = []
-    const perEvent = new Map<string, { wins: number; losses: number; draws: number }>()
-    const bracketMatches = new Map<string, Array<MatchRow>>()
-    for (const { match, event, elimination } of matchRows) {
-      const result = resultFor(row.id, match)
-      if (!result) continue
-      const inRecord = countsInRecord(result, elimination)
-      const asP1 = match.player1Id === row.id
-      const opponentId = asP1 ? match.player2Id : match.player1Id
-      history.push({
-        matchId: match.id,
-        eventId: match.eventId,
-        eventName: event.name,
-        playedAt: (match.confirmedAt ?? match.reportedAt ?? new Date(0)).getTime(),
-        roundLabel: roundLabel(event, match.roundNumber, elimination),
-        opponent: opponentId ? (opponents.get(opponentId) ?? null) : null,
-        result,
-        inRecord,
-        score: asP1 ? `${match.player1Games}–${match.player2Games}` : `${match.player2Games}–${match.player1Games}`,
-      })
-      if (elimination) bracketMatches.set(match.eventId, [...(bracketMatches.get(match.eventId) ?? []), match])
-      if (!inRecord) continue
-      const tally = perEvent.get(match.eventId) ?? { wins: 0, losses: 0, draws: 0 }
-      if (result === 'win' || result === 'bye') tally.wins++
-      else if (result === 'loss') tally.losses++
-      else tally.draws++
-      perEvent.set(match.eventId, tally)
-    }
-
-    const record = history.filter((h) => h.inRecord)
-    const wins = record.filter((h) => h.result === 'win' || h.result === 'bye').length
-    const losses = record.filter((h) => h.result === 'loss').length
-    const draws = record.filter((h) => h.result === 'draw').length
-    /** How far the player got in a finished event's bracket: "Champion", "Finalist", "Semifinal"… */
-    const stageReached = (event: EventRow, droppedAtRound: number | null): string | null => {
-      const bracket = eventBracket(event)
-      if (!bracket || event.status !== 'finished') return null
-      const dropped = new Set(droppedAtRound === null ? [] : [row.id])
-      const exits = bracketExits(bracket, bracketMatches.get(event.id) ?? [], dropped)
-      return exits.has(row.id) ? placementStage(bracket, exits.get(row.id) ?? null) : null
-    }
+    const history = matchRows.flatMap((played) => historyEntry(row.id, played, opponents) ?? [])
+    const record = recordOf(history)
+    const played = record.wins + record.losses + record.draws
     const ranks = entries.map((e) => e.finalRank).filter((r): r is number => r !== null)
 
     return {
@@ -210,10 +223,8 @@ const make = Effect.gen(function* () {
       stats: {
         eventsPlayed: entries.length,
         eventsHosted: Number(hosted[0]?.count ?? 0),
-        wins,
-        losses,
-        draws,
-        winRate: record.length === 0 ? 0 : wins / record.length,
+        ...record,
+        winRate: played === 0 ? 0 : record.wins / played,
         bestFinish: ranks.length === 0 ? null : Math.min(...ranks),
       },
       events: entries.map(({ event, finalRank, droppedAtRound }) => ({
@@ -223,9 +234,9 @@ const make = Effect.gen(function* () {
         startsAt: event.startsAt.getTime(),
         status: event.status,
         finalRank,
-        stage: stageReached(event, droppedAtRound),
+        stage: stageReached(row.id, event, droppedAtRound, matchRows),
         playerCount: counts.get(event.id) ?? 0,
-        ...(perEvent.get(event.id) ?? { wins: 0, losses: 0, draws: 0 }),
+        ...recordOf(history.filter((h) => h.eventId === event.id)),
       })),
       matches: history,
     } satisfies Profile
