@@ -65,8 +65,6 @@ export function ScoreStepper({
   const labels = labelsFor(sides)
   const invalid = invalidScoreReason(rules, score)
   const complete = sameScore(score, agreesWith) || isCompleteScore(rules, score)
-  const result = resultFor(sides, score)
-  const levelWithoutTies = !rules.allowEqualGames && score[0] === score[1]
 
   const set = (side: 0 | 1, games: number) => {
     setConfirmIncomplete(false)
@@ -98,17 +96,7 @@ export function ScoreStepper({
         ))}
       </div>
 
-      {levelWithoutTies ? (
-        <p role="status" className="text-sm text-paper-dim">
-          {ELIMINATION_TIE_HINT}
-        </p>
-      ) : (
-        <p role="status" className={cn('font-display text-2xl', toneText[result.tone])}>
-          {result.text}
-        </p>
-      )}
-
-      {invalid && !levelWithoutTies ? <p className="text-sm text-loss">{invalid}</p> : null}
+      <ResultLine rules={rules} sides={sides} score={score} />
       {error ? (
         <p role="alert" className="text-sm text-loss">
           {error}
@@ -130,6 +118,30 @@ export function ScoreStepper({
         </div>
       )}
     </form>
+  )
+}
+
+/**
+ * What the score means ("Won 2–1") and why it can't be sent, if it can't. In a round that can't tie, a level score
+ * shows how a tied match is settled instead.
+ */
+function ResultLine({ rules, sides, score }: { rules: ScoreRules; sides: ScoreSides; score: Score }) {
+  if (!rules.allowEqualGames && score[0] === score[1]) {
+    return (
+      <p role="status" className="text-sm text-paper-dim">
+        {ELIMINATION_TIE_HINT}
+      </p>
+    )
+  }
+  const result = resultFor(sides, score)
+  const invalid = invalidScoreReason(rules, score)
+  return (
+    <>
+      <p role="status" className={cn('font-display text-2xl', toneText[result.tone])}>
+        {result.text}
+      </p>
+      {invalid ? <p className="text-sm text-loss">{invalid}</p> : null}
+    </>
   )
 }
 

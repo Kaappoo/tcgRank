@@ -18,7 +18,7 @@ import { entriesClosedReason } from '#/domain/open-entry.ts'
 import { deckIneligibility } from '#/domain/registration.ts'
 import { adjustClock, pauseClock, resumeClock, startClock } from '#/domain/match-clock.ts'
 import { scheduleRound } from '#/domain/round-robin.ts'
-import { computeStandings, type Tiebreakers } from '#/domain/standings.ts'
+import { computeStandings, type Standing, type Tiebreakers } from '#/domain/standings.ts'
 import { pairRound, type Pairing } from '#/domain/swiss.ts'
 import type { CreateEventInput } from '#/shared/schemas.ts'
 import { optionalUser, requireUser } from '../current-user.ts'
@@ -73,6 +73,48 @@ const bracketPlacements = (
     dropped,
   )
   return { exits, placements: sharedPlacements(exits) }
+}
+
+/**
+ * Standings as shown: live while the event runs. Once finished they follow the stored placement (a shared one by
+ * seed), so the podium can read standings[0], and each bracket player gets the stage they reached.
+ */
+const standingsView = (
+  event: EventRow,
+  players: ReadonlyArray<EntrantView>,
+  matchRows: ReadonlyArray<MatchRow>,
+  refs: ReadonlyMap<string, PlayerRef>,
+): Array<StandingView> => {
+  const live = computeStandings(
+    players.map((p) => p.id),
+    matchRows.filter((m) => m.confirmedAt !== null && countsInRecord(m)),
+    { tiebreakers: tiebreakersFor(event.pairingSystem) },
+  )
+  const dropped = new Set(players.filter((p) => p.droppedAtRound !== null).map((p) => p.id))
+  const view = (s: Standing, stage: string | null): StandingView => ({
+    ...s,
+    player: refs.get(s.playerId) ?? unknownPlayer(s.playerId),
+    dropped: dropped.has(s.playerId),
+    stage,
+  })
+  if (event.status !== 'finished') return live.map((s) => view(s, null))
+
+  const placed = new Map(players.map((p) => [p.id, p]))
+  const placement = (s: Standing) => placed.get(s.playerId)?.finalRank ?? s.rank
+  const seed = (s: Standing) => placed.get(s.playerId)?.seed ?? Number.POSITIVE_INFINITY
+  const bracket = eventBracket(event)
+  const exits = bracket
+    ? bracketPlacements(
+        bracket,
+        players.map((p) => ({ userId: p.id, droppedAtRound: p.droppedAtRound })),
+        matchRows,
+      ).exits
+    : new Map<string, number | null>()
+  const stageOf = (s: Standing) =>
+    bracket && exits.has(s.playerId) ? placementStage(bracket, exits.get(s.playerId) ?? null) : null
+  return [...live]
+    .sort((a, b) => placement(a) - placement(b) || seed(a) - seed(b) || a.rank - b.rank)
+    .map((s) => view({ ...s, rank: placement(s) }, stageOf(s)))
 }
 
 /** The pairings for the next round, plus what round 1 draws: a round-robin schedule or bracket seeds. */
@@ -254,43 +296,7 @@ const make = Effect.gen(function* () {
 
     const players: Array<EntrantView> = entries
     const matchViews = matchRows.map((m) => toMatchView(m, refs))
-    const dropped = new Set(players.filter((p) => p.droppedAtRound !== null).map((p) => p.id))
-
-    const bracket = eventBracket(event)
-    const finished = event.status === 'finished'
-    const exits =
-      bracket && finished
-        ? bracketPlacements(
-            bracket,
-            players.map((p) => ({ userId: p.id, droppedAtRound: p.droppedAtRound })),
-            matchRows,
-          ).exits
-        : null
-    const finalRanks = new Map(players.map((p) => [p.id, p.finalRank]))
-    const seeds = new Map(players.map((p) => [p.id, p.seed ?? Number.POSITIVE_INFINITY]))
-    const live = computeStandings(
-      players.map((p) => p.id),
-      matchRows.filter((m) => m.confirmedAt !== null && countsInRecord(m)),
-      { tiebreakers: tiebreakersFor(event.pairingSystem) },
-    )
-    // A finished event reads in placement order (a shared placement by seed); the podium takes standings[0].
-    const ordered = finished
-      ? [...live]
-          .sort(
-            (a, b) =>
-              (finalRanks.get(a.playerId) ?? a.rank) - (finalRanks.get(b.playerId) ?? b.rank) ||
-              seeds.get(a.playerId)! - seeds.get(b.playerId)! ||
-              a.rank - b.rank,
-          )
-          .map((s) => ({ ...s, rank: finalRanks.get(s.playerId) ?? s.rank }))
-      : live
-    const standings: Array<StandingView> = ordered.map((s) => ({
-      ...s,
-      player: refs.get(s.playerId) ?? unknownPlayer(s.playerId),
-      dropped: dropped.has(s.playerId),
-      stage: bracket && exits?.has(s.playerId) ? placementStage(bracket, exits.get(s.playerId) ?? null) : null,
-    }))
-
+    const standings = standingsView(event, players, matchRows, refs)
     const [summary] = yield* summaries([event])
     const currentMatch = me
       ? (matchViews.find(

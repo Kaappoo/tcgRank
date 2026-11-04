@@ -136,27 +136,31 @@ export const roundName = (bracket: Bracket, roundNumber: number): string =>
  * anyone still in). A player who lost a match is out in that round; one who
  * dropped between rounds is out in the round after the last one they played.
  */
+type ExitMatch = Pick<BracketMatch, 'roundNumber' | 'player1Id' | 'player2Id' | 'outcome'>
+
+/** The player who lost a played match, or null for a bye or a match without a result. */
+const loserOf = (m: ExitMatch): string | null => {
+  const winner = winnerOf(m)
+  if (winner === null || m.player2Id === null) return null
+  return winner === m.player1Id ? m.player2Id : m.player1Id
+}
+
 export const bracketExits = (
   bracket: Bracket,
-  matches: ReadonlyArray<Pick<BracketMatch, 'roundNumber' | 'player1Id' | 'player2Id' | 'outcome'>>,
+  matches: ReadonlyArray<ExitMatch>,
   dropped: ReadonlySet<string> = new Set(),
 ): Map<string, number | null> => {
   const lastPlayed = new Map<string, number>()
   const lost = new Map<string, number>()
   for (const m of matches) {
-    for (const id of [m.player1Id, m.player2Id]) {
-      if (id !== null) lastPlayed.set(id, Math.max(lastPlayed.get(id) ?? 0, m.roundNumber))
-    }
-    const winner = winnerOf(m)
-    const loser = winner === null || m.player2Id === null ? null : winner === m.player1Id ? m.player2Id : m.player1Id
+    const seated = m.player2Id === null ? [m.player1Id] : [m.player1Id, m.player2Id]
+    for (const id of seated) lastPlayed.set(id, Math.max(lastPlayed.get(id) ?? 0, m.roundNumber))
+    const loser = loserOf(m)
     if (loser !== null) lost.set(loser, m.roundNumber)
   }
-  const exits = new Map<string, number | null>()
-  for (const [id, round] of lastPlayed) {
-    const out = lost.get(id) ?? (dropped.has(id) && round < finalRound(bracket) ? round + 1 : null)
-    exits.set(id, out)
-  }
-  return exits
+  // A drop between rounds goes out in the next round; nobody goes out after the final.
+  const missedNext = (id: string, round: number) => (dropped.has(id) && round < finalRound(bracket) ? round + 1 : null)
+  return new Map([...lastPlayed].map(([id, round]) => [id, lost.get(id) ?? missedNext(id, round)]))
 }
 
 /**
