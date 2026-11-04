@@ -16,7 +16,7 @@ pnpm test:e2e            # playwright (starts its own dev server on :3100 with e
 pnpm build               # vite build → .output (Nitro) + Serwist service worker
 pnpm storybook           # component workbench on :6006
 pnpm db:generate         # drizzle-kit migration from src/server/db/schema.ts
-pnpm db:seed             # demo store, players, a finished and a live event
+pnpm db:seed             # demo store, players, an event per pairing system
 pnpm review              # fallow + react-doctor + impeccable detect
 ```
 
