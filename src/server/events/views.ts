@@ -23,6 +23,10 @@ export interface MatchView {
   readonly outcome: MatchOutcome | null
   readonly reportedById: string | null
   readonly status: MatchStatus
+  /** Position in an elimination round's bracket; null outside elimination rounds. */
+  readonly bracketSlot: number | null
+  /** The loser dropped during the unreported match, so it was recorded as the opponent's win. */
+  readonly dropped: boolean
 }
 
 export interface RoundView {
@@ -32,6 +36,8 @@ export interface RoundView {
   readonly startedAt: number
   readonly endsAt: number | null
   readonly pausedRemainingMs: number | null
+  /** A round of a top cut or a single-elimination event: matches can't tie and losers are out. */
+  readonly elimination: boolean
 }
 
 export interface EntrantView extends PlayerRef {
@@ -41,6 +47,8 @@ export interface EntrantView extends PlayerRef {
   readonly deckName: string | null
   readonly droppedAtRound: number | null
   readonly finalRank: number | null
+  /** Bracket seed, 1 strongest; null until the bracket is drawn. */
+  readonly seed: number | null
 }
 
 /** A guest on the host's guest list, as only that host sees it. */
@@ -55,6 +63,8 @@ export interface GuestView {
 export interface StandingView extends Standing {
   readonly player: PlayerRef
   readonly dropped: boolean
+  /** How far a player got in a finished bracket ("Champion", "Finalist", "Semifinal"…); null otherwise. */
+  readonly stage: string | null
 }
 
 export interface EventSummary {
@@ -97,6 +107,10 @@ export interface EventDetail {
   /** Lets clients correct for clock skew when rendering the match timer. */
   readonly serverNow: number
 }
+
+/** A drop during an unreported elimination match records it with no reporter; every report names one. */
+export const droppedMatch = (m: { outcome: MatchOutcome | null; reportedById: string | null }): boolean =>
+  (m.outcome === 'p1' || m.outcome === 'p2') && m.reportedById === null
 
 export const matchStatus = (m: { outcome: MatchOutcome | null; confirmedAt: Date | null }): MatchStatus =>
   m.confirmedAt ? 'confirmed' : m.outcome ? 'reported' : 'playing'

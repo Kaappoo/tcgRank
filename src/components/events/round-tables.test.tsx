@@ -14,6 +14,8 @@ const reported: MatchView = {
   player2Games: 1,
   outcome: 'p1',
   reportedById: 'misty',
+  bracketSlot: null,
+  dropped: false,
   status: 'reported',
 }
 

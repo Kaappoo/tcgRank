@@ -5,6 +5,7 @@
  * bracket may start at any round number (a top cut follows the Swiss rounds).
  * Pure, no IO.
  */
+import type { PairingSystem } from './event-setup.ts'
 import type { Outcome } from './standings.ts'
 import type { Pairing } from './swiss.ts'
 
@@ -21,6 +22,18 @@ export const bracketOf = ({ firstRound, playerCount }: { firstRound: number; pla
   firstRound,
   rounds: bracketRounds(playerCount),
 })
+
+/**
+ * The bracket an event plays, once its rounds are fixed: a single-elimination
+ * event is a bracket from round 1. Null for events without one.
+ */
+export const eventBracket = (event: {
+  readonly pairingSystem: PairingSystem
+  readonly plannedRounds: number
+}): Bracket | null =>
+  event.pairingSystem === 'single_elimination' && event.plannedRounds > 0
+    ? { firstRound: 1, rounds: event.plannedRounds }
+    : null
 
 export const finalRound = (bracket: Bracket): number => bracket.firstRound + bracket.rounds - 1
 

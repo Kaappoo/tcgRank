@@ -63,6 +63,7 @@ const entrant = (deckId: string | null): EntrantView => ({
   deckName: deckId ? deck.name : null,
   droppedAtRound: null,
   finalRank: null,
+  seed: null,
 })
 
 const fakeActions = () => {

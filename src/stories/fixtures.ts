@@ -15,6 +15,8 @@ export const playingMatch: MatchView = {
   player2Games: 0,
   outcome: null,
   reportedById: null,
+  bracketSlot: null,
+  dropped: false,
   status: 'playing',
 }
 
@@ -40,6 +42,7 @@ const standing = (
   opponentOpponentWinPercentage: 0.5,
   gameWinPercentage: wins / Math.max(1, wins + losses + draws),
   headToHead: false,
+  stage: null,
   dropped: false,
 })
 

@@ -46,6 +46,7 @@ const entrants = (n: number): EventDetail['players'] =>
     deckName: null,
     droppedAtRound: null,
     finalRank: null,
+    seed: null,
   }))
 
 const renderDesk = (detail: EventDetail) => {
@@ -171,13 +172,15 @@ describe('HostDesk round robin', () => {
       player2Games: 0,
       outcome: status === 'confirmed' ? 'p1' : null,
       reportedById: null,
+      bracketSlot: null,
+      dropped: false,
       status,
     }))
   const running = (round: number, status: 'confirmed' | 'playing'): EventDetail => ({
     ...detailWith({ pairingSystem: 'round_robin', status: 'running', currentRound: round, plannedRounds: 7 }),
     players: entrants(8),
     rounds: [
-      { id: `r${round}`, number: round, status: 'active', startedAt: 0, endsAt: 3_000_000, pausedRemainingMs: null },
+      { id: `r${round}`, number: round, status: 'active', startedAt: 0, endsAt: 3_000_000, pausedRemainingMs: null, elimination: false },
     ],
     matches: played(round, status),
   })

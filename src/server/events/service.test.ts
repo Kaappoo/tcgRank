@@ -760,19 +760,6 @@ describe('Event setup', () => {
     ),
   )
 
-  it.effect.each(['single_elimination'] as const)(
-    'pairing a %s event is refused until that system is available',
-    (pairingSystem) =>
-      run(
-        Effect.gen(function* () {
-          const { events, host, eventId } = yield* hostEvent({ ...newEvent, pairingSystem })
-          const refused = yield* Effect.flip(events.startNextRound(eventId).pipe(asUser(host)))
-          expect(refused._tag).toBe('InvalidState')
-          expect((yield* events.detail(eventId)).event.status).toBe('registration')
-        }),
-      ),
-  )
-
   it.effect('an event stored before pairing systems existed reads as Swiss without a cut', () =>
     run(
       Effect.gen(function* () {
@@ -950,6 +937,234 @@ describe('Round robin', () => {
         expect((yield* events.findByJoinCode(joinCode)).entriesClosedReason).toBeNull()
         yield* events.join(eventId).pipe(asUser(yield* insertUser('Late Larry')))
         expect((yield* events.detail(eventId)).players).toHaveLength(3)
+      }),
+    ),
+  )
+})
+
+describe('Single elimination', () => {
+  const CLOSED = 'Entries are closed: the bracket has started'
+
+  /** A single-elimination event with `n` joined players. */
+  const bracket = Effect.fn('bracket')(function* (playerCount: number) {
+    const events = yield* EventsService
+    const host = yield* insertUser('Professor Oak')
+    const { id: eventId, joinCode } = yield* events
+      .create({ ...newEvent, pairingSystem: 'single_elimination' })
+      .pipe(asUser(host))
+    const players = []
+    for (let i = 0; i < playerCount; i++) {
+      const p = yield* insertUser(`Trainer ${i + 1}`)
+      yield* events.join(eventId).pipe(asUser(p))
+      players.push(p)
+    }
+    return { events, host, eventId, joinCode, players }
+  })
+
+  /** Seed of each player id, from the event detail. */
+  const seedsOf = (detail: { players: ReadonlyArray<{ id: string; seed: number | null }> }) =>
+    new Map(detail.players.map((p) => [p.id, p.seed!]))
+
+  /** Pairs the next round; the host reports every open match 2–1 for the better seed. */
+  const playRound = Effect.fn('playRound')(function* (eventId: string, host: Parameters<typeof asUser>[0]) {
+    const events = yield* EventsService
+    const { roundNumber } = yield* events.startNextRound(eventId).pipe(asUser(host))
+    const detail = yield* events.detail(eventId)
+    const seeds = seedsOf(detail)
+    const round = detail.matches.filter((m) => m.roundNumber === roundNumber)
+    for (const m of round.filter((m) => m.status !== 'confirmed')) {
+      const p1Wins = seeds.get(m.player1.id)! < seeds.get(m.player2!.id)!
+      yield* events.reportResult(m.id, p1Wins ? 2 : 1, p1Wins ? 1 : 2).pipe(asUser(host))
+    }
+    return round
+  })
+
+  it.effect.each([
+    [5, 3],
+    [6, 2],
+    [7, 1],
+  ] as const)('round 1 of %i players draws seeds and gives %i byes to the top seeds', ([playerCount, byes]) =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* bracket(playerCount)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const detail = yield* events.detail(eventId)
+        expect(detail.event.plannedRounds).toBe(3)
+        expect(detail.rounds[0]!.elimination).toBe(true)
+        const seeds = seedsOf(detail)
+        expect([...seeds.values()].sort((a, b) => a - b)).toEqual(players.map((_, i) => i + 1))
+
+        const byeMatches = detail.matches.filter((m) => m.player2 === null)
+        expect(byeMatches.map((m) => seeds.get(m.player1.id)).sort()).toEqual(
+          Array.from({ length: byes }, (_, i) => i + 1),
+        )
+        expect(byeMatches.every((m) => m.status === 'confirmed' && m.outcome === 'bye')).toBe(true)
+        expect(detail.matches.map((m) => m.bracketSlot).sort()).toEqual([0, 1, 2, 3])
+        // Seed 1 sits in slot 0, seed 2 in slot 2: they can only meet in the final.
+        const slotOf = (seed: number) =>
+          detail.matches.find((m) => seeds.get(m.player1.id) === seed || seeds.get(m.player2?.id ?? '') === seed)!
+            .bracketSlot
+        expect([slotOf(1), slotOf(2)]).toEqual([0, 2])
+      }),
+    ),
+  )
+
+  it.effect('the seeds depend on the draw, not on who joined first', () =>
+    run(
+      Effect.gen(function* () {
+        const draws = new Set<string>()
+        for (let i = 0; i < 4; i++) {
+          const { events, host, eventId, players } = yield* bracket(8)
+          yield* events.startNextRound(eventId).pipe(asUser(host))
+          const seeds = seedsOf(yield* events.detail(eventId))
+          draws.add(players.map((p) => seeds.get(p.id)).join(','))
+        }
+        expect(draws.size).toBeGreaterThan(1)
+      }),
+    ),
+  )
+
+  it.effect('pairing round 1 closes entries', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, joinCode } = yield* bracket(4)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        expect((yield* events.findByJoinCode(joinCode)).entriesClosedReason).toBe(CLOSED)
+        const late = yield* insertUser('Late Larry')
+        expect(yield* Effect.flip(events.join(eventId).pipe(asUser(late)))).toMatchObject({ reason: CLOSED })
+        expect(yield* Effect.flip(events.addGuest(eventId, { name: 'Brock' }).pipe(asUser(host)))).toMatchObject({
+          reason: CLOSED,
+        })
+      }),
+    ),
+  )
+
+  it.effect('winners advance to the semifinals and the final; placements are shared by round', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* bracket(5)
+        yield* playRound(eventId, host)
+        const semifinals = yield* playRound(eventId, host)
+        const seeds = seedsOf(yield* events.detail(eventId))
+        const pairs = semifinals.map((m) => [seeds.get(m.player1.id), seeds.get(m.player2?.id ?? '')])
+        expect(pairs).toEqual([
+          [1, 4],
+          [2, 3],
+        ])
+        const final = yield* playRound(eventId, host)
+        expect(final.map((m) => [seeds.get(m.player1.id), seeds.get(m.player2?.id ?? '')])).toEqual([[1, 2]])
+
+        const tooMany = yield* Effect.flip(events.startNextRound(eventId).pipe(asUser(host)))
+        expect(tooMany).toMatchObject({ _tag: 'InvalidState', reason: 'The final has been played' })
+
+        yield* events.finishEvent(eventId).pipe(asUser(host))
+        const finished = yield* events.detail(eventId)
+        const placed = finished.standings.map((s) => [seeds.get(s.playerId), s.rank, s.stage])
+        expect(placed).toEqual([
+          [1, 1, 'Champion'],
+          [2, 2, 'Finalist'],
+          [3, 3, 'Semifinal'],
+          [4, 3, 'Semifinal'],
+          [5, 5, 'Quarterfinal'],
+        ])
+        expect(finished.players.map((p) => [seeds.get(p.id), p.finalRank]).sort()).toEqual([
+          [1, 1],
+          [2, 2],
+          [3, 3],
+          [4, 3],
+          [5, 5],
+        ])
+        // The champion's round-1 bye counts as nothing: 2–0 from the semifinal and the final.
+        expect(finished.standings[0]).toMatchObject({ wins: 2, losses: 0, byes: 0 })
+      }),
+    ),
+  )
+
+  it.effect('an elimination match can’t end in a tie, for a player or the host', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* bracket(2)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const [match] = (yield* events.detail(eventId)).matches
+        const tie = { _tag: 'InvalidState', reason: 'This match can’t end in a tie' }
+        expect(yield* Effect.flip(events.reportResult(match!.id, 1, 1).pipe(asUser(players[0]!)))).toMatchObject(tie)
+        expect(yield* Effect.flip(events.reportResult(match!.id, 0, 0).pipe(asUser(host)))).toMatchObject(tie)
+        yield* events.reportResult(match!.id, 1, 0).pipe(asUser(host))
+      }),
+    ),
+  )
+
+  it.effect('a player who leaves during an unreported match loses it, shown as dropped', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* bracket(4)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const leaver = players[0]!
+        yield* events.leave(eventId).pipe(asUser(leaver))
+        const detail = yield* events.detail(eventId)
+        const match = detail.matches.find((m) => m.player1.id === leaver.id || m.player2?.id === leaver.id)!
+        expect(match).toMatchObject({ status: 'confirmed', dropped: true, player1Games: 0, player2Games: 0 })
+        expect(match.outcome).toBe(match.player1.id === leaver.id ? 'p2' : 'p1')
+        expect(detail.matches.filter((m) => m.id !== match.id).every((m) => !m.dropped)).toBe(true)
+      }),
+    ),
+  )
+
+  it.effect('a removed guest loses their unreported match; a reported one stands', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* bracket(2)
+        const { guestId } = yield* events.addGuest(eventId, { name: 'Gary' }).pipe(asUser(host))
+        const { guestId: brock } = yield* events.addGuest(eventId, { name: 'Brock' }).pipe(asUser(host))
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const before = yield* events.detail(eventId)
+        const reported = before.matches.find((m) => m.player1.id === brock || m.player2?.id === brock)!
+        const brockIsP1 = reported.player1.id === brock
+        yield* events.reportResult(reported.id, brockIsP1 ? 2 : 0, brockIsP1 ? 0 : 2).pipe(asUser(host))
+        yield* events.removeGuest(eventId, brock).pipe(asUser(host))
+        yield* events.removeGuest(eventId, guestId).pipe(asUser(host))
+
+        const after = yield* events.detail(eventId)
+        const garys = after.matches.find((m) => m.player1.id === guestId || m.player2?.id === guestId)!
+        if (garys.id !== reported.id) expect(garys).toMatchObject({ status: 'confirmed', dropped: true })
+        expect(after.matches.find((m) => m.id === reported.id)).toMatchObject({ dropped: false })
+      }),
+    ),
+  )
+
+  it.effect('a player who drops before the next round is paired gives their opponent a bye, and is placed in it', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* bracket(4)
+        yield* playRound(eventId, host)
+        const seeds = seedsOf(yield* events.detail(eventId))
+        const seed = (n: number) => players.find((p) => seeds.get(p.id) === n)!
+        // Seed 2 won its semifinal, then leaves before the final.
+        yield* events.leave(eventId).pipe(asUser(seed(2)))
+        const final = yield* playRound(eventId, host)
+        expect(final).toHaveLength(1)
+        expect(final[0]).toMatchObject({ player1: { id: seed(1).id }, player2: null, outcome: 'bye' })
+
+        yield* events.finishEvent(eventId).pipe(asUser(host))
+        const { standings } = yield* events.detail(eventId)
+        expect(standings.map((s) => [seeds.get(s.playerId), s.rank, s.stage])).toEqual([
+          [1, 1, 'Champion'],
+          [2, 2, 'Finalist'],
+          [3, 3, 'Semifinal'],
+          [4, 3, 'Semifinal'],
+        ])
+      }),
+    ),
+  )
+
+  it.effect('finishing is refused until the final is played', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* bracket(4)
+        yield* playRound(eventId, host)
+        const refused = yield* Effect.flip(events.finishEvent(eventId).pipe(asUser(host)))
+        expect(refused).toMatchObject({ _tag: 'InvalidState', reason: 'Play the bracket to its final first' })
+        expect((yield* events.detail(eventId)).event.status).toBe('running')
       }),
     ),
   )
