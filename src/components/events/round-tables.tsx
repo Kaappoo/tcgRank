@@ -9,7 +9,9 @@ import { useState } from 'react'
 import { ScoreStepper } from './score-stepper.tsx'
 
 const statusBadge = (m: MatchView) =>
-  m.status === 'confirmed' ? (
+  m.dropped ? (
+    <Badge variant="muted">Dropped</Badge>
+  ) : m.status === 'confirmed' ? (
     <Badge variant="muted">
       <Check /> Final
     </Badge>
@@ -21,7 +23,8 @@ const statusBadge = (m: MatchView) =>
     <Badge variant="outline">Playing</Badge>
   )
 
-const score = (m: MatchView) => (m.outcome && m.outcome !== 'bye' ? `${m.player1Games}–${m.player2Games}` : null)
+const score = (m: MatchView) =>
+  m.outcome && m.outcome !== 'bye' && !m.dropped ? `${m.player1Games}–${m.player2Games}` : null
 
 /** A match with an opponent: byes are scored automatically, so only these can be corrected. */
 type PlayedMatch = MatchView & { readonly player2: NonNullable<MatchView['player2']> }
@@ -31,6 +34,7 @@ const isPlayed = (m: MatchView): m is PlayedMatch => m.player2 !== null
 export function RoundTables({
   matches,
   bestOf,
+  elimination = false,
   viewerId,
   canEdit,
   onSetResult,
@@ -39,6 +43,8 @@ export function RoundTables({
   matches: ReadonlyArray<MatchView>
   /** The event's best of: bounds the host's correction steppers. */
   bestOf: BestOf
+  /** An elimination round: the host can't enter a tie either. */
+  elimination?: boolean
   viewerId?: string | null
   canEdit?: boolean
   /** Sends the host's correction; call `saved` once it is stored to close the dialog. */
@@ -107,7 +113,7 @@ export function RoundTables({
             description="Host results are final immediately and override what players reported."
           >
             <ScoreStepper
-              rules={scoreRules(bestOf)}
+              rules={scoreRules(bestOf, { allowEqualGames: !elimination })}
               sides={{ kind: 'players', player1: editing.player1.name, player2: editing.player2.name }}
               initial={[editing.player1Games, editing.player2Games]}
               isPending={correction?.isPending}

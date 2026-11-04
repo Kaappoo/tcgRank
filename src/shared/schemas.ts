@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { BEST_OF_VALUES, DEFAULT_BEST_OF, MAX_GAMES } from '#/domain/best-of.ts'
+import { DEFAULT_PAIRING_SYSTEM, PAIRING_SYSTEMS, TOP_CUT_SIZES } from '#/domain/event-setup.ts'
 import { EVENT_FORMATS } from '#/server/db/schema.ts'
 
 /**
@@ -10,19 +11,32 @@ import { EVENT_FORMATS } from '#/server/db/schema.ts'
 
 const eventFormat = z.enum(EVENT_FORMATS)
 
-const bestOfSchema =z.union(BEST_OF_VALUES.map((n) => z.literal(n)))
+const bestOfSchema = z.union(BEST_OF_VALUES.map((n) => z.literal(n)))
+const pairingSystemSchema = z.enum(PAIRING_SYSTEMS)
+/** A round timer in minutes; the host desk's cut step validates with it too. */
+export const roundMinutesSchema = z.coerce.number().int().min(10, 'Rounds need at least 10 minutes').max(120)
 
-export const createEventInput = z.object({
-  name: z.string().trim().min(3, 'Give the event a name of at least 3 characters').max(80),
-  storeName: z.string().trim().min(2, 'Which store is hosting?').max(80),
-  description: z.string().trim().max(500).optional(),
-  format: eventFormat,
-  plannedRounds: z.coerce.number().int().min(0).max(12),
-  roundMinutes: z.coerce.number().int().min(10, 'Rounds need at least 10 minutes').max(120),
-  startsAt: z.coerce.date(),
-  deckRequired: z.boolean().default(false),
-  bestOf: bestOfSchema.default(DEFAULT_BEST_OF),
-})
+/** Same wording as `EventsService` uses when it refuses a top cut outside Swiss. */
+const TOP_CUT_SWISS_ONLY = 'Only Swiss events can have a top cut'
+
+export const createEventInput = z
+  .object({
+    name: z.string().trim().min(3, 'Give the event a name of at least 3 characters').max(80),
+    storeName: z.string().trim().min(2, 'Which store is hosting?').max(80),
+    description: z.string().trim().max(500).optional(),
+    format: eventFormat,
+    plannedRounds: z.coerce.number().int().min(0).max(12),
+    roundMinutes: roundMinutesSchema,
+    startsAt: z.coerce.date(),
+    deckRequired: z.boolean().default(false),
+    bestOf: bestOfSchema.default(DEFAULT_BEST_OF),
+    pairingSystem: pairingSystemSchema.default(DEFAULT_PAIRING_SYSTEM),
+    topCut: z.boolean().default(false),
+  })
+  .refine((input) => !input.topCut || input.pairingSystem === 'swiss', {
+    message: TOP_CUT_SWISS_ONLY,
+    path: ['topCut'],
+  })
 export type CreateEventInput = z.infer<typeof createEventInput>
 
 export const eventIdInput = z.object({ eventId: z.string().min(1) })
@@ -52,6 +66,23 @@ export const deckRequiredInput = z.object({
 export const bestOfInput = z.object({
   eventId: z.string().min(1),
   bestOf: bestOfSchema,
+})
+
+export const pairingSystemInput = z.object({
+  eventId: z.string().min(1),
+  pairingSystem: pairingSystemSchema,
+})
+
+export const topCutInput = z.object({
+  eventId: z.string().min(1),
+  topCut: z.boolean(),
+})
+
+/** Shape only: `EventsService.cutToTop` checks the size against the players still in. */
+export const cutToTopInput = z.object({
+  eventId: z.string().min(1),
+  size: z.union(TOP_CUT_SIZES.map((n) => z.literal(n))),
+  roundMinutes: roundMinutesSchema,
 })
 
 /** Shape only: the event's best-of decides which scores are possible (`EventsService.reportResult`). */

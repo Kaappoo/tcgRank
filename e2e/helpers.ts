@@ -20,11 +20,28 @@ export async function visit(page: Page, path: string) {
   await page.locator('html[data-hydrated]').waitFor()
 }
 
-export async function createEvent(page: Page, name: string, { deckRequired = false } = {}) {
+export async function createEvent(
+  page: Page,
+  name: string,
+  {
+    deckRequired = false,
+    pairingSystem,
+    topCut = false,
+    swissRounds,
+  }: {
+    deckRequired?: boolean
+    pairingSystem?: 'Round robin' | 'Single elimination'
+    topCut?: boolean
+    swissRounds?: number
+  } = {},
+) {
   await visit(page, '/events/new')
   await page.getByLabel('Event name').fill(name)
   await page.getByLabel('Store').fill('Pallet Town Games')
   await page.getByRole('button', { name: '30 min' }).click()
+  if (pairingSystem) await page.getByRole('button', { name: pairingSystem, exact: true }).click()
+  if (topCut) await page.getByRole('switch', { name: /Top cut/ }).click()
+  if (swissRounds) await page.getByRole('spinbutton', { name: 'Swiss rounds' }).fill(String(swissRounds))
   if (deckRequired) await page.getByRole('switch', { name: /Require a deck/ }).click()
   await page.getByRole('button', { name: 'Create event' }).click()
   await page.waitForURL(/\/events\/(?!new)[a-z0-9]+$/)
@@ -32,4 +49,23 @@ export async function createEvent(page: Page, name: string, { deckRequired = fal
   const code = (await page.getByLabel(/^Join code/).textContent())?.trim() ?? ''
   expect(code).toMatch(/^[A-Z2-9]{6}$/)
   return { url: page.url(), code }
+}
+
+/**
+ * The host enters a 2–0 win for player 1 at every table of the round on show, from the table pencils. Pass a bracket
+ * round's name to report within its section only (Pairings lists every bracket round at once).
+ */
+export async function hostReportsRound(page: Page, bracketRound?: string) {
+  const scope = bracketRound ? page.getByRole('region', { name: bracketRound, exact: true }) : page
+  const pencils = scope.getByRole('button', { name: /^Set result for table/ })
+  const tables = await pencils.count()
+  for (let i = 0; i < tables; i++) {
+    await pencils.nth(i).click()
+    const dialog = page.getByRole('dialog', { name: /^Table \d+$/ })
+    const addGame = dialog.getByRole('button', { name: /^Add a game:/ })
+    await addGame.first().click()
+    await addGame.first().click()
+    await dialog.getByRole('button', { name: 'Send result' }).click()
+    await expect(dialog).toBeHidden()
+  }
 }

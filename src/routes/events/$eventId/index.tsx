@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { CalendarDays, MonitorPlay, Share2, Store, Trophy, Users } from 'lucide-react'
-import { useMemo, useState, type ComponentProps } from 'react'
+import { useMemo, type ComponentProps } from 'react'
 import { z } from 'zod'
 import { AddGuestForm, GuestRowActions } from '#/components/events/guests.tsx'
 import { EntryPanel } from '#/components/events/entry-panel.tsx'
@@ -10,6 +10,7 @@ import { HostDesk } from '#/components/events/host-desk.tsx'
 import { JoinQrCard } from '#/components/events/join-qr.tsx'
 import { MatchClock } from '#/components/events/match-clock.tsx'
 import { PairingCard } from '#/components/events/pairing-card.tsx'
+import { PairingsPanel } from '#/components/events/pairings-panel.tsx'
 import { ReportResult } from '#/components/events/report-result.tsx'
 import { RoundTables } from '#/components/events/round-tables.tsx'
 import { StandingsTable } from '#/components/events/standings-table.tsx'
@@ -21,7 +22,8 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from '#/components/ui/tabs.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { errorMessage, useEventActions } from '#/hooks/use-event-actions.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
-import { bestOfLabel, formatLabel, statusLabel } from '#/lib/format.ts'
+import { formatLabel, podiumLine, setupSummary, statusLabel } from '#/lib/format.ts'
+import { tiebreakersFor } from '#/domain/standings.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
 import { cn } from '#/lib/utils.ts'
@@ -35,7 +37,7 @@ export const Route = createFileRoute('/events/$eventId/')({
     meta: loaderData
       ? seo({
           title: `${loaderData.event.name} · tcgRank`,
-          description: `${statusLabel(loaderData.event.status, loaderData.event.currentRound)} at ${loaderData.event.storeName} — ${loaderData.event.playerCount} players. Join with code ${loaderData.event.joinCode}.`,
+          description: `${statusLabel(loaderData.event)} at ${loaderData.event.storeName} — ${loaderData.event.playerCount} players. Join with code ${loaderData.event.joinCode}.`,
           image: absoluteUrl(`/api/og/event/${params.eventId}`),
         })
       : [],
@@ -71,10 +73,10 @@ function EventHub() {
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={event.status === 'running' ? 'live' : event.status === 'finished' ? 'muted' : 'outline'}>
             {event.status === 'running' ? <LiveDot /> : null}
-            {statusLabel(event.status, event.currentRound)}
+            {statusLabel(event)}
           </Badge>
           <Badge variant="outline">{formatLabel(event.format)}</Badge>
-          <Badge variant="outline">{bestOfLabel(event.bestOf)}</Badge>
+          <Badge variant="outline">{setupSummary(event)}</Badge>
           {isHost ? <Badge>You&apos;re hosting</Badge> : null}
         </div>
         <h1 className="font-display text-4xl sm:text-6xl">{event.name}</h1>
@@ -124,9 +126,12 @@ function EventHub() {
             busy={busy}
             onStartRound={() => actions.startRound.mutate()}
             onFinish={() => actions.finish.mutate()}
+            onCut={(cut) => actions.cut.mutate(cut)}
             onClock={(action, deltaMinutes) => actions.clock.mutate({ action, deltaMinutes })}
             onDeckRequired={(required) => actions.deckRequired.mutate(required)}
             onBestOf={(bestOf) => actions.bestOf.mutate(bestOf)}
+            onPairingSystem={(pairingSystem) => actions.pairingSystem.mutate(pairingSystem)}
+            onTopCut={(topCut) => actions.topCut.mutate(topCut)}
           />
         ) : null}
 
@@ -144,7 +149,7 @@ function EventHub() {
                   <MatchClock
                     endsAt={currentRound.endsAt}
                     pausedRemainingMs={currentRound.pausedRemainingMs}
-                    roundMinutes={event.roundMinutes}
+                    roundMinutes={currentRound.minutes}
                     offsetMs={offsetMs}
                     referenceNow={detail.serverNow}
                     size="md"
@@ -156,6 +161,7 @@ function EventHub() {
                   match={viewer.currentMatch}
                   viewerId={viewer.userId}
                   bestOf={event.bestOf}
+                  elimination={currentRound.elimination}
                   isPending={actions.report.isPending || actions.confirm.isPending}
                   onReport={(games) => actions.report.mutate({ matchId: viewer.currentMatch!.id, ...games })}
                   onConfirm={() => actions.confirm.mutate(viewer.currentMatch!.id)}
@@ -165,7 +171,7 @@ function EventHub() {
           </div>
         ) : null}
 
-        {event.status === 'finished' ? <Podium standings={detail.standings} /> : null}
+        {event.status === 'finished' ? <Podium standings={detail.standings} topCut={event.topCutSize !== null} /> : null}
 
         <EntryPanel
           detail={detail}
@@ -199,7 +205,7 @@ function EventHub() {
 }
 
 /** Final standings get a podium: the champion is the loudest thing on the page. */
-function Podium({ standings }: { standings: ReadonlyArray<StandingView> }) {
+function Podium({ standings, topCut }: { standings: ReadonlyArray<StandingView>; topCut: boolean }) {
   const [first, ...rest] = standings
   if (!first) return null
   return (
@@ -216,9 +222,7 @@ function Podium({ standings }: { standings: ReadonlyArray<StandingView> }) {
           <Avatar name={first.player.name} src={first.player.image} size="xl" className="ring-4 ring-orange" />
           <div className="min-w-0">
             <p className="truncate font-display text-4xl sm:text-5xl">{first.player.name}</p>
-            <p className="tabular text-paper-dim">
-              {first.points} pts · {first.wins + first.byes}-{first.losses}-{first.draws}
-            </p>
+            <p className="tabular text-paper-dim">{podiumLine(first, { topCut })}</p>
           </div>
         </div>
       </div>
@@ -228,7 +232,9 @@ function Podium({ standings }: { standings: ReadonlyArray<StandingView> }) {
             <span className="font-numerals w-8 text-3xl text-paper-dim">{s.rank}</span>
             <Avatar name={s.player.name} src={s.player.image} size="sm" />
             <span className="truncate font-semibold">{s.player.name}</span>
-            <span className="tabular ml-auto text-sm text-paper-dim">{s.points} pts</span>
+            <span className="tabular ml-auto text-sm text-paper-dim">
+              {s.stage ? podiumLine(s, { topCut }) : `${s.points} pts`}
+            </span>
           </li>
         ))}
       </ol>
@@ -253,10 +259,7 @@ function EventTabs({
   onAddGuest: (guest: { name: string } | { guestId: string }, done: () => void) => void
   onRemoveGuest: (guestId: string) => void
 }) {
-  const { event, matches, rounds, standings, players, viewer } = detail
-  const [roundNumber, setRoundNumber] = useState(event.currentRound)
-  const shownRound = roundNumber || event.currentRound
-  const roundMatches = matches.filter((m) => m.roundNumber === shownRound)
+  const { event, rounds, standings, players, viewer } = detail
   const defaultTab = event.status === 'finished' ? 'standings' : event.currentRound > 0 ? 'pairings' : 'players'
 
   return (
@@ -274,24 +277,8 @@ function EventTabs({
       </TabsList>
 
       <TabsPanel value="pairings">
-        {rounds.length > 1 ? (
-          <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Choose round">
-            {rounds.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                aria-pressed={r.number === shownRound}
-                onClick={() => setRoundNumber(r.number)}
-                className="h-9 cursor-pointer rounded-full border border-line-strong px-4 text-sm font-semibold transition-colors aria-pressed:border-orange aria-pressed:bg-orange aria-pressed:text-on-orange"
-              >
-                Round {r.number}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <RoundTables
-          matches={roundMatches}
-          bestOf={event.bestOf}
+        <PairingsPanel
+          detail={detail}
           viewerId={viewer?.userId}
           canEdit={viewer?.isHost}
           onSetResult={onHostResult}
@@ -300,16 +287,36 @@ function EventTabs({
       </TabsPanel>
 
       <TabsPanel value="standings">
-        <StandingsTable standings={standings} highlightId={viewer?.userId} final={event.status === 'finished'} />
+        <StandingsTable
+          standings={standings}
+          highlightId={viewer?.userId}
+          final={event.status === 'finished'}
+          tiebreakers={tiebreakersFor(event.pairingSystem)}
+          topCutSize={event.topCutSize}
+        />
         <p className="mt-3 text-xs text-paper-dim">
-          Win 3 · Tie 1 · Loss 0. Ties broken by opponents&apos; win % (OMW, min 25%), then their opponents&apos;.
+          {event.topCutSize === null
+            ? ''
+            : event.status === 'finished'
+              ? 'Final placement follows the stage reached in the top cut, then Swiss rank; everyone else follows in Swiss order. The columns show the Swiss rounds. '
+              : 'The top cut is listed first, by seed, with the stage each player has reached. The columns show the Swiss rounds. '}
+          {event.pairingSystem === 'single_elimination'
+            ? 'Final placement follows the round a player went out in; players out in the same round share it. Byes only advance a player.'
+            : event.pairingSystem === 'round_robin'
+            ? 'Win 3 · Tie 1 · Loss 0 · Bye 3. A tie between two players goes to the winner of their match (H2H), then game-win % (GW%), then opponents’ win % (OMW, min 25%).'
+            : 'Win 3 · Tie 1 · Loss 0. Ties broken by opponents’ win % (OMW, min 25%), then their opponents’.'}
           {event.status !== 'finished' ? ' Only confirmed results count.' : ''}
         </p>
       </TabsPanel>
 
       <TabsPanel value="players">
         {viewer?.isHost && event.status !== 'finished' ? (
-          <AddGuestForm players={players} busy={busy} onAdd={onAddGuest} />
+          <AddGuestForm
+            players={players}
+            busy={busy}
+            onAdd={onAddGuest}
+            closedReason={event.entriesClosedReason}
+          />
         ) : null}
         {players.length === 0 ? (
           <p className="py-6 text-paper-dim">Nobody has joined yet. Share the QR code to get people in.</p>

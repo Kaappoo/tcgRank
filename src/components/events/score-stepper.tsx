@@ -40,6 +40,10 @@ const toneText: Record<ResultTone, string> = { win: 'text-win', draw: 'text-draw
 
 const focusOnMount = (element: HTMLElement | null) => element?.focus()
 
+/** Shown in place of the result while an elimination round's score is level (Play! Pokémon TCG-H 7.4.4.3). */
+const ELIMINATION_TIE_HINT =
+  'Elimination matches can’t tie: on time, fewest Prize cards or the game 1 winner takes it; at 1–1, play a tiebreaker game.'
+
 const sameScore = (a: Score, b: Score | undefined) => b !== undefined && a[0] === b[0] && a[1] === b[1]
 
 /**
@@ -61,7 +65,6 @@ export function ScoreStepper({
   const labels = labelsFor(sides)
   const invalid = invalidScoreReason(rules, score)
   const complete = sameScore(score, agreesWith) || isCompleteScore(rules, score)
-  const result = resultFor(sides, score)
 
   const set = (side: 0 | 1, games: number) => {
     setConfirmIncomplete(false)
@@ -93,11 +96,7 @@ export function ScoreStepper({
         ))}
       </div>
 
-      <p role="status" className={cn('font-display text-2xl', toneText[result.tone])}>
-        {result.text}
-      </p>
-
-      {invalid ? <p className="text-sm text-loss">{invalid}</p> : null}
+      <ResultLine rules={rules} sides={sides} score={score} />
       {error ? (
         <p role="alert" className="text-sm text-loss">
           {error}
@@ -119,6 +118,30 @@ export function ScoreStepper({
         </div>
       )}
     </form>
+  )
+}
+
+/**
+ * What the score means ("Won 2–1") and why it can't be sent, if it can't. In a round that can't tie, a level score
+ * shows how a tied match is settled instead.
+ */
+function ResultLine({ rules, sides, score }: { rules: ScoreRules; sides: ScoreSides; score: Score }) {
+  if (!rules.allowEqualGames && score[0] === score[1]) {
+    return (
+      <p role="status" className="text-sm text-paper-dim">
+        {ELIMINATION_TIE_HINT}
+      </p>
+    )
+  }
+  const result = resultFor(sides, score)
+  const invalid = invalidScoreReason(rules, score)
+  return (
+    <>
+      <p role="status" className={cn('font-display text-2xl', toneText[result.tone])}>
+        {result.text}
+      </p>
+      {invalid ? <p className="text-sm text-loss">{invalid}</p> : null}
+    </>
   )
 }
 

@@ -1,9 +1,11 @@
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import { Context, Effect, Layer } from 'effect'
+import { bracketExits, eventBracket, placementStage, roundName } from '#/domain/bracket.ts'
+import { countsInRecord } from '#/domain/standings.ts'
 import type { ProfileInput } from '#/shared/schemas.ts'
 import { requireUser } from '../current-user.ts'
 import { Db } from '../db/client.ts'
-import { eventPlayers, events, matches, user, type MatchOutcome } from '../db/schema.ts'
+import { eventPlayers, events, matches, rounds, user, type EventRow, type MatchOutcome, type MatchRow } from '../db/schema.ts'
 import { InvalidState, NotFound } from '../errors.ts'
 import type { PlayerRef } from '../events/views.ts'
 
@@ -14,9 +16,12 @@ export interface MatchHistoryEntry {
   readonly eventId: string
   readonly eventName: string
   readonly playedAt: number
-  readonly roundNumber: number
+  /** "Round N", or the stage for an elimination round ("Semifinal"; "Round N" early in a bracket larger than 8). */
+  readonly roundLabel: string
   readonly opponent: PlayerRef | null
   readonly result: MatchResult
+  /** False for a bye in an elimination round: it shows as "Bye" but counts as nothing in the record. */
+  readonly inRecord: boolean
   readonly score: string
 }
 
@@ -27,6 +32,8 @@ export interface EventHistoryEntry {
   readonly startsAt: number
   readonly status: 'registration' | 'running' | 'finished'
   readonly finalRank: number | null
+  /** How far the player got in a finished event with a bracket ("Champion", "Semifinal"…); null otherwise. */
+  readonly stage: string | null
   readonly playerCount: number
   readonly wins: number
   readonly losses: number
@@ -66,6 +73,62 @@ export const resultFor = (
   return won ? 'win' : 'loss'
 }
 
+const roundLabel = (event: EventRow, roundNumber: number, elimination: boolean): string => {
+  const bracket = elimination ? eventBracket(event) : null
+  return bracket && roundNumber >= bracket.firstRound ? roundName(bracket, roundNumber) : `Round ${roundNumber}`
+}
+
+/** A confirmed match of the player's, with its event and whether it was an elimination round. */
+interface PlayedMatch {
+  readonly match: MatchRow
+  readonly event: EventRow
+  readonly elimination: boolean
+}
+
+const historyEntry = (
+  playerId: string,
+  { match, event, elimination }: PlayedMatch,
+  opponents: ReadonlyMap<string, PlayerRef>,
+): MatchHistoryEntry | null => {
+  const result = resultFor(playerId, match)
+  if (!result) return null
+  const asP1 = match.player1Id === playerId
+  const opponentId = asP1 ? match.player2Id : match.player1Id
+  return {
+    matchId: match.id,
+    eventId: match.eventId,
+    eventName: event.name,
+    playedAt: (match.confirmedAt ?? match.reportedAt ?? new Date(0)).getTime(),
+    roundLabel: roundLabel(event, match.roundNumber, elimination),
+    opponent: opponentId ? (opponents.get(opponentId) ?? null) : null,
+    result,
+    inRecord: countsInRecord({ bye: result === 'bye', elimination }),
+    score: asP1 ? `${match.player1Games}–${match.player2Games}` : `${match.player2Games}–${match.player1Games}`,
+  }
+}
+
+/** W-L-T under the record rule. */
+const recordOf = (history: ReadonlyArray<MatchHistoryEntry>) => {
+  const counted = history.filter((h) => h.inRecord)
+  const count = (result: MatchResult) => counted.filter((h) => h.result === result).length
+  return { wins: count('win') + count('bye'), losses: count('loss'), draws: count('draw') }
+}
+
+/** How far a player got in a finished event's bracket ("Champion", "Finalist", "Semifinal"…), or null. */
+const stageReached = (
+  playerId: string,
+  event: EventRow,
+  droppedAtRound: number | null,
+  played: ReadonlyArray<PlayedMatch>,
+): string | null => {
+  const bracket = eventBracket(event)
+  if (!bracket || event.status !== 'finished') return null
+  const bracketMatches = played.filter((p) => p.elimination && p.event.id === event.id).map((p) => p.match)
+  const dropped = new Set(droppedAtRound === null ? [] : [playerId])
+  const exits = bracketExits(bracket, bracketMatches, dropped)
+  return exits.has(playerId) ? placementStage(bracket, exits.get(playerId) ?? null) : null
+}
+
 const make = Effect.gen(function* () {
   const db = yield* Db
 
@@ -79,7 +142,7 @@ const make = Effect.gen(function* () {
       [
         db.query((d) =>
           d
-            .select({ event: events, finalRank: eventPlayers.finalRank })
+            .select({ event: events, finalRank: eventPlayers.finalRank, droppedAtRound: eventPlayers.droppedAtRound })
             .from(eventPlayers)
             .innerJoin(events, eq(events.id, eventPlayers.eventId))
             .where(eq(eventPlayers.userId, row.id))
@@ -87,16 +150,17 @@ const make = Effect.gen(function* () {
         ),
         db.query((d) =>
           d
-            .select({ match: matches, eventName: events.name })
+            .select({ match: matches, event: events, elimination: rounds.elimination })
             .from(matches)
             .innerJoin(events, eq(events.id, matches.eventId))
+            .innerJoin(rounds, and(eq(rounds.eventId, matches.eventId), eq(rounds.number, matches.roundNumber)))
             .where(
               and(
                 or(eq(matches.player1Id, row.id), eq(matches.player2Id, row.id)),
                 sql`${matches.confirmedAt} is not null`,
               ),
             )
-            .orderBy(desc(matches.confirmedAt)),
+            .orderBy(desc(matches.confirmedAt), desc(matches.roundNumber)),
         ),
         db.query((d) =>
           d
@@ -136,33 +200,9 @@ const make = Effect.gen(function* () {
             )).map((c) => [c.eventId, Number(c.count)]),
           )
 
-    const history: Array<MatchHistoryEntry> = []
-    const perEvent = new Map<string, { wins: number; losses: number; draws: number }>()
-    for (const { match, eventName } of matchRows) {
-      const result = resultFor(row.id, match)
-      if (!result) continue
-      const asP1 = match.player1Id === row.id
-      const opponentId = asP1 ? match.player2Id : match.player1Id
-      history.push({
-        matchId: match.id,
-        eventId: match.eventId,
-        eventName,
-        playedAt: (match.confirmedAt ?? match.reportedAt ?? new Date(0)).getTime(),
-        roundNumber: match.roundNumber,
-        opponent: opponentId ? (opponents.get(opponentId) ?? null) : null,
-        result,
-        score: asP1 ? `${match.player1Games}–${match.player2Games}` : `${match.player2Games}–${match.player1Games}`,
-      })
-      const tally = perEvent.get(match.eventId) ?? { wins: 0, losses: 0, draws: 0 }
-      if (result === 'win' || result === 'bye') tally.wins++
-      else if (result === 'loss') tally.losses++
-      else tally.draws++
-      perEvent.set(match.eventId, tally)
-    }
-
-    const wins = history.filter((h) => h.result === 'win' || h.result === 'bye').length
-    const losses = history.filter((h) => h.result === 'loss').length
-    const draws = history.filter((h) => h.result === 'draw').length
+    const history = matchRows.flatMap((played) => historyEntry(row.id, played, opponents) ?? [])
+    const record = recordOf(history)
+    const played = record.wins + record.losses + record.draws
     const ranks = entries.map((e) => e.finalRank).filter((r): r is number => r !== null)
 
     return {
@@ -178,21 +218,20 @@ const make = Effect.gen(function* () {
       stats: {
         eventsPlayed: entries.length,
         eventsHosted: Number(hosted[0]?.count ?? 0),
-        wins,
-        losses,
-        draws,
-        winRate: history.length === 0 ? 0 : wins / history.length,
+        ...record,
+        winRate: played === 0 ? 0 : record.wins / played,
         bestFinish: ranks.length === 0 ? null : Math.min(...ranks),
       },
-      events: entries.map(({ event, finalRank }) => ({
+      events: entries.map(({ event, finalRank, droppedAtRound }) => ({
         eventId: event.id,
         name: event.name,
         storeName: event.storeName,
         startsAt: event.startsAt.getTime(),
         status: event.status,
         finalRank,
+        stage: stageReached(row.id, event, droppedAtRound, matchRows),
         playerCount: counts.get(event.id) ?? 0,
-        ...(perEvent.get(event.id) ?? { wins: 0, losses: 0, draws: 0 }),
+        ...recordOf(history.filter((h) => h.eventId === event.id)),
       })),
       matches: history,
     } satisfies Profile

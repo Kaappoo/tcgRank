@@ -63,7 +63,7 @@ export function MatchHistory({ matches }: { matches: ReadonlyArray<MatchHistoryE
                   <Link to="/events/$eventId" params={{ eventId: m.eventId }} className="hover:text-paper">
                     {m.eventName}
                   </Link>{' '}
-                  · Round {m.roundNumber}
+                  · {m.roundLabel}
                 </p>
               </div>
               <span className="font-numerals text-2xl">{m.result === 'bye' ? '—' : m.score}</span>

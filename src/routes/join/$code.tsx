@@ -4,14 +4,16 @@ import { CalendarDays, Store, Users } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 import { DeckPicker, SKIP_DECK } from '#/components/decks/deck-picker.tsx'
+import { ClosedEntryNote } from '#/components/events/entry-panel.tsx'
 import { Page } from '#/components/layout/page.tsx'
 import { Badge } from '#/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#/components/ui/button.tsx'
 import { useEventActions } from '#/hooks/use-event-actions.ts'
 import { useHydrated } from '#/hooks/use-hydrated.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
-import { formatLabel, statusLabel } from '#/lib/format.ts'
+import { formatLabel, setupSummary, statusLabel } from '#/lib/format.ts'
 import { eventByCodeQuery, eventQuery, myDecksQuery } from '#/lib/queries.ts'
+import type { EventSummary } from '#/server/events/views.ts'
 
 export const Route = createFileRoute('/join/$code')({
   /** `deck`: a deck just created from this page, to preselect. */
@@ -35,13 +37,7 @@ export const Route = createFileRoute('/join/$code')({
 
 function ConfirmJoin() {
   const { code } = Route.useParams()
-  const navigate = useNavigate()
   const { data: event } = useSuspenseQuery(eventByCodeQuery(code.toUpperCase()))
-  const { data: decks } = useQuery(myDecksQuery)
-  const actions = useEventActions(event.id)
-  const { deck: createdDeck } = Route.useSearch()
-  const [choice, setChoice] = useState<string | null>(createdDeck ?? null)
-  const hydrated = useHydrated()
 
   return (
     <Page className="flex max-w-xl flex-col gap-8">
@@ -50,8 +46,9 @@ function ConfirmJoin() {
         <div className="relative flex flex-col gap-4 pr-[22%]">
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{formatLabel(event.format)}</Badge>
+            <Badge variant="outline">{setupSummary(event)}</Badge>
             <Badge variant={event.status === 'running' ? 'live' : 'muted'}>
-              {statusLabel(event.status, event.currentRound)}
+              {statusLabel(event)}
             </Badge>
           </div>
           <h1 className="font-display text-4xl">{event.name}</h1>
@@ -76,38 +73,59 @@ function ConfirmJoin() {
             See the results
           </Link>
         </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <DeckPicker
-            decks={decks}
-            eventFormat={event.format}
-            required={event.deckRequired}
-            value={choice}
-            onChange={setChoice}
-            joinCode={code.toUpperCase()}
-          />
-          <Button
-            size="xl"
-            disabled={!hydrated || actions.join.isPending || choice === null}
-            onClick={() =>
-              actions.join.mutate(choice === SKIP_DECK ? null : choice, {
-                onSuccess: () => navigate({ to: '/events/$eventId', params: { eventId: event.id } }),
-              })
-            }
-          >
-            {actions.join.isPending ? 'Joining…' : `Join ${event.name}`}
-          </Button>
-          <p className="text-center text-xs text-paper-dim">
-            {choice === null
-              ? event.deckRequired
-                ? 'Choose the deck you are registering to join.'
-                : 'Choose your deck, or skip it, to join.'
-              : event.status === 'running'
-              ? 'Rounds are already underway — you will be paired from the next round.'
-              : 'You can switch decks until the first round starts.'}
-          </p>
+      ) : event.entriesClosedReason ? (
+        <div className="flex flex-col gap-3">
+          <ClosedEntryNote reason={event.entriesClosedReason} />
+          <Link to="/events/$eventId" params={{ eventId: event.id }} className={buttonVariants({ size: 'lg' })}>
+            Follow the event
+          </Link>
         </div>
+      ) : (
+        <JoinWithDeck event={event} code={code.toUpperCase()} />
       )}
     </Page>
+  )
+}
+
+/** Picking the deck to register, then joining. */
+function JoinWithDeck({ event, code }: { event: EventSummary; code: string }) {
+  const navigate = useNavigate()
+  const { data: decks } = useQuery(myDecksQuery)
+  const actions = useEventActions(event.id)
+  const { deck: createdDeck } = Route.useSearch()
+  const [choice, setChoice] = useState<string | null>(createdDeck ?? null)
+  const hydrated = useHydrated()
+
+  return (
+    <div className="flex flex-col gap-4">
+      <DeckPicker
+        decks={decks}
+        eventFormat={event.format}
+        required={event.deckRequired}
+        value={choice}
+        onChange={setChoice}
+        joinCode={code}
+      />
+      <Button
+        size="xl"
+        disabled={!hydrated || actions.join.isPending || choice === null}
+        onClick={() =>
+          actions.join.mutate(choice === SKIP_DECK ? null : choice, {
+            onSuccess: () => navigate({ to: '/events/$eventId', params: { eventId: event.id } }),
+          })
+        }
+      >
+        {actions.join.isPending ? 'Joining…' : `Join ${event.name}`}
+      </Button>
+      <p className="text-center text-xs text-paper-dim">
+        {choice === null
+          ? event.deckRequired
+            ? 'Choose the deck you are registering to join.'
+            : 'Choose your deck, or skip it, to join.'
+          : event.status === 'running'
+            ? 'Rounds are already underway — you will be paired from the next round.'
+            : 'You can switch decks until the first round starts.'}
+      </p>
+    </div>
   )
 }

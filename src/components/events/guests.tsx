@@ -20,16 +20,20 @@ export function AddGuestForm({
   players,
   busy,
   onAdd,
+  closedReason = null,
 }: {
   players: ReadonlyArray<EntrantView>
   busy: boolean
   onAdd: (guest: GuestPick, done: () => void) => void
+  /** Why entries are closed: every control is disabled and the reason shown. */
+  closedReason?: string | null
 }) {
   const { data: guests = [] } = useQuery(myGuestsQuery)
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const active = new Set(players.filter((p) => p.droppedAtRound === null).map((p) => p.id))
   const returning = guests.filter((g) => !active.has(g.id))
+  const disabled = busy || closedReason !== null
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -40,13 +44,16 @@ export function AddGuestForm({
   }
 
   return (
-    <section aria-labelledby="add-guest" className="mb-5 flex flex-col gap-3 rounded-xl border border-line bg-surface p-4">
+    <section
+      aria-labelledby="add-guest"
+      className="mb-5 flex flex-col gap-3 rounded-xl border border-line bg-surface p-4"
+    >
       <div className="flex flex-col gap-1">
         <h3 id="add-guest" className="font-semibold">
           Add a player without an account
         </h3>
         <p className="text-sm text-paper-dim">
-          For players with no phone. You or their opponent report their results.
+          {closedReason ?? 'For players with no phone. You or their opponent report their results.'}
         </p>
       </div>
       <form onSubmit={submit} className="flex gap-2" noValidate>
@@ -57,8 +64,9 @@ export function AddGuestForm({
           onChange={(e) => setName(e.target.value)}
           aria-invalid={error ? true : undefined}
           autoComplete="off"
+          disabled={closedReason !== null}
         />
-        <SubmitButton disabled={busy}>
+        <SubmitButton disabled={disabled}>
           <UserPlus /> Add
         </SubmitButton>
       </form>
@@ -69,7 +77,12 @@ export function AddGuestForm({
           <ul className="flex flex-wrap gap-2">
             {returning.map((g) => (
               <li key={g.id}>
-                <Button variant="outline" size="sm" disabled={busy} onClick={() => onAdd({ guestId: g.id }, () => {})}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={disabled}
+                  onClick={() => onAdd({ guestId: g.id }, () => {})}
+                >
                   <UserPlus /> {g.name}
                 </Button>
               </li>
@@ -136,7 +149,9 @@ function ClaimLinkDialog({ name, url }: { name: string; url: string }) {
       >
         <div className="flex flex-col items-center gap-4">
           <QrCode value={url} label={`QR code to claim ${name}'s results`} className="size-48" />
-          <p className="w-full truncate rounded-md border border-line bg-ink/60 px-3 py-2 text-sm text-paper-dim">{url}</p>
+          <p className="w-full truncate rounded-md border border-line bg-ink/60 px-3 py-2 text-sm text-paper-dim">
+            {url}
+          </p>
           <Button variant="outline" className="w-full" onClick={copy}>
             {copied ? <Check /> : <Copy />} {copied ? 'Copied' : 'Copy link'}
           </Button>

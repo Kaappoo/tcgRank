@@ -14,6 +14,8 @@ const match: MatchView = {
   player2Games: 0,
   outcome: null,
   reportedById: null,
+  bracketSlot: null,
+  dropped: false,
   status: 'playing',
 }
 
@@ -136,5 +138,19 @@ describe('ReportResult', () => {
     )
     expect(screen.getByText('Tie 1–1')).toBeInTheDocument()
     expect(screen.getByText('Confirmed')).toBeInTheDocument()
+  })
+
+  it('refuses a level score in an elimination round and says how a timed-out match is decided', async () => {
+    const onReport = vi.fn()
+    render(<ReportResult match={match} viewerId="ash" bestOf={3} elimination onReport={onReport} onConfirm={vi.fn()} />)
+    expect(screen.getByRole('status')).toHaveTextContent(/Elimination matches can’t tie/)
+    expect(screen.getByRole('button', { name: 'Send result' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Add a game: My games' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add a game: Their games' }))
+    expect(screen.getByRole('status')).toHaveTextContent(/at 1–1, play a tiebreaker game/)
+    expect(screen.getByRole('button', { name: 'Send result' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Add a game: My games' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Send result' }))
+    expect(onReport).toHaveBeenCalledWith({ player1Games: 1, player2Games: 2 })
   })
 })

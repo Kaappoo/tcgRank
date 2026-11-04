@@ -29,6 +29,8 @@ const demoMatch: MatchView = {
   player2Games: 0,
   outcome: null,
   reportedById: null,
+  bracketSlot: null,
+  dropped: false,
   status: 'playing',
 }
 const demoRecords = new Map([

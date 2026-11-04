@@ -36,7 +36,9 @@ export const eventByCodeQuery = (code: string) =>
   queryOptions({
     queryKey: ['event-code', code],
     queryFn: () => getEventByCode({ data: { code } }),
-    staleTime: 30_000,
+    staleTime: 15_000,
+    // The join screen shows the event setup, which the host can still change during registration.
+    refetchInterval: (query) => (query.state.data?.status === 'registration' ? 20_000 : false),
   })
 
 /** The signed-in host's guest list (players added without an account). */

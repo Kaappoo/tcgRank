@@ -6,16 +6,53 @@ import { pairRound, pairWithoutRematches, previousPairings, recommendedRounds } 
 const players = (n: number) => Array.from({ length: n }, (_, i) => `p${i + 1}`)
 
 describe('recommendedRounds', () => {
+  // Below 4 players: 1 round for 2, 3 for 3, under either table.
+  // Without a cut, the League Challenge table (row boundaries on both sides).
   it.each([
     [2, 1],
+    [3, 3],
     [4, 3],
     [8, 3],
     [9, 4],
-    [16, 5],
+    [16, 4],
+    [17, 5],
     [32, 5],
     [33, 6],
-  ])('%i players → %i rounds', (count, rounds) => {
-    expect(recommendedRounds(count)).toBe(rounds)
+    [64, 6],
+    [65, 7],
+    [128, 7],
+    [129, 8],
+    [256, 8],
+    [257, 9],
+    [512, 9],
+    [513, 10],
+    [2000, 10],
+  ])('League Challenge: %i players → %i rounds', (count, rounds) => {
+    expect(recommendedRounds(count, { topCut: false })).toBe(rounds)
+  })
+
+  // With a cut, the League Cup table.
+  it.each([
+    [2, 1],
+    [3, 3],
+    [4, 3],
+    [8, 3],
+    [9, 4],
+    [12, 4],
+    [13, 5],
+    [32, 5],
+    [33, 6],
+    [64, 6],
+    [65, 7],
+    [128, 7],
+    [129, 8],
+    [226, 8],
+    [227, 9],
+    [409, 9],
+    [410, 10],
+    [2000, 10],
+  ])('League Cup: %i players → %i rounds', (count, rounds) => {
+    expect(recommendedRounds(count, { topCut: true })).toBe(rounds)
   })
 })
 
