@@ -72,6 +72,8 @@ const program = Effect.gen(function* () {
         startsAt: new Date(),
         deckRequired: false,
         bestOf: DEFAULT_BEST_OF,
+        pairingSystem: 'swiss',
+        topCut: false,
       }),
     )
     for (const p of players) yield* as(p, events.join(id))

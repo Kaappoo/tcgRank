@@ -37,6 +37,8 @@ describe('ProfilesService', () => {
           startsAt: new Date(),
           deckRequired: false,
           bestOf: DEFAULT_BEST_OF,
+          pairingSystem: 'swiss',
+          topCut: false,
         })
         .pipe(asUser(host))
       yield* events.join(id).pipe(asUser(ash))

@@ -11,8 +11,10 @@ import {
   joinEventInput,
   listEventsInput,
   matchIdInput,
+  pairingSystemInput,
   removeGuestInput,
   reportResultInput,
+  topCutInput,
 } from '#/shared/schemas.ts'
 import { runServerEffect } from '../effect/run.ts'
 import { EventsService } from '../events/service.ts'
@@ -46,6 +48,16 @@ export const setDeckRequired = createServerFn({ method: 'POST' })
 export const setBestOf = createServerFn({ method: 'POST' })
   .validator(bestOfInput)
   .handler(({ data }) => runServerEffect(EventsService.use((s) => s.setBestOf(data.eventId, data.bestOf))))
+
+export const setPairingSystem = createServerFn({ method: 'POST' })
+  .validator(pairingSystemInput)
+  .handler(({ data }) =>
+    runServerEffect(EventsService.use((s) => s.setPairingSystem(data.eventId, data.pairingSystem))),
+  )
+
+export const setTopCut = createServerFn({ method: 'POST' })
+  .validator(topCutInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.setTopCut(data.eventId, data.topCut))))
 
 export const leaveEvent = createServerFn({ method: 'POST' })
   .validator(eventIdInput)

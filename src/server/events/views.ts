@@ -1,4 +1,5 @@
 import type { BestOf } from '#/domain/best-of.ts'
+import type { PairingSystem } from '#/domain/event-setup.ts'
 import type { Standing } from '#/domain/standings.ts'
 import type { EventFormat, EventStatus, MatchOutcome } from '../db/schema.ts'
 
@@ -67,6 +68,9 @@ export interface EventSummary {
   readonly plannedRounds: number
   readonly deckRequired: boolean
   readonly bestOf: BestOf
+  readonly pairingSystem: PairingSystem
+  /** A Swiss event that cuts to a bracket after its Swiss rounds. Always false outside Swiss. */
+  readonly topCut: boolean
   readonly playerCount: number
   readonly host: PlayerRef
 }

@@ -20,6 +20,8 @@ const newEvent: CreateEventInput = {
   startsAt: new Date('2026-10-06T19:00:00Z'),
   deckRequired: false,
   bestOf: DEFAULT_BEST_OF,
+  pairingSystem: 'swiss',
+  topCut: false,
 }
 
 /** Creates a host plus `n` joined players. */
@@ -631,6 +633,157 @@ describe('Best of', () => {
         expect(reported).toMatchObject({ status: 'reported', outcome: 'p1', player1Games: 1, player2Games: 0 })
         const confirmed = yield* events.reportResult(match.id, 1, 0).pipe(asUser(p2))
         expect(confirmed.status).toBe('confirmed')
+      }),
+    ),
+  )
+})
+
+describe('Event setup', () => {
+  const hostEvent = Effect.fn('hostEvent')(function* (input: CreateEventInput, playerCount = 2) {
+    const events = yield* EventsService
+    const host = yield* insertUser('Professor Oak')
+    const { id: eventId } = yield* events.create(input).pipe(asUser(host))
+    const players = []
+    for (let i = 0; i < playerCount; i++) {
+      const p = yield* insertUser(`Trainer ${i + 1}`)
+      yield* events.join(eventId).pipe(asUser(p))
+      players.push(p)
+    }
+    return { events, host, eventId, players }
+  })
+
+  it.effect('is Swiss without a top cut unless the host picks otherwise', () =>
+    run(
+      Effect.gen(function* () {
+        const input = createEventInput.parse({ ...newEvent, pairingSystem: undefined, topCut: undefined })
+        const { events, eventId, players } = yield* hostEvent(input)
+        expect((yield* events.detail(eventId)).event).toMatchObject({ pairingSystem: 'swiss', topCut: false })
+        const mine = yield* events.list({ scope: 'mine' }).pipe(asUser(players[0]!))
+        expect(mine.find((e) => e.id === eventId)).toMatchObject({ pairingSystem: 'swiss', topCut: false })
+      }),
+    ),
+  )
+
+  it.effect('creates a Swiss event with a top cut, and round robin and single-elimination events', () =>
+    run(
+      Effect.gen(function* () {
+        const cup = yield* hostEvent({ ...newEvent, topCut: true })
+        expect((yield* cup.events.detail(cup.eventId)).event).toMatchObject({ pairingSystem: 'swiss', topCut: true })
+        for (const pairingSystem of ['round_robin', 'single_elimination'] as const) {
+          const { events, eventId } = yield* hostEvent({ ...newEvent, pairingSystem })
+          expect((yield* events.detail(eventId)).event).toMatchObject({ pairingSystem, topCut: false })
+        }
+      }),
+    ),
+  )
+
+  it.effect('accepts a top cut only for Swiss', () =>
+    run(
+      Effect.gen(function* () {
+        const parsed = createEventInput.safeParse({ ...newEvent, pairingSystem: 'round_robin', topCut: true })
+        expect(parsed.success).toBe(false)
+        const events = yield* EventsService
+        const host = yield* insertUser('Professor Oak')
+        const refused = yield* Effect.flip(
+          events.create({ ...newEvent, pairingSystem: 'single_elimination', topCut: true }).pipe(asUser(host)),
+        )
+        expect(refused).toMatchObject({ _tag: 'InvalidState', reason: 'Only Swiss events can have a top cut' })
+      }),
+    ),
+  )
+
+  it.effect('only the host changes the pairing system and the top cut', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* hostEvent(newEvent)
+        const notHost = asUser(players[0]!)
+        expect((yield* Effect.flip(events.setPairingSystem(eventId, 'round_robin').pipe(notHost)))._tag).toBe(
+          'Forbidden',
+        )
+        expect((yield* Effect.flip(events.setTopCut(eventId, true).pipe(notHost)))._tag).toBe('Forbidden')
+        yield* events.setTopCut(eventId, true).pipe(asUser(host))
+        expect((yield* events.detail(eventId)).event).toMatchObject({ pairingSystem: 'swiss', topCut: true })
+        yield* events.setPairingSystem(eventId, 'single_elimination').pipe(asUser(host))
+        expect((yield* events.detail(eventId)).event.pairingSystem).toBe('single_elimination')
+      }),
+    ),
+  )
+
+  it.effect('leaving Swiss turns the top cut off and drops a hand-set round count', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* hostEvent({ ...newEvent, topCut: true, plannedRounds: 4 })
+        yield* events.setPairingSystem(eventId, 'round_robin').pipe(asUser(host))
+        expect((yield* events.detail(eventId)).event).toMatchObject({
+          pairingSystem: 'round_robin',
+          topCut: false,
+          plannedRounds: 0,
+        })
+        const refused = yield* Effect.flip(events.setTopCut(eventId, true).pipe(asUser(host)))
+        expect(refused).toMatchObject({ _tag: 'InvalidState', reason: 'Only Swiss events can have a top cut' })
+        yield* events.setPairingSystem(eventId, 'swiss').pipe(asUser(host))
+        expect((yield* events.detail(eventId)).event).toMatchObject({ pairingSystem: 'swiss', topCut: false })
+      }),
+    ),
+  )
+
+  it.effect('the pairing system and the top cut are fixed once round 1 is paired', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* hostEvent(newEvent)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const system = yield* Effect.flip(events.setPairingSystem(eventId, 'round_robin').pipe(asUser(host)))
+        expect(system).toMatchObject({
+          _tag: 'InvalidState',
+          reason: 'The pairing system is fixed once round 1 is paired',
+        })
+        const cut = yield* Effect.flip(events.setTopCut(eventId, true).pipe(asUser(host)))
+        expect(cut).toMatchObject({ _tag: 'InvalidState', reason: 'The top cut is fixed once round 1 is paired' })
+        expect((yield* events.detail(eventId)).event).toMatchObject({ pairingSystem: 'swiss', topCut: false })
+      }),
+    ),
+  )
+
+  it.effect.each([
+    [false, 4],
+    [true, 5],
+  ] as const)('a Swiss event of 13 players with top cut %s plays %i rounds', ([topCut, rounds]) =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* hostEvent({ ...newEvent, topCut }, 13)
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        expect((yield* events.detail(eventId)).event.plannedRounds).toBe(rounds)
+      }),
+    ),
+  )
+
+  it.effect.each(['round_robin', 'single_elimination'] as const)(
+    'pairing a %s event is refused until that system is available',
+    (pairingSystem) =>
+      run(
+        Effect.gen(function* () {
+          const { events, host, eventId } = yield* hostEvent({ ...newEvent, pairingSystem })
+          const refused = yield* Effect.flip(events.startNextRound(eventId).pipe(asUser(host)))
+          expect(refused._tag).toBe('InvalidState')
+          expect((yield* events.detail(eventId)).event.status).toBe('registration')
+        }),
+      ),
+  )
+
+  it.effect('an event stored before pairing systems existed reads as Swiss without a cut', () =>
+    run(
+      Effect.gen(function* () {
+        const db = yield* Db
+        const events = yield* EventsService
+        const host = yield* insertUser('Professor Oak')
+        const eventId = newId()
+        yield* db.query((d) =>
+          d.run(
+            sql`insert into events (id, host_id, name, store_name, join_code, starts_at)
+                values (${eventId}, ${host.id}, 'Old League', 'Pallet Town Games', 'OLD124', 0)`,
+          ),
+        )
+        expect((yield* events.detail(eventId)).event).toMatchObject({ pairingSystem: 'swiss', topCut: false })
       }),
     ),
   )

@@ -2,10 +2,12 @@ import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm'
 import { Clock, Context, Effect, Layer } from 'effect'
 import { invalidScoreReason, matchOutcome, scoreRules, type BestOf } from '#/domain/best-of.ts'
 import { newId, newJoinCode, normalizeJoinCode } from '#/domain/ids.ts'
+import { mainPhaseRounds, type PairingSystem } from '#/domain/event-setup.ts'
 import { deckIneligibility } from '#/domain/registration.ts'
 import { adjustClock, pauseClock, resumeClock, startClock } from '#/domain/match-clock.ts'
 import { computeStandings } from '#/domain/standings.ts'
-import { pairRound, recommendedRounds } from '#/domain/swiss.ts'
+import { pairRound } from '#/domain/swiss.ts'
+import { pairingSystemLabel } from '#/lib/format.ts'
 import type { CreateEventInput } from '#/shared/schemas.ts'
 import { optionalUser, requireUser } from '../current-user.ts'
 import { Db } from '../db/client.ts'
@@ -31,6 +33,8 @@ import {
   type PlayerRef,
   type StandingView,
 } from './views.ts'
+
+const TOP_CUT_SWISS_ONLY = 'Only Swiss events can have a top cut'
 
 const playerRefColumns = {
   id: user.id,
@@ -110,6 +114,8 @@ const make = Effect.gen(function* () {
       plannedRounds: r.plannedRounds,
       deckRequired: r.deckRequired,
       bestOf: r.bestOf,
+      pairingSystem: r.pairingSystem,
+      topCut: r.topCut,
       playerCount: countByEvent.get(r.id) ?? 0,
       host: hosts.get(r.hostId) ?? unknownPlayer(r.hostId),
     }))
@@ -249,6 +255,7 @@ const make = Effect.gen(function* () {
 
   const create = Effect.fn('EventsService.create')(function* (input: CreateEventInput) {
     const me = yield* requireUser
+    if (input.topCut && input.pairingSystem !== 'swiss') return yield* new InvalidState({ reason: TOP_CUT_SWISS_ONLY })
     const id = newId()
     const joinCode = newJoinCode()
     yield* db.query((d) =>
@@ -259,11 +266,14 @@ const make = Effect.gen(function* () {
         storeName: input.storeName,
         description: input.description || null,
         format: input.format,
-        plannedRounds: input.plannedRounds,
+        // Only Swiss takes a round count from the host; the other systems fix theirs at round 1.
+        plannedRounds: input.pairingSystem === 'swiss' ? input.plannedRounds : 0,
         roundMinutes: input.roundMinutes,
         startsAt: input.startsAt,
         deckRequired: input.deckRequired,
         bestOf: input.bestOf,
+        pairingSystem: input.pairingSystem,
+        topCut: input.topCut,
         joinCode,
       }),
     )
@@ -338,6 +348,37 @@ const make = Effect.gen(function* () {
       return yield* new InvalidState({ reason: 'Best of can only change before round 1' })
     }
     yield* db.query((d) => d.update(events).set({ bestOf }).where(eq(events.id, eventId)))
+  })
+
+  /**
+   * Host-only: how rounds are built. Fixed once round 1 is paired. Leaving Swiss turns the top cut off and drops a
+   * hand-set round count, which only Swiss takes.
+   */
+  const setPairingSystem = Effect.fn('EventsService.setPairingSystem')(function* (
+    eventId: string,
+    pairingSystem: PairingSystem,
+  ) {
+    const event = yield* loadHostedEvent(eventId)
+    if (event.status !== 'registration') {
+      return yield* new InvalidState({ reason: 'The pairing system is fixed once round 1 is paired' })
+    }
+    const leavingSwiss = pairingSystem !== 'swiss'
+    yield* db.query((d) =>
+      d
+        .update(events)
+        .set({ pairingSystem, ...(leavingSwiss ? { topCut: false, plannedRounds: 0 } : {}) })
+        .where(eq(events.id, eventId)),
+    )
+  })
+
+  /** Host-only: whether a Swiss event cuts to a bracket after its Swiss rounds. Fixed once round 1 is paired. */
+  const setTopCut = Effect.fn('EventsService.setTopCut')(function* (eventId: string, topCut: boolean) {
+    const event = yield* loadHostedEvent(eventId)
+    if (event.status !== 'registration') {
+      return yield* new InvalidState({ reason: 'The top cut is fixed once round 1 is paired' })
+    }
+    if (topCut && event.pairingSystem !== 'swiss') return yield* new InvalidState({ reason: TOP_CUT_SWISS_ONLY })
+    yield* db.query((d) => d.update(events).set({ topCut }).where(eq(events.id, eventId)))
   })
 
   /* ------------------------------ guests ----------------------------- */
@@ -559,7 +600,12 @@ const make = Effect.gen(function* () {
     const active = entries.filter((e) => e.droppedAtRound === null).map((e) => e.userId)
     if (active.length < 2) return yield* new InvalidState({ reason: 'You need at least two players to pair a round' })
 
-    const plannedRounds = event.plannedRounds > 0 ? event.plannedRounds : recommendedRounds(entries.length)
+    if (event.pairingSystem !== 'swiss') {
+      return yield* new InvalidState({
+        reason: `${pairingSystemLabel(event.pairingSystem)} pairing isn't available yet`,
+      })
+    }
+    const plannedRounds = mainPhaseRounds({ ...event, playerCount: entries.length })
     const roundNumber = event.currentRound + 1
     if (event.currentRound >= plannedRounds) {
       return yield* new InvalidState({ reason: `All ${plannedRounds} Swiss rounds have been played` })
@@ -770,6 +816,8 @@ const make = Effect.gen(function* () {
     claimGuest,
     setDeckRequired,
     setBestOf,
+    setPairingSystem,
+    setTopCut,
     leave,
     startNextRound,
     finishEvent,
