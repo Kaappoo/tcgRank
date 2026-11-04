@@ -1,9 +1,10 @@
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import { Context, Effect, Layer } from 'effect'
+import { eventBracket, roundName } from '#/domain/bracket.ts'
 import type { ProfileInput } from '#/shared/schemas.ts'
 import { requireUser } from '../current-user.ts'
 import { Db } from '../db/client.ts'
-import { eventPlayers, events, matches, rounds, user, type MatchOutcome } from '../db/schema.ts'
+import { eventPlayers, events, matches, rounds, user, type EventRow, type MatchOutcome } from '../db/schema.ts'
 import { InvalidState, NotFound } from '../errors.ts'
 import type { PlayerRef } from '../events/views.ts'
 
@@ -14,7 +15,8 @@ export interface MatchHistoryEntry {
   readonly eventId: string
   readonly eventName: string
   readonly playedAt: number
-  readonly roundNumber: number
+  /** "Round N", or the stage for an elimination round ("Semifinal"; "Round N" early in a bracket larger than 8). */
+  readonly roundLabel: string
   readonly opponent: PlayerRef | null
   readonly result: MatchResult
   /** False for a bye in an elimination round: it shows as "Bye" but counts as nothing in the record. */
@@ -74,6 +76,11 @@ export const resultFor = (
  */
 const countsInRecord = (result: MatchResult, elimination: boolean): boolean => !(result === 'bye' && elimination)
 
+const roundLabel = (event: EventRow, roundNumber: number, elimination: boolean): string => {
+  const bracket = elimination ? eventBracket(event) : null
+  return bracket && roundNumber >= bracket.firstRound ? roundName(bracket, roundNumber) : `Round ${roundNumber}`
+}
+
 const make = Effect.gen(function* () {
   const db = yield* Db
 
@@ -95,7 +102,7 @@ const make = Effect.gen(function* () {
         ),
         db.query((d) =>
           d
-            .select({ match: matches, eventName: events.name, elimination: rounds.elimination })
+            .select({ match: matches, event: events, elimination: rounds.elimination })
             .from(matches)
             .innerJoin(events, eq(events.id, matches.eventId))
             .innerJoin(rounds, and(eq(rounds.eventId, matches.eventId), eq(rounds.number, matches.roundNumber)))
@@ -147,7 +154,7 @@ const make = Effect.gen(function* () {
 
     const history: Array<MatchHistoryEntry> = []
     const perEvent = new Map<string, { wins: number; losses: number; draws: number }>()
-    for (const { match, eventName, elimination } of matchRows) {
+    for (const { match, event, elimination } of matchRows) {
       const result = resultFor(row.id, match)
       if (!result) continue
       const inRecord = countsInRecord(result, elimination)
@@ -156,9 +163,9 @@ const make = Effect.gen(function* () {
       history.push({
         matchId: match.id,
         eventId: match.eventId,
-        eventName,
+        eventName: event.name,
         playedAt: (match.confirmedAt ?? match.reportedAt ?? new Date(0)).getTime(),
-        roundNumber: match.roundNumber,
+        roundLabel: roundLabel(event, match.roundNumber, elimination),
         opponent: opponentId ? (opponents.get(opponentId) ?? null) : null,
         result,
         inRecord,

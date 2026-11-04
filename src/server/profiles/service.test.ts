@@ -117,6 +117,7 @@ describe('ProfilesService', () => {
 
       const profile = yield* profiles.byUsername(seedOne.username!)
       expect(profile.matches.map((m) => m.result)).toEqual(['loss', 'bye'])
+      expect(profile.matches.map((m) => m.roundLabel)).toEqual(['Final', 'Semifinal'])
       expect(profile.stats).toMatchObject({ wins: 0, losses: 1, draws: 0, winRate: 0 })
       expect(profile.events[0]).toMatchObject({ wins: 0, losses: 1, draws: 0 })
     }).pipe(Effect.provide(TestLayer)),
@@ -130,6 +131,7 @@ describe('ProfilesService', () => {
 
       const profile = yield* profiles.byUsername(byPlayer(bye.player1.id).username!)
       expect(profile.matches.map((m) => m.result)).toEqual(['bye'])
+      expect(profile.matches.map((m) => m.roundLabel)).toEqual(['Round 1'])
       expect(profile.stats).toMatchObject({ wins: 1, losses: 0, winRate: 1 })
       expect(profile.events[0]).toMatchObject({ wins: 1 })
     }).pipe(Effect.provide(TestLayer)),
