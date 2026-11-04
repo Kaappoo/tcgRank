@@ -70,6 +70,15 @@ const winPercentage = (t: Pick<Tally, 'wins' | 'losses' | 'draws'>): number => {
 const average = (values: ReadonlyArray<number>): number =>
   values.length === 0 ? 0 : values.reduce((sum, v) => sum + v, 0) / values.length
 
+const countGames = (p1: Tally, p2: Tally, m: MatchRecord) => {
+  const games1 = m.player1Games ?? 0
+  const games2 = m.player2Games ?? 0
+  p1.gamesWon += games1
+  p2.gamesWon += games2
+  p1.gamesPlayed += games1 + games2
+  p2.gamesPlayed += games1 + games2
+}
+
 /** Tallies every reported match. Unreported matches are ignored. */
 const tallyResults = (playerIds: ReadonlyArray<string>, matches: ReadonlyArray<MatchRecord>): Map<string, Tally> => {
   const tallies = new Map<string, Tally>(playerIds.map((id) => [id, emptyTally()]))
@@ -92,12 +101,7 @@ const tallyResults = (playerIds: ReadonlyArray<string>, matches: ReadonlyArray<M
     const p2 = get(m.player2Id)
     p1.opponents.push(m.player2Id)
     p2.opponents.push(m.player1Id)
-    const games1 = m.player1Games ?? 0
-    const games2 = m.player2Games ?? 0
-    p1.gamesWon += games1
-    p2.gamesWon += games2
-    p1.gamesPlayed += games1 + games2
-    p2.gamesPlayed += games1 + games2
+    countGames(p1, p2, m)
     switch (m.outcome) {
       case 'p1':
         p1.wins += 1
@@ -141,27 +145,24 @@ const headToHeadWinner = (a: string, b: string, matches: ReadonlyArray<MatchReco
   return null
 }
 
-/** Sorted round-robin rows, with head-to-head settling each tie between exactly two players. */
-const orderRoundRobin = (rows: ReadonlyArray<Row>, matches: ReadonlyArray<MatchRecord>): Array<Row> => {
-  const sorted = [...rows].sort(compareRoundRobin)
-  const ordered: Array<Row> = []
-  for (let i = 0; i < sorted.length;) {
-    let end = i
-    while (end < sorted.length && sorted[end]!.points === sorted[i]!.points) end++
-    const tied = sorted.slice(i, end)
-    const [first, second] = tied
-    const winner =
-      tied.length === 2 && first && second ? headToHeadWinner(first.playerId, second.playerId, matches) : null
-    if (winner && first && second) {
-      const [top, bottom] = winner === first.playerId ? [first, second] : [second, first]
-      ordered.push({ ...top, headToHead: true }, bottom)
-    } else {
-      ordered.push(...tied)
-    }
-    i = end
-  }
-  return ordered
+/** Rows already sorted by points, grouped into runs on the same points. */
+const groupByPoints = (sorted: ReadonlyArray<Row>): Array<Array<Row>> => {
+  const groups = new Map<number, Array<Row>>()
+  for (const row of sorted) groups.set(row.points, [...(groups.get(row.points) ?? []), row])
+  return [...groups.values()]
 }
+
+/** Head-to-head only settles a tie between exactly two players, and only when their match had a winner. */
+const settleHeadToHead = (tied: Array<Row>, matches: ReadonlyArray<MatchRecord>): Array<Row> => {
+  const [first, second] = tied
+  if (tied.length !== 2 || !first || !second) return tied
+  const winner = headToHeadWinner(first.playerId, second.playerId, matches)
+  if (winner === null) return tied
+  return winner === first.playerId ? [{ ...first, headToHead: true }, second] : [{ ...second, headToHead: true }, first]
+}
+
+const orderRoundRobin = (rows: ReadonlyArray<Row>, matches: ReadonlyArray<MatchRecord>): Array<Row> =>
+  groupByPoints([...rows].sort(compareRoundRobin)).flatMap((tied) => settleHeadToHead(tied, matches))
 
 export const computeStandings = (
   playerIds: ReadonlyArray<string>,
