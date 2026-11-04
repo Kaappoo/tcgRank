@@ -7,7 +7,7 @@ import { Button } from '#/components/ui/button.tsx'
 import { Field, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import type { BestOf } from '#/domain/best-of.ts'
-import { eventBracket, finalRound, roundTitle, stageName } from '#/domain/bracket.ts'
+import { eventBracket, finalRound, roundTitle, stageName, type Bracket } from '#/domain/bracket.ts'
 import {
   allowedCutSizes,
   defaultCutSize,
@@ -57,7 +57,9 @@ export function HostDesk({
   const roundMatches = matches.filter((m) => m.roundNumber === event.currentRound)
   const confirmed = roundMatches.filter((m) => m.status === 'confirmed').length
   const activePlayers = players.filter((p) => p.droppedAtRound === null).length
-  const withoutDeck = event.deckRequired ? players.filter((p) => p.droppedAtRound === null && !p.isGuest && !p.deckId).length : 0
+  const withoutDeck = event.deckRequired
+    ? players.filter((p) => p.droppedAtRound === null && !p.isGuest && !p.deckId).length
+    : 0
   const plannedRounds = mainPhaseRounds({ ...event, playerCount: players.length })
   const roundComplete = roundMatches.length > 0 && confirmed === roundMatches.length
   const bracket = eventBracket({ ...event, plannedRounds })
@@ -66,7 +68,6 @@ export function HostDesk({
   // After the last Swiss round of an event with a top cut, the next step is the cut.
   const cutDue = event.topCut && topCut === null && lastRound && event.currentRound > 0
   const stageOf = (roundNumber: number) => (bracket ? stageName(bracket, roundNumber) : null)
-  const currentStage = stageOf(event.currentRound)
   // A half-played bracket has no champion, so it can't be published early.
   const bracketStarted = rounds.some((r) => r.elimination)
 
@@ -115,7 +116,9 @@ export function HostDesk({
             <p className="text-sm text-paper-dim">
               {setupLine(event, players.length)}. Pair round 1 once everyone has scanned in.
               {event.pairingSystem === 'round_robin' ? ' Pairing round 1 draws the schedule and closes entries.' : ''}
-              {event.pairingSystem === 'single_elimination' ? ' Pairing round 1 draws the seeds and closes entries.' : ''}
+              {event.pairingSystem === 'single_elimination'
+                ? ' Pairing round 1 draws the seeds and closes entries.'
+                : ''}
             </p>
             {event.pairingSystem === 'round_robin' && players.length > LONG_ROUND_ROBIN ? (
               <p className="text-sm text-loss">
@@ -139,11 +142,7 @@ export function HostDesk({
         {event.currentRound > 0 ? (
           <div className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between text-sm">
-              <span className="font-semibold">
-                {topCut && event.currentRound >= topCut.firstRound
-                  ? roundTitle(topCut, event.currentRound)
-                  : `${currentStage ? `${currentStage} · ` : ''}Round ${event.currentRound} of ${plannedRounds}${event.topCut ? ' · then top cut' : ''}`}
-              </span>
+              <span className="font-semibold">{roundLine(event, plannedRounds, bracket)}</span>
               <span className="tabular text-paper-dim">
                 {confirmed}/{roundMatches.length} results in
               </span>
@@ -186,7 +185,9 @@ export function HostDesk({
             onClick={onStartRound}
           >
             <Shuffle />{' '}
-            {event.currentRound === 0 ? 'Pair round 1' : pairRoundLabel(event.currentRound + 1, stageOf(event.currentRound + 1))}
+            {event.currentRound === 0
+              ? 'Pair round 1'
+              : pairRoundLabel(event.currentRound + 1, stageOf(event.currentRound + 1))}
           </Button>
         )}
         {!lastRound && (event.currentRound === 0 || roundComplete) ? <MissingDecks count={withoutDeck} /> : null}
@@ -201,6 +202,23 @@ export function HostDesk({
       </div>
     </section>
   )
+}
+
+/**
+ * The desk's round line: "Round 3 of 5 · then top cut" in the Swiss rounds of an event with a cut, "Top 8 ·
+ * Quarterfinal" then the stage in its top cut, "Quarterfinal · Round 2 of 3" in a single-elimination bracket.
+ */
+const roundLine = (
+  event: Pick<EventDetail['event'], 'currentRound' | 'topCut'>,
+  plannedRounds: number,
+  bracket: Bracket | null,
+): string => {
+  if (bracket?.topCutSize !== undefined && event.currentRound >= bracket.firstRound) {
+    return roundTitle(bracket, event.currentRound)
+  }
+  const stage = bracket ? stageName(bracket, event.currentRound) : null
+  const line = `${stage ? `${stage} · ` : ''}Round ${event.currentRound} of ${plannedRounds}`
+  return event.topCut ? `${line} · then top cut` : line
 }
 
 /**
@@ -227,50 +245,29 @@ function CutStep({
 }) {
   const suggested = defaultCutSize(attendance)
   const allowed = allowedCutSizes(activePlayers)
-  const [cutting, setCutting] = useState(suggested !== null)
-  const [size, setSize] = useState<TopCutSize | null>(
-    () => allowed.filter((n) => n <= (suggested ?? 4)).at(-1) ?? null,
-  )
-  const [minutes, setMinutes] = useState(roundMinutes)
-  const validMinutes = Number.isInteger(minutes) && minutes >= 10 && minutes <= 120
+  // Only the host's own choices are state; until they choose, the defaults follow the event.
+  const [cutAnyway, setCutAnyway] = useState(false)
+  const [chosenSize, setSize] = useState<TopCutSize | null>(null)
+  const [chosenMinutes, setMinutes] = useState<number | null>(null)
+  const size = chosenSize ?? fittingCutSize(allowed, suggested ?? 4)
+  const minutes = chosenMinutes ?? roundMinutes
 
-  if (!cutting || size === null) {
+  if (size === null || (suggested === null && !cutAnyway)) {
     return (
-      <div className="flex flex-col gap-2">
-        <Button size="lg" disabled={!ready} onClick={onFinish}>
-          <Flag /> Finish & publish standings
-        </Button>
-        {suggested === null ? (
-          <p className="text-xs text-paper-dim">Fewer than 9 players: League Cups only cut from 9.</p>
-        ) : null}
-        {size !== null ? (
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setCutting(true)}>
-            Cut anyway
-          </Button>
-        ) : null}
-      </div>
+      <FinishWithoutCut
+        ready={ready}
+        busy={busy}
+        smallField={suggested === null}
+        canCut={size !== null}
+        onFinish={onFinish}
+        onCutAnyway={() => setCutAnyway(true)}
+      />
     )
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <fieldset className="flex flex-col gap-2" disabled={busy}>
-        <legend className="mb-2 text-sm font-semibold">Top cut</legend>
-        <div className="flex flex-wrap gap-2">
-          {TOP_CUT_SIZES.map((n) => (
-            <button
-              key={n}
-              type="button"
-              aria-pressed={size === n}
-              disabled={!allowed.includes(n)}
-              onClick={() => setSize(n)}
-              className="h-11 cursor-pointer rounded-lg border border-line-strong px-4 text-sm font-semibold transition-colors hover:border-paper-dim disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:border-orange aria-pressed:bg-orange aria-pressed:text-on-orange"
-            >
-              Top <span className="tabular">{n}</span>
-            </button>
-          ))}
-        </div>
-      </fieldset>
+      <CutSizeField size={size} allowed={allowed} disabled={busy} onChange={setSize} />
       <Field>
         <FieldLabel>Top cut round timer (minutes)</FieldLabel>
         <Input
@@ -284,13 +281,87 @@ function CutStep({
         />
       </Field>
       <p className="text-xs text-paper-dim">Cutting seeds the top players by Swiss rank and closes entries.</p>
-      <Button size="lg" disabled={!ready || !validMinutes} onClick={() => onCut({ size, roundMinutes: minutes })}>
+      <Button
+        size="lg"
+        disabled={!ready || !validRoundMinutes(minutes)}
+        onClick={() => onCut({ size, roundMinutes: minutes })}
+      >
         <Scissors /> Cut to top {size}
       </Button>
       <Button variant="ghost" size="sm" disabled={!ready} onClick={onFinish}>
         Finish & publish standings
       </Button>
     </div>
+  )
+}
+
+/** The largest allowed cut no bigger than `target`, or null when none is. */
+const fittingCutSize = (allowed: ReadonlyArray<TopCutSize>, target: number): TopCutSize | null =>
+  allowed.filter((n) => n <= target).at(-1) ?? null
+
+const validRoundMinutes = (minutes: number) => Number.isInteger(minutes) && minutes >= 10 && minutes <= 120
+
+/** Finishing as the main step: below 9 players, with a quieter "Cut anyway" while a cut is possible. */
+function FinishWithoutCut({
+  ready,
+  busy,
+  smallField,
+  canCut,
+  onFinish,
+  onCutAnyway,
+}: {
+  ready: boolean
+  busy: boolean
+  smallField: boolean
+  canCut: boolean
+  onFinish: () => void
+  onCutAnyway: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Button size="lg" disabled={!ready} onClick={onFinish}>
+        <Flag /> Finish & publish standings
+      </Button>
+      {smallField ? <p className="text-xs text-paper-dim">Fewer than 9 players: League Cups only cut from 9.</p> : null}
+      {canCut ? (
+        <Button variant="ghost" size="sm" disabled={busy} onClick={onCutAnyway}>
+          Cut anyway
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+/** Segmented choice of the cut size; sizes larger than the players still in are disabled. */
+function CutSizeField({
+  size,
+  allowed,
+  disabled,
+  onChange,
+}: {
+  size: TopCutSize
+  allowed: ReadonlyArray<TopCutSize>
+  disabled: boolean
+  onChange: (size: TopCutSize) => void
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2" disabled={disabled}>
+      <legend className="mb-2 text-sm font-semibold">Top cut</legend>
+      <div className="flex flex-wrap gap-2">
+        {TOP_CUT_SIZES.map((n) => (
+          <button
+            key={n}
+            type="button"
+            aria-pressed={size === n}
+            disabled={!allowed.includes(n)}
+            onClick={() => onChange(n)}
+            className="h-11 cursor-pointer rounded-lg border border-line-strong px-4 text-sm font-semibold transition-colors hover:border-paper-dim disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:border-orange aria-pressed:bg-orange aria-pressed:text-on-orange"
+          >
+            Top <span className="tabular">{n}</span>
+          </button>
+        ))}
+      </div>
+    </fieldset>
   )
 }
 

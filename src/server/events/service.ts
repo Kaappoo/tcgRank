@@ -136,6 +136,23 @@ const standingsView = (
     .map((s) => view({ ...s, rank: placement(s) }, stageOf(s)))
 }
 
+/** The bracket of a Swiss event that has cut; null before the cut and for every other event. */
+const topCutOf = (event: EventRow): Bracket | null => {
+  const bracket = eventBracket(event)
+  return bracket?.topCutSize !== undefined ? bracket : null
+}
+
+/** Why no further round can be paired (every round the event plays is done), or null while one can. */
+const allRoundsPlayed = (event: EventRow, plannedRounds: number, topCut: Bracket | null): string | null => {
+  if (topCut) return event.currentRound >= finalRound(topCut) ? 'The final has been played' : null
+  if (event.currentRound < plannedRounds) return null
+  return {
+    swiss: `All ${plannedRounds} Swiss rounds have been played`,
+    round_robin: `All ${plannedRounds} rounds of the schedule have been played`,
+    single_elimination: 'The final has been played',
+  }[event.pairingSystem]
+}
+
 /** The pairings for the next round, plus what round 1 draws: a round-robin schedule or bracket seeds. */
 interface NextRound {
   readonly pairings: ReadonlyArray<Pairing | BracketPairing>
@@ -866,19 +883,9 @@ const make = Effect.gen(function* () {
 
     const plannedRounds = mainPhaseRounds({ ...event, playerCount: entries.length })
     const roundNumber = event.currentRound + 1
-    const bracket = eventBracket(event)
-    const topCut = bracket?.topCutSize !== undefined ? bracket : null
-    if (topCut ? event.currentRound >= finalRound(topCut) : event.currentRound >= plannedRounds) {
-      return yield* new InvalidState({
-        reason: topCut
-          ? 'The final has been played'
-          : {
-              swiss: `All ${plannedRounds} Swiss rounds have been played`,
-              round_robin: `All ${plannedRounds} rounds of the schedule have been played`,
-              single_elimination: 'The final has been played',
-            }[event.pairingSystem],
-      })
-    }
+    const topCut = topCutOf(event)
+    const done = allRoundsPlayed(event, plannedRounds, topCut)
+    if (done) return yield* new InvalidState({ reason: done })
 
     const next = yield* pairNextRound(event, entries, history, roundNumber)
     if (next.pairings.length === 0) return yield* new InvalidState({ reason: 'Nobody is left to pair' })
