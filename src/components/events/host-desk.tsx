@@ -157,7 +157,8 @@ export function HostDesk({
             disabled={busy || (event.currentRound > 0 && !roundComplete) || activePlayers < 2}
             onClick={onStartRound}
           >
-            <Shuffle /> {pairRoundLabel(event.currentRound + 1, stageOf(event.currentRound + 1))}
+            <Shuffle />{' '}
+            {event.currentRound === 0 ? 'Pair round 1' : pairRoundLabel(event.currentRound + 1, stageOf(event.currentRound + 1))}
           </Button>
         )}
         {!lastRound && (event.currentRound === 0 || roundComplete) ? <MissingDecks count={withoutDeck} /> : null}

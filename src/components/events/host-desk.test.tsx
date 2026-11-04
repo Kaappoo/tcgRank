@@ -245,6 +245,7 @@ describe('HostDesk single elimination', () => {
   it('warns during registration that pairing round 1 draws the seeds and closes entries', () => {
     renderDesk({ ...detailWith({ pairingSystem: 'single_elimination' }), players: entrants(5) })
     expect(screen.getByText(/Pairing round 1 draws the seeds and closes entries/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pair round 1' })).toBeEnabled()
   })
 
   it.each([
