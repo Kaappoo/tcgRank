@@ -26,3 +26,17 @@ export const RoundRobin: Story = {
     })),
   },
 }
+
+/** A finished Swiss event with a top 2: the cut players lead with their stage, then everyone else in Swiss order. */
+export const TopCut: Story = {
+  args: {
+    final: true,
+    highlightId: null,
+    topCutSize: 2,
+    standings: [standings[1]!, standings[0]!, ...standings.slice(2)].map((s, i) => ({
+      ...s,
+      rank: i + 1,
+      stage: (['Champion', 'Finalist'] as const)[i] ?? null,
+    })),
+  },
+}

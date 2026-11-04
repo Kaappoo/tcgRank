@@ -55,13 +55,16 @@ const renderDesk = (detail: EventDetail) => {
   const onPairingSystem = vi.fn()
   const onTopCut = vi.fn()
   const onDeckRequired = vi.fn()
+  const onCut = vi.fn()
+  const onFinish = vi.fn()
   const view = render(
     <HostDesk
       detail={detail}
       offsetMs={0}
       busy={false}
       onStartRound={vi.fn()}
-      onFinish={vi.fn()}
+      onFinish={onFinish}
+      onCut={onCut}
       onClock={vi.fn()}
       onDeckRequired={onDeckRequired}
       onBestOf={onBestOf}
@@ -69,7 +72,7 @@ const renderDesk = (detail: EventDetail) => {
       onTopCut={onTopCut}
     />,
   )
-  return { onBestOf, onPairingSystem, onTopCut, onDeckRequired, view }
+  return { onBestOf, onPairingSystem, onTopCut, onDeckRequired, onCut, onFinish, view }
 }
 
 describe('HostDesk best of', () => {
@@ -142,6 +145,7 @@ describe('HostDesk event setup', () => {
         busy={false}
         onStartRound={vi.fn()}
         onFinish={vi.fn()}
+        onCut={vi.fn()}
         onClock={vi.fn()}
         onDeckRequired={vi.fn()}
         onBestOf={vi.fn()}
@@ -269,5 +273,113 @@ describe('HostDesk single elimination', () => {
     renderDesk(bracketRound(3, 'confirmed'))
     expect(screen.getByText('Final · Round 3 of 3')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Finish & publish standings' })).toBeEnabled()
+  })
+})
+
+describe('HostDesk Swiss top cut', () => {
+  /** A Swiss event with a top cut, 5 Swiss rounds, `playerCount` players and round `round` in play or confirmed. */
+  const swissCut = (
+    round: number,
+    status: 'confirmed' | 'playing',
+    {
+      playerCount = 12,
+      dropped = 0,
+      topCutSize = null,
+    }: { playerCount?: number; dropped?: number; topCutSize?: 2 | 4 | 8 | null } = {},
+  ): EventDetail => ({
+    ...detailWith({ topCut: true, topCutSize, status: 'running', currentRound: round, plannedRounds: 5 }),
+    players: entrants(playerCount).map((p, i) => (i < dropped ? { ...p, droppedAtRound: 1 } : p)),
+    rounds: Array.from({ length: round }, (_, i) => ({
+      id: `r${i + 1}`,
+      number: i + 1,
+      status: i + 1 === round ? ('active' as const) : ('finished' as const),
+      startedAt: 0,
+      endsAt: 3_000_000,
+      pausedRemainingMs: null,
+      elimination: i + 1 > 5,
+    })),
+    matches: [
+      {
+        id: `m${round}`,
+        roundNumber: round,
+        table: 1,
+        player1: { id: 'p1', name: 'Trainer 1', username: null, image: null },
+        player2: { id: 'p2', name: 'Trainer 2', username: null, image: null },
+        player1Games: 2,
+        player2Games: 0,
+        outcome: status === 'confirmed' ? 'p1' : null,
+        reportedById: null,
+        bracketSlot: round > 5 ? 0 : null,
+        dropped: false,
+        status,
+      },
+    ],
+  })
+
+  it('reads "Round 3 of 5 · then top cut" during the Swiss rounds', () => {
+    renderDesk(swissCut(3, 'confirmed'))
+    expect(screen.getByText('Round 3 of 5 · then top cut')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pair round 4' })).toBeEnabled()
+  })
+
+  it('after the last Swiss round the main button cuts to the default size, with finishing still available', async () => {
+    const { onCut, onFinish } = renderDesk(swissCut(5, 'confirmed'))
+    await userEvent.click(screen.getByRole('button', { name: 'Cut to top 4' }))
+    expect(onCut).toHaveBeenCalledWith({ size: 4, roundMinutes: 50 })
+    await userEvent.click(screen.getByRole('button', { name: 'Finish & publish standings' }))
+    expect(onFinish).toHaveBeenCalled()
+  })
+
+  it('waits for the last Swiss round to be confirmed before cutting', () => {
+    renderDesk(swissCut(5, 'playing'))
+    expect(screen.getByRole('button', { name: 'Cut to top 4' })).toBeDisabled()
+  })
+
+  it('defaults to a top 8 from 21 players, even counting the dropped ones', () => {
+    renderDesk(swissCut(5, 'confirmed', { playerCount: 21, dropped: 3 }))
+    expect(screen.getByRole('button', { name: 'Cut to top 8' })).toBeEnabled()
+  })
+
+  it('lets the host change the cut size and the top cut round timer', async () => {
+    const { onCut } = renderDesk(swissCut(5, 'confirmed'))
+    await userEvent.click(screen.getByRole('button', { name: 'Top 8' }))
+    const timer = screen.getByRole('spinbutton', { name: 'Top cut round timer (minutes)' })
+    await userEvent.clear(timer)
+    await userEvent.type(timer, '60')
+    await userEvent.click(screen.getByRole('button', { name: 'Cut to top 8' }))
+    expect(onCut).toHaveBeenCalledWith({ size: 8, roundMinutes: 60 })
+  })
+
+  it('offers no cut larger than the players who haven’t dropped', () => {
+    renderDesk(swissCut(5, 'confirmed', { playerCount: 10, dropped: 3 }))
+    expect(screen.getByRole('button', { name: 'Top 8' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Top 4' })).toBeEnabled()
+  })
+
+  it('below 9 players finishes by default, with a note and a quieter "Cut anyway"', async () => {
+    const { onCut } = renderDesk(swissCut(5, 'confirmed', { playerCount: 8 }))
+    expect(screen.getByRole('button', { name: 'Finish & publish standings' })).toBeEnabled()
+    expect(screen.getByText(/Fewer than 9 players/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Cut to top/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Cut anyway' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cut to top 4' }))
+    expect(onCut).toHaveBeenCalledWith({ size: 4, roundMinutes: 50 })
+  })
+
+  it.each([
+    [6, 'Top 8 · Quarterfinal', 'Pair semifinals'],
+    [7, 'Semifinal', 'Pair final'],
+  ] as const)('top cut round %i reads "%s" and pairs with "%s"', (round, line, button) => {
+    renderDesk(swissCut(round, 'confirmed', { topCutSize: 8 }))
+    expect(screen.getByText(line)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: button })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'End event early' })).not.toBeInTheDocument()
+  })
+
+  it('finishes after the top cut final', () => {
+    renderDesk(swissCut(8, 'confirmed', { topCutSize: 8 }))
+    expect(screen.getByText('Final')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Finish & publish standings' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: /Cut to top/ })).not.toBeInTheDocument()
   })
 })

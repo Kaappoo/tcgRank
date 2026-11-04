@@ -69,6 +69,25 @@ const STAGE_PAIRINGS: Record<Stage, string> = {
 export const pairRoundLabel = (roundNumber: number, stage: Stage | null): string =>
   stage ? `Pair ${STAGE_PAIRINGS[stage]}` : `Pair round ${roundNumber}`
 
+interface PodiumStanding {
+  readonly stage: string | null
+  readonly points: number
+  readonly wins: number
+  readonly losses: number
+  readonly draws: number
+  readonly byes: number
+}
+
+/**
+ * A podium subline: "12 pts · 4-1-0" (byes as wins); in a single-elimination bracket the stage and bracket record
+ * ("Champion · 3–0"); after a top cut the stage plus the Swiss points and record ("Champion · 12 pts · 4-1-0").
+ */
+export const podiumLine = (s: PodiumStanding, { topCut }: { readonly topCut: boolean }): string => {
+  const swiss = `${s.points} pts · ${s.wins + s.byes}-${s.losses}-${s.draws}`
+  if (!s.stage) return swiss
+  return topCut ? `${s.stage} · ${swiss}` : `${s.stage} · ${s.wins}–${s.losses}`
+}
+
 export const statusLabel = (status: EventStatus, currentRound: number): string => {
   if (status === 'registration') return 'Registration open'
   if (status === 'finished') return 'Final standings'

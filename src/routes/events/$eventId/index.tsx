@@ -22,7 +22,7 @@ import { toast } from '#/components/ui/toast.tsx'
 import { errorMessage, useEventActions } from '#/hooks/use-event-actions.ts'
 import { LocalTime } from '#/components/ui/local-time.tsx'
 import { eventBracket, roundName } from '#/domain/bracket.ts'
-import { formatLabel, setupSummary, statusLabel } from '#/lib/format.ts'
+import { formatLabel, podiumLine, setupSummary, statusLabel } from '#/lib/format.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
 import { cn } from '#/lib/utils.ts'
@@ -125,6 +125,7 @@ function EventHub() {
             busy={busy}
             onStartRound={() => actions.startRound.mutate()}
             onFinish={() => actions.finish.mutate()}
+            onCut={(cut) => actions.cut.mutate(cut)}
             onClock={(action, deltaMinutes) => actions.clock.mutate({ action, deltaMinutes })}
             onDeckRequired={(required) => actions.deckRequired.mutate(required)}
             onBestOf={(bestOf) => actions.bestOf.mutate(bestOf)}
@@ -169,7 +170,7 @@ function EventHub() {
           </div>
         ) : null}
 
-        {event.status === 'finished' ? <Podium standings={detail.standings} /> : null}
+        {event.status === 'finished' ? <Podium standings={detail.standings} topCut={event.topCutSize !== null} /> : null}
 
         <EntryPanel
           detail={detail}
@@ -202,12 +203,8 @@ function EventHub() {
   )
 }
 
-/** "3 pts · 3-0-0", or in a bracket the stage and the bracket record without byes: "Champion · 3–0". */
-const podiumLine = (s: StandingView) =>
-  s.stage ? `${s.stage} · ${s.wins}–${s.losses}` : `${s.points} pts · ${s.wins + s.byes}-${s.losses}-${s.draws}`
-
 /** Final standings get a podium: the champion is the loudest thing on the page. */
-function Podium({ standings }: { standings: ReadonlyArray<StandingView> }) {
+function Podium({ standings, topCut }: { standings: ReadonlyArray<StandingView>; topCut: boolean }) {
   const [first, ...rest] = standings
   if (!first) return null
   return (
@@ -224,7 +221,7 @@ function Podium({ standings }: { standings: ReadonlyArray<StandingView> }) {
           <Avatar name={first.player.name} src={first.player.image} size="xl" className="ring-4 ring-orange" />
           <div className="min-w-0">
             <p className="truncate font-display text-4xl sm:text-5xl">{first.player.name}</p>
-            <p className="tabular text-paper-dim">{podiumLine(first)}</p>
+            <p className="tabular text-paper-dim">{podiumLine(first, { topCut })}</p>
           </div>
         </div>
       </div>
@@ -235,7 +232,7 @@ function Podium({ standings }: { standings: ReadonlyArray<StandingView> }) {
             <Avatar name={s.player.name} src={s.player.image} size="sm" />
             <span className="truncate font-semibold">{s.player.name}</span>
             <span className="tabular ml-auto text-sm text-paper-dim">
-              {s.stage ? podiumLine(s) : `${s.points} pts`}
+              {s.stage ? podiumLine(s, { topCut }) : `${s.points} pts`}
             </span>
           </li>
         ))}
@@ -317,8 +314,12 @@ function EventTabs({
           highlightId={viewer?.userId}
           final={event.status === 'finished'}
           tiebreakers={event.pairingSystem === 'round_robin' ? 'round_robin' : 'swiss'}
+          topCutSize={event.status === 'finished' ? event.topCutSize : null}
         />
         <p className="mt-3 text-xs text-paper-dim">
+          {event.status === 'finished' && event.topCutSize !== null
+            ? 'Final placement follows the stage reached in the top cut, then Swiss rank; everyone else follows in Swiss order. The columns show the Swiss rounds. '
+            : ''}
           {event.pairingSystem === 'single_elimination'
             ? 'Final placement follows the round a player went out in; players out in the same round share it. Byes only advance a player.'
             : event.pairingSystem === 'round_robin'

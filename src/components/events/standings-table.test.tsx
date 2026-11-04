@@ -22,4 +22,16 @@ describe('StandingsTable', () => {
     expect(within(firstRow!).getByText('62.5%')).toBeInTheDocument()
     expect(within(secondRow!).queryByText('H2H')).not.toBeInTheDocument()
   })
+
+  it('marks a top cut with a "Top N cut" divider after its last player and a stage badge on each cut player', async () => {
+    const stages = ['Champion', 'Finalist']
+    const rows = standings.map((s, i) => ({ ...s, rank: i + 1, stage: stages[i] ?? null }))
+    await renderWithRouter(<StandingsTable standings={rows} final topCutSize={2} />)
+    const [first, second, divider, third] = screen.getAllByRole('row').slice(1)
+    expect(within(first!).getByText('Champion')).toBeInTheDocument()
+    expect(within(second!).getByText('Finalist')).toBeInTheDocument()
+    expect(divider).toHaveTextContent('Top 2 cut')
+    expect(within(third!).getByText(rows[2]!.player.name)).toBeInTheDocument()
+    expect(headers()).toEqual(['#', 'Player', 'Pts', 'W-L-T', 'OMW', 'OOMW'])
+  })
 })

@@ -1,11 +1,21 @@
-import { Flag, Minus, Pause, Play, Plus, Shuffle } from 'lucide-react'
+import { Flag, Minus, Pause, Play, Plus, Scissors, Shuffle } from 'lucide-react'
+import { useState } from 'react'
 import { BestOfField } from '#/components/forms/best-of-field.tsx'
 import { PairingSystemField } from '#/components/forms/pairing-system-field.tsx'
 import { SettingSwitch } from '#/components/forms/setting-switch.tsx'
 import { Button } from '#/components/ui/button.tsx'
+import { Field, FieldLabel } from '#/components/ui/field.tsx'
+import { Input } from '#/components/ui/input.tsx'
 import type { BestOf } from '#/domain/best-of.ts'
-import { eventBracket, stageName } from '#/domain/bracket.ts'
-import { mainPhaseRounds, type PairingSystem } from '#/domain/event-setup.ts'
+import { eventBracket, finalRound, roundName, stageName, topCutLabel, type Bracket } from '#/domain/bracket.ts'
+import {
+  allowedCutSizes,
+  defaultCutSize,
+  mainPhaseRounds,
+  TOP_CUT_SIZES,
+  type PairingSystem,
+  type TopCutSize,
+} from '#/domain/event-setup.ts'
 import { pairRoundLabel, setupLine } from '#/lib/format.ts'
 import type { EventDetail } from '#/server/events/views.ts'
 import { MatchClock } from './match-clock.tsx'
@@ -16,6 +26,8 @@ export interface HostDeskProps {
   readonly busy: boolean
   readonly onStartRound: () => void
   readonly onFinish: () => void
+  /** Cuts a Swiss event to its top players after the last Swiss round. */
+  readonly onCut: (cut: { size: TopCutSize; roundMinutes: number }) => void
   readonly onClock: (action: 'pause' | 'resume' | 'adjust', deltaMinutes?: number) => void
   readonly onDeckRequired: (required: boolean) => void
   readonly onBestOf: (bestOf: BestOf) => void
@@ -33,6 +45,7 @@ export function HostDesk({
   busy,
   onStartRound,
   onFinish,
+  onCut,
   onClock,
   onDeckRequired,
   onBestOf,
@@ -47,8 +60,11 @@ export function HostDesk({
   const withoutDeck = event.deckRequired ? players.filter((p) => p.droppedAtRound === null && !p.isGuest && !p.deckId).length : 0
   const plannedRounds = mainPhaseRounds({ ...event, playerCount: players.length })
   const roundComplete = roundMatches.length > 0 && confirmed === roundMatches.length
-  const lastRound = event.currentRound >= plannedRounds
   const bracket = eventBracket({ ...event, plannedRounds })
+  const topCut = bracket?.topCutSize !== undefined ? bracket : null
+  const lastRound = event.currentRound >= (topCut ? finalRound(topCut) : plannedRounds)
+  // After the last Swiss round of an event with a top cut, the next step is the cut.
+  const cutDue = event.topCut && topCut === null && lastRound && event.currentRound > 0
   const stageOf = (roundNumber: number) => (bracket ? stageName(bracket, roundNumber) : null)
   const currentStage = stageOf(event.currentRound)
   // A half-played bracket has no champion, so it can't be published early.
@@ -124,7 +140,9 @@ export function HostDesk({
           <div className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between text-sm">
               <span className="font-semibold">
-                {currentStage ? `${currentStage} · ` : ''}Round {event.currentRound} of {plannedRounds}
+                {topCut && event.currentRound >= topCut.firstRound
+                  ? cutRoundLine(topCut, event.currentRound)
+                  : `${currentStage ? `${currentStage} · ` : ''}Round ${event.currentRound} of ${plannedRounds}${event.topCut ? ' · then top cut' : ''}`}
               </span>
               <span className="tabular text-paper-dim">
                 {confirmed}/{roundMatches.length} results in
@@ -147,7 +165,17 @@ export function HostDesk({
           </div>
         ) : null}
 
-        {lastRound && event.currentRound > 0 ? (
+        {cutDue ? (
+          <CutStep
+            attendance={players.length}
+            activePlayers={activePlayers}
+            roundMinutes={event.roundMinutes}
+            ready={roundComplete && !busy}
+            busy={busy}
+            onCut={onCut}
+            onFinish={onFinish}
+          />
+        ) : lastRound && event.currentRound > 0 ? (
           <Button size="lg" disabled={busy || !roundComplete} onClick={onFinish}>
             <Flag /> Finish & publish standings
           </Button>
@@ -172,6 +200,101 @@ export function HostDesk({
         ) : null}
       </div>
     </section>
+  )
+}
+
+/** A top cut round's line on the desk: "Top 8 · Quarterfinal" for the first, then "Semifinal", "Final". */
+const cutRoundLine = (bracket: Bracket, roundNumber: number): string =>
+  [topCutLabel(bracket, roundNumber), roundName(bracket, roundNumber)].filter(Boolean).join(' · ')
+
+/**
+ * The cut step after the last Swiss round: the cut size (default from attendance, never more than the players still
+ * in) and the top cut round timer, with finishing still on offer. Below 9 players finishing is the default and the
+ * cut sits behind "Cut anyway".
+ */
+function CutStep({
+  attendance,
+  activePlayers,
+  roundMinutes,
+  ready,
+  busy,
+  onCut,
+  onFinish,
+}: {
+  attendance: number
+  activePlayers: number
+  roundMinutes: number
+  ready: boolean
+  busy: boolean
+  onCut: HostDeskProps['onCut']
+  onFinish: () => void
+}) {
+  const suggested = defaultCutSize(attendance)
+  const allowed = allowedCutSizes(activePlayers)
+  const [cutting, setCutting] = useState(suggested !== null)
+  const [size, setSize] = useState<TopCutSize | null>(
+    () => allowed.filter((n) => n <= (suggested ?? 4)).at(-1) ?? null,
+  )
+  const [minutes, setMinutes] = useState(roundMinutes)
+  const validMinutes = Number.isInteger(minutes) && minutes >= 10 && minutes <= 120
+
+  if (!cutting || size === null) {
+    return (
+      <div className="flex flex-col gap-2">
+        <Button size="lg" disabled={!ready} onClick={onFinish}>
+          <Flag /> Finish & publish standings
+        </Button>
+        {suggested === null ? (
+          <p className="text-xs text-paper-dim">Fewer than 9 players: League Cups only cut from 9.</p>
+        ) : null}
+        {size !== null ? (
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setCutting(true)}>
+            Cut anyway
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <fieldset className="flex flex-col gap-2" disabled={busy}>
+        <legend className="mb-2 text-sm font-semibold">Top cut</legend>
+        <div className="flex flex-wrap gap-2">
+          {TOP_CUT_SIZES.map((n) => (
+            <button
+              key={n}
+              type="button"
+              aria-pressed={size === n}
+              disabled={!allowed.includes(n)}
+              onClick={() => setSize(n)}
+              className="h-11 cursor-pointer rounded-lg border border-line-strong px-4 text-sm font-semibold transition-colors hover:border-paper-dim disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:border-orange aria-pressed:bg-orange aria-pressed:text-on-orange"
+            >
+              Top <span className="tabular">{n}</span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      <Field>
+        <FieldLabel>Top cut round timer (minutes)</FieldLabel>
+        <Input
+          type="number"
+          min={10}
+          max={120}
+          value={minutes}
+          disabled={busy}
+          onChange={(e) => setMinutes(Number(e.target.value))}
+          className="w-24"
+        />
+      </Field>
+      <p className="text-xs text-paper-dim">Cutting seeds the top players by Swiss rank and closes entries.</p>
+      <Button size="lg" disabled={!ready || !validMinutes} onClick={() => onCut({ size, roundMinutes: minutes })}>
+        <Scissors /> Cut to top {size}
+      </Button>
+      <Button variant="ghost" size="sm" disabled={!ready} onClick={onFinish}>
+        Finish & publish standings
+      </Button>
+    </div>
   )
 }
 
