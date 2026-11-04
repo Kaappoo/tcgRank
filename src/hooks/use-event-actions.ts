@@ -2,12 +2,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
 import { toast } from '#/components/ui/toast.tsx'
 import type { BestOf } from '#/domain/best-of.ts'
-import type { PairingSystem } from '#/domain/event-setup.ts'
+import type { PairingSystem, TopCutSize } from '#/domain/event-setup.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import {
   addGuest,
   confirmResult,
   controlClock,
+  cutToTop,
   finishEvent,
   joinEvent,
   leaveEvent,
@@ -37,6 +38,7 @@ export function useEventActions(eventId: string) {
   const confirm = useServerFn(confirmResult)
   const start = useServerFn(startNextRound)
   const finish = useServerFn(finishEvent)
+  const cut = useServerFn(cutToTop)
   const clock = useServerFn(controlClock)
   const join = useServerFn(joinEvent)
   const leave = useServerFn(leaveEvent)
@@ -73,6 +75,14 @@ export function useEventActions(eventId: string) {
       mutationFn: () => start({ data: { eventId } }),
       onSuccess: ({ roundNumber }) =>
         refresh().then(() => toast.success(`Round ${roundNumber} is paired`, 'Players can see their table now.')),
+      onError,
+    }),
+    cut: useMutation({
+      mutationFn: (input: { size: TopCutSize; roundMinutes: number }) => cut({ data: { eventId, ...input } }),
+      onSuccess: (_, { size }) =>
+        refresh().then(() =>
+          toast.success(`Top ${size} is paired`, 'Entries are closed. Players can see their table now.'),
+        ),
       onError,
     }),
     finish: useMutation({

@@ -10,7 +10,7 @@ export type PairingSystem = (typeof PAIRING_SYSTEMS)[number]
 export const DEFAULT_PAIRING_SYSTEM: PairingSystem = 'swiss'
 
 /** Allowed top cut sizes. */
-const TOP_CUT_SIZES = [2, 4, 8] as const
+export const TOP_CUT_SIZES = [2, 4, 8] as const
 export type TopCutSize = (typeof TOP_CUT_SIZES)[number]
 
 /** Below 9 players no cut by default; top 4 for 9–20 players, top 8 for 21 or more. */

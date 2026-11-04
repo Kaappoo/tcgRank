@@ -1169,3 +1169,250 @@ describe('Single elimination', () => {
     ),
   )
 })
+
+describe('Swiss top cut', () => {
+  const CLOSED = 'Entries are closed: the top cut has started'
+  type Host = Parameters<typeof asUser>[0]
+
+  /** A Swiss event with a top cut, `swissRounds` Swiss rounds and `n` joined players. */
+  const topCutEvent = Effect.fn('topCutEvent')(function* (playerCount: number, swissRounds = 2) {
+    const events = yield* EventsService
+    const host = yield* insertUser('Professor Oak')
+    const { id: eventId, joinCode } = yield* events
+      .create({ ...newEvent, topCut: true, plannedRounds: swissRounds })
+      .pipe(asUser(host))
+    const players = []
+    for (let i = 0; i < playerCount; i++) {
+      const p = yield* insertUser(`Trainer ${i + 1}`)
+      yield* events.join(eventId).pipe(asUser(p))
+      players.push(p)
+    }
+    return { events, host, eventId, joinCode, players }
+  })
+
+  /** Pairs the next round; the host reports every open match 2–1 for whoever `wins` picks (player 1 by default). */
+  const playRound = Effect.fn('playRound')(function* (
+    eventId: string,
+    host: Host,
+    wins: (p1: string, p2: string) => boolean = () => true,
+  ) {
+    const events = yield* EventsService
+    const { roundNumber } = yield* events.startNextRound(eventId).pipe(asUser(host))
+    yield* reportAll(eventId, host, roundNumber, wins)
+    return roundNumber
+  })
+
+  const reportAll = Effect.fn('reportAll')(function* (
+    eventId: string,
+    host: Host,
+    roundNumber: number,
+    wins: (p1: string, p2: string) => boolean = () => true,
+  ) {
+    const events = yield* EventsService
+    const detail = yield* events.detail(eventId)
+    for (const m of detail.matches.filter((m) => m.roundNumber === roundNumber && m.status !== 'confirmed')) {
+      const p1Wins = wins(m.player1.id, m.player2!.id)
+      yield* events.reportResult(m.id, p1Wins ? 2 : 1, p1Wins ? 1 : 2).pipe(asUser(host))
+    }
+  })
+
+  /** Player ids in Swiss rank order, as the standings show them before the cut. */
+  const swissOrder = Effect.fn('swissOrder')(function* (eventId: string) {
+    const detail = yield* (yield* EventsService).detail(eventId)
+    return detail.standings.map((s) => s.playerId)
+  })
+
+  it.effect('is refused for anyone but the host, without a top cut, and before the last Swiss round is confirmed', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* topCutEvent(10)
+        const refused = (reason: string) => ({ _tag: 'InvalidState', reason })
+        expect(yield* Effect.flip(events.cutToTop(eventId, 4, 60).pipe(asUser(host)))).toMatchObject(
+          refused('Play all 2 Swiss rounds first'),
+        )
+        yield* playRound(eventId, host)
+        expect(yield* Effect.flip(events.cutToTop(eventId, 4, 60).pipe(asUser(host)))).toMatchObject(
+          refused('Play all 2 Swiss rounds first'),
+        )
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        expect(yield* Effect.flip(events.cutToTop(eventId, 4, 60).pipe(asUser(host)))).toMatchObject({
+          _tag: 'InvalidState',
+        })
+        yield* reportAll(eventId, host, 2)
+        expect(yield* Effect.flip(events.cutToTop(eventId, 4, 60).pipe(asUser(players[0]!)))).toMatchObject({
+          _tag: 'Forbidden',
+        })
+
+        const plain = yield* events.create({ ...newEvent, plannedRounds: 1 }).pipe(asUser(host))
+        for (const p of players.slice(0, 4)) yield* events.join(plain.id).pipe(asUser(p))
+        yield* playRound(plain.id, host)
+        expect(yield* Effect.flip(events.cutToTop(plain.id, 2, 60).pipe(asUser(host)))).toMatchObject(
+          refused('This event has no top cut'),
+        )
+      }),
+    ),
+  )
+
+  it.effect('refuses a cut larger than the players who haven’t dropped', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* topCutEvent(8, 1)
+        yield* playRound(eventId, host)
+        yield* events.leave(eventId).pipe(asUser(players[0]!))
+        expect(yield* Effect.flip(events.cutToTop(eventId, 8, 60).pipe(asUser(host)))).toMatchObject({
+          _tag: 'InvalidState',
+          reason: 'A top 8 needs 8 players who haven’t dropped',
+        })
+        yield* events.cutToTop(eventId, 4, 60).pipe(asUser(host))
+      }),
+    ),
+  )
+
+  it.effect(
+    'seeds the top N by Swiss rank among players who haven’t dropped and pairs the first elimination round',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const { events, host, eventId, joinCode, players } = yield* topCutEvent(10)
+          yield* playRound(eventId, host)
+          yield* playRound(eventId, host)
+          const order = yield* swissOrder(eventId)
+          // The Swiss leader drops: the next four make the cut.
+          yield* events.leave(eventId).pipe(asUser(players.find((p) => p.id === order[0])!))
+          const { roundNumber } = yield* events.cutToTop(eventId, 4, 75).pipe(asUser(host))
+          expect(roundNumber).toBe(3)
+
+          const detail = yield* events.detail(eventId)
+          expect(detail.event).toMatchObject({
+            topCutSize: 4,
+            currentRound: 3,
+            plannedRounds: 2,
+            entriesClosedReason: CLOSED,
+          })
+          const seeds = new Map(detail.players.filter((p) => p.seed !== null).map((p) => [p.id, p.seed]))
+          expect(order.slice(1, 5).map((id) => seeds.get(id))).toEqual([1, 2, 3, 4])
+          expect(seeds.size).toBe(4)
+
+          const round = detail.rounds.find((r) => r.number === 3)!
+          expect(round.elimination).toBe(true)
+          expect(round.endsAt! - round.startedAt).toBe(75 * 60_000)
+          const semis = detail.matches.filter((m) => m.roundNumber === 3)
+          expect(semis.map((m) => [seeds.get(m.player1.id), seeds.get(m.player2!.id), m.bracketSlot])).toEqual([
+            [1, 4, 0],
+            [2, 3, 1],
+          ])
+
+          const late = yield* insertUser('Late Larry')
+          expect(yield* Effect.flip(events.join(eventId).pipe(asUser(late)))).toMatchObject({ reason: CLOSED })
+          expect(yield* Effect.flip(events.addGuest(eventId, { name: 'Brock' }).pipe(asUser(host)))).toMatchObject({
+            reason: CLOSED,
+          })
+          expect((yield* events.findByJoinCode(joinCode)).entriesClosedReason).toBe(CLOSED)
+          expect(yield* Effect.flip(events.cutToTop(eventId, 4, 60).pipe(asUser(host)))).toMatchObject({
+            reason: 'The top cut has already started',
+          })
+        }),
+      ),
+  )
+
+  it.effect('late entry and rejoining work during the Swiss rounds', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, players } = yield* topCutEvent(4, 3)
+        yield* playRound(eventId, host)
+        yield* events.leave(eventId).pipe(asUser(players[0]!))
+        yield* events.join(eventId).pipe(asUser(players[0]!))
+        const late = yield* insertUser('Late Larry')
+        yield* events.join(eventId).pipe(asUser(late))
+        yield* events.addGuest(eventId, { name: 'Brock' }).pipe(asUser(host))
+        expect((yield* events.detail(eventId)).players.filter((p) => p.droppedAtRound === null)).toHaveLength(6)
+      }),
+    ),
+  )
+
+  it.effect('plays the cut on the top cut timer and the event’s best of, with no ties', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* topCutEvent(8, 1)
+        yield* playRound(eventId, host)
+        yield* events.cutToTop(eventId, 4, 70).pipe(asUser(host))
+        const [semi] = (yield* events.detail(eventId)).matches.filter((m) => m.roundNumber === 2)
+        expect(yield* Effect.flip(events.reportResult(semi!.id, 1, 1).pipe(asUser(host)))).toMatchObject({
+          reason: 'This match can’t end in a tie',
+        })
+        expect(yield* Effect.flip(events.reportResult(semi!.id, 3, 0).pipe(asUser(host)))).toMatchObject({
+          _tag: 'InvalidState',
+        })
+        yield* reportAll(eventId, host, 2)
+        const final = yield* playRound(eventId, host)
+        expect(final).toBe(3)
+        const detail = yield* events.detail(eventId)
+        const round = detail.rounds.find((r) => r.number === 3)!
+        expect(round).toMatchObject({ elimination: true })
+        expect(round.endsAt! - round.startedAt).toBe(70 * 60_000)
+        const finalMatches = detail.matches.filter((m) => m.roundNumber === 3)
+        expect(finalMatches).toHaveLength(1)
+        expect(finalMatches.every((m) => m.player2 !== null)).toBe(true)
+        expect(yield* Effect.flip(events.startNextRound(eventId).pipe(asUser(host)))).toMatchObject({
+          reason: 'The final has been played',
+        })
+      }),
+    ),
+  )
+
+  it.effect('finishing places the cut by stage reached, then Swiss rank, then everyone else in Swiss order', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* topCutEvent(10)
+        yield* playRound(eventId, host)
+        yield* playRound(eventId, host)
+        const order = yield* swissOrder(eventId)
+        const swiss = new Map((yield* events.detail(eventId)).standings.map((s) => [s.playerId, s]))
+        yield* events.cutToTop(eventId, 4, 50).pipe(asUser(host))
+
+        const [s1, s2, s3, s4] = order as [string, string, string, string]
+        // Semifinals: seed 4 upsets seed 1, seed 2 beats seed 3. Final: seed 4 wins.
+        yield* reportAll(eventId, host, 3, (a) => a === s2)
+        const refused = yield* Effect.flip(events.finishEvent(eventId).pipe(asUser(host)))
+        expect(refused).toMatchObject({ reason: 'Play the bracket to its final first' })
+        yield* playRound(eventId, host, (a) => a === s4)
+        yield* events.finishEvent(eventId).pipe(asUser(host))
+
+        const finished = yield* events.detail(eventId)
+        const expected = [s4, s2, s1, s3, ...order.slice(4)]
+        expect(finished.standings.map((s) => s.playerId)).toEqual(expected)
+        expect(finished.standings.map((s) => s.rank)).toEqual(expected.map((_, i) => i + 1))
+        expect(finished.standings.map((s) => s.stage)).toEqual([
+          'Champion',
+          'Finalist',
+          'Semifinal',
+          'Semifinal',
+          ...order.slice(4).map(() => null),
+        ])
+        const finalRank = new Map(finished.players.map((p) => [p.id, p.finalRank]))
+        expect(expected.map((id) => finalRank.get(id!))).toEqual(expected.map((_, i) => i + 1))
+        // The columns keep the Swiss record and points.
+        expect(finished.standings[0]).toMatchObject({
+          wins: swiss.get(s4)!.wins,
+          losses: swiss.get(s4)!.losses,
+          points: swiss.get(s4)!.points,
+        })
+      }),
+    ),
+  )
+
+  it.effect('the host can finish after the last Swiss round without cutting', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* topCutEvent(10, 1)
+        yield* playRound(eventId, host)
+        const order = yield* swissOrder(eventId)
+        yield* events.finishEvent(eventId).pipe(asUser(host))
+        const finished = yield* events.detail(eventId)
+        expect(finished.event.topCutSize).toBeNull()
+        expect(finished.standings.map((s) => s.playerId)).toEqual(order)
+        expect(finished.standings.every((s) => s.stage === null)).toBe(true)
+      }),
+    ),
+  )
+})

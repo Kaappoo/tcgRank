@@ -5,6 +5,7 @@ import {
   claimCodeInput,
   clockInput,
   createEventInput,
+  cutToTopInput,
   deckRequiredInput,
   eventIdInput,
   joinCodeInput,
@@ -66,6 +67,12 @@ export const leaveEvent = createServerFn({ method: 'POST' })
 export const startNextRound = createServerFn({ method: 'POST' })
   .validator(eventIdInput)
   .handler(({ data }) => runServerEffect(EventsService.use((s) => s.startNextRound(data.eventId))))
+
+export const cutToTop = createServerFn({ method: 'POST' })
+  .validator(cutToTopInput)
+  .handler(({ data }) =>
+    runServerEffect(EventsService.use((s) => s.cutToTop(data.eventId, data.size, data.roundMinutes))),
+  )
 
 export const finishEvent = createServerFn({ method: 'POST' })
   .validator(eventIdInput)
