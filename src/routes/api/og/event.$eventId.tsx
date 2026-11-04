@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Effect } from 'effect'
 import { EventsService } from '#/server/events/service.ts'
+import { eventCard } from '#/server/og/event-card.ts'
 import { OgFrame, OgStat, ogResponse, palette, renderOgImage } from '#/server/og/render.tsx'
 import { runtime } from '#/server/runtime.ts'
-import { formatLabel, statusLabel } from '#/lib/format.ts'
 
 export const Route = createFileRoute('/api/og/event/$eventId')({
   server: {
@@ -11,8 +11,8 @@ export const Route = createFileRoute('/api/og/event/$eventId')({
       GET: async ({ params }) => {
         const detail = await runtime.runPromise(EventsService.use((s) => s.detail(params.eventId)).pipe(Effect.option))
         if (detail._tag === 'None') return new Response('Not found', { status: 404 })
-        const { event, standings } = detail.value
-        const leader = event.status === 'finished' ? standings[0] : null
+        const { event } = detail.value
+        const { pill, champion } = eventCard(detail.value)
         const when = new Date(event.startsAt).toLocaleDateString('en-US', {
           weekday: 'short',
           month: 'short',
@@ -34,7 +34,7 @@ export const Route = createFileRoute('/api/og/event/$eventId')({
                 fontWeight: 800,
               }}
             >
-              {statusLabel(event.status, event.currentRound)} · {formatLabel(event.format)}
+              {pill}
             </div>
             <div
               style={{
@@ -51,8 +51,8 @@ export const Route = createFileRoute('/api/og/event/$eventId')({
             <div style={{ display: 'flex', marginTop: 'auto', marginBottom: 44 }}>
               <OgStat value={String(event.playerCount)} label="PLAYERS" />
               <OgStat value={when} label="DATE" />
-              {leader ? (
-                <OgStat value={leader.player.name.split(' ')[0] ?? leader.player.name} label="CHAMPION" />
+              {champion ? (
+                <OgStat value={champion} label="CHAMPION" />
               ) : (
                 <OgStat value={event.joinCode} label="JOIN CODE" />
               )}
