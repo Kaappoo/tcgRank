@@ -41,3 +41,5 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Deck list** | A PTCG Live / Limitless export. Stored raw, parsed on read into Pokémon / Trainer / Energy sections. | `domain/deck-list.ts` |
 | **Cover card** | The card from a deck's own list that the owner picks as the deck's face. Without a pick, the deck's most-played Pokémon. | `decks.coverCard` |
 | **Store screen** | Full-screen projector view for the store TV: QR, clock and an alphabetical pairing list. | `/events/$eventId/screen` |
+| **Avatar** | A player's profile picture, put together from preset parts (skin tone, hair, clothes, hat, …). Every user has one, guests included; there are no uploaded photos. _Avoid_: "profile picture", "pfp", "icon". | |
+| **Featured deck** | The one public deck a player chooses to show on their profile. | |
