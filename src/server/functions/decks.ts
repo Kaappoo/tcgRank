@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
-import { deckIdInput, deckInput, updateDeckInput } from '#/shared/schemas.ts'
+import { cardArtInput, deckIdInput, deckInput, updateDeckInput } from '#/shared/schemas.ts'
 import { DecksService } from '../decks/service.ts'
 import { runServerEffect } from '../effect/run.ts'
 
@@ -15,6 +15,10 @@ export const listUserDecks = createServerFn({ method: 'GET' })
 export const getDeck = createServerFn({ method: 'GET' })
   .validator(deckIdInput)
   .handler(({ data }) => runServerEffect(DecksService.use((s) => s.get(data.deckId))))
+
+export const previewCardArt = createServerFn({ method: 'POST' })
+  .validator(cardArtInput)
+  .handler(({ data }) => runServerEffect(DecksService.use((s) => s.previewCardImages(data.list))))
 
 export const createDeck = createServerFn({ method: 'POST' })
   .validator(deckInput)

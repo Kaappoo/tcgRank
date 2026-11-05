@@ -1,8 +1,9 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { Context, Effect, Layer } from 'effect'
-import { cardArtKey, parseDeckList } from '#/domain/deck-list.ts'
+import { basicEnergyType, cardArtKey, parseDeckList } from '#/domain/deck-list.ts'
 import { newId } from '#/domain/ids.ts'
 import type { DeckInput } from '#/shared/schemas.ts'
+import { BASIC_ENERGY_ART } from '../catalog/basic-energy-art.ts'
 import { CardCatalog } from '../catalog/card-catalog.ts'
 import { optionalUser, requireUser } from '../current-user.ts'
 import { Db } from '../db/client.ts'
@@ -94,20 +95,31 @@ const make = Effect.gen(function* () {
   /**
    * Art for every printing in the list. Printings already resolved are kept
    * without asking the catalog again; the rest (new cards, or ones the catalog
-   * couldn't answer for last time) are looked up.
+   * couldn't answer for last time) are looked up. Basic energy the catalog has
+   * no art for gets the stock art for its type.
    */
   const resolveCardImages = Effect.fn('DecksService.resolveCardImages')(function* (
     list: string,
     known: Readonly<Record<string, string>> = {},
   ) {
     const refs = new Map<string, { setCode: string; number: string }>()
+    const energyArt: Record<string, string> = {}
     for (const card of parseDeckList(list).cards) {
       const key = cardArtKey(card)
-      if (key && card.setCode && card.number) refs.set(key, { setCode: card.setCode, number: card.number })
+      if (!key) continue
+      if (card.setCode && card.number) refs.set(key, { setCode: card.setCode, number: card.number })
+      const energy = basicEnergyType(card)
+      if (energy) energyArt[key] = BASIC_ENERGY_ART[energy]
     }
     const kept = Object.fromEntries([...refs.keys()].flatMap((key) => (known[key] ? [[key, known[key]]] : [])))
     const missing = [...refs].filter(([key]) => !kept[key]).map(([, ref]) => ref)
-    return { ...kept, ...(yield* catalog.lookup(missing)) }
+    return { ...energyArt, ...kept, ...(yield* catalog.lookup(missing)) }
+  })
+
+  /** Art for a list that isn't saved yet, so the deck form's preview shows the cards as they are pasted. */
+  const previewCardImages = Effect.fn('DecksService.previewCardImages')(function* (list: string) {
+    yield* requireUser
+    return yield* resolveCardImages(list)
   })
 
   const create = Effect.fn('DecksService.create')(function* (input: DeckInput) {
@@ -151,7 +163,7 @@ const make = Effect.gen(function* () {
     yield* db.query((d) => d.delete(decks).where(eq(decks.id, deckId)))
   })
 
-  return { listMine, listPublic, get, create, update, remove, backfillCardImages }
+  return { listMine, listPublic, get, previewCardImages, create, update, remove, backfillCardImages }
 })
 
 export class DecksService extends Context.Service<DecksService, Effect.Success<typeof make>>()(
