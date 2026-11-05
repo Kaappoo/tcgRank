@@ -17,3 +17,7 @@ When a deck is created or edited, `DecksService` sends the deck's printings (`SE
 - Browsers load image files only, from `assets.tcgdex.net`: no CORS, no rate limits, works offline from the service-worker cache, and server and client render the same markup.
 - tcgRank depends on Poké Cards being reachable at save time. If it isn't, the deck still saves and the missing art is retried on the next save or backfill.
 - Printings Poké Cards can't match (sets without a TCG Live code in TCGdex, or a card with unpublished art) show the typographic placeholder.
+
+## Addendum: basic energy and the unsaved preview
+
+TCGdex has no images for the basic-energy sets PTCG Live exports (SVE, MEE), so the catalog never returns art for them. Basic energy without catalog art gets stock art for its type (`server/catalog/basic-energy-art.ts`); lines without a printing ("8 Psychic Energy") are keyed `ENERGY {P}`. The deck form also looks up art for printings the deck doesn't have yet (`previewCardArt`), so the preview shows cards before the first save.

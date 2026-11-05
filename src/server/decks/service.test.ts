@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'
+import { BASIC_ENERGY_ART } from '../catalog/basic-energy-art.ts'
 import { CardCatalog } from '../catalog/card-catalog.ts'
 import { Db } from '../db/client.ts'
 import { decks as decksTable } from '../db/schema.ts'
@@ -11,6 +12,7 @@ const art = {
   'TWM 128': 'https://assets.test/sv06/128/low.webp',
   'TWM 130': 'https://assets.test/sv06/130/low.webp',
   'PAL 185': 'https://assets.test/sv02/185/low.webp',
+  'SVE 2': 'https://assets.test/sve/2/low.webp',
 }
 const TestLayer = withDb(DecksService.layer.pipe(Layer.provide(CardCatalog.layerTest(art))))
 
@@ -82,6 +84,33 @@ describe('DecksService', () => {
 
       yield* decks.update(id, { ...deck, list: '3 Dragapult ex TWM 130\n4 Iono PAL 185\n2 Professor\'s Research' }).pipe(asUser(me))
       expect((yield* decks.get(id)).cardImages).toEqual({ 'TWM 130': art['TWM 130'], 'PAL 185': art['PAL 185'] })
+    }).pipe(Effect.provide(TestLayer)),
+  )
+
+  it.effect('gives basic energy stock art when the catalog has none, unless it does', () =>
+    Effect.gen(function* () {
+      const decks = yield* DecksService
+      const me = yield* insertUser('Cynthia')
+      const list = '4 Basic {P} Energy SVE 5\n4 Fire Energy\n2 Basic {R} Energy SVE 2'
+      const { id } = yield* decks.create({ ...deck, list }).pipe(asUser(me))
+      expect((yield* decks.get(id)).cardImages).toEqual({
+        'SVE 5': BASIC_ENERGY_ART.P,
+        'ENERGY {R}': BASIC_ENERGY_ART.R,
+        'SVE 2': art['SVE 2'],
+      })
+    }).pipe(Effect.provide(TestLayer)),
+  )
+
+  it.effect('looks up art for a list before it is saved', () =>
+    Effect.gen(function* () {
+      const decks = yield* DecksService
+      const me = yield* insertUser('Cynthia')
+      expect(yield* decks.previewCardImages(deck.list).pipe(asUser(me))).toEqual({
+        'TWM 128': art['TWM 128'],
+        'TWM 130': art['TWM 130'],
+      })
+      const error = yield* Effect.flip(decks.previewCardImages(deck.list))
+      expect(error._tag).toBe('Unauthenticated')
     }).pipe(Effect.provide(TestLayer)),
   )
 

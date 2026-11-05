@@ -1,5 +1,9 @@
 import { useDebouncedValue } from '@tanstack/react-pacer'
-import { useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useServerFn } from '@tanstack/react-start'
+import { useMemo, useState } from 'react'
+import { cardArtKey, parseDeckList } from '#/domain/deck-list.ts'
+import { previewCardArt } from '#/server/functions/decks.ts'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import { Switch } from '#/components/ui/switch.tsx'
@@ -31,6 +35,7 @@ export function DeckForm({ initial, cardImages, submitLabel, pending, onSubmit }
   const [errors, setErrors] = useState<Record<string, string>>({})
   // Parsing on every keystroke is cheap, but re-rendering the preview is not — wait for a pause.
   const [previewList] = useDebouncedValue(list, { wait: 300 })
+  const images = usePreviewCardImages(previewList, cardImages ?? NO_IMAGES)
 
   return (
     <form
@@ -81,7 +86,7 @@ export function DeckForm({ initial, cardImages, submitLabel, pending, onSubmit }
           <FieldDescription>Paste the export from Pokémon TCG Live or Limitless.</FieldDescription>
           <FieldError>{errors.list}</FieldError>
         </Field>
-        <CoverPicker list={previewList} cardImages={cardImages ?? NO_IMAGES} value={cover} onChange={setCover} />
+        <CoverPicker list={previewList} cardImages={images} value={cover} onChange={setCover} />
         <label className="flex items-center justify-between gap-4 rounded-lg border border-line px-4 py-3">
           <span className="flex flex-col">
             <span className="text-sm font-semibold">Show on my profile</span>
@@ -97,7 +102,7 @@ export function DeckForm({ initial, cardImages, submitLabel, pending, onSubmit }
         <h2 className="font-display text-xl">Preview</h2>
         <div className="rounded-xl border border-line bg-surface p-5">
           {previewList.trim() ? (
-            <DeckListView list={previewList} cardImages={cardImages} />
+            <DeckListView list={previewList} cardImages={images} />
           ) : (
             <p className="py-10 text-center text-sm text-paper-dim">Your list shows up here as you paste it.</p>
           )}
@@ -105,4 +110,29 @@ export function DeckForm({ initial, cardImages, submitLabel, pending, onSubmit }
       </div>
     </form>
   )
+}
+
+/**
+ * Art for the list being edited: what the deck already has, plus a catalog
+ * lookup for printings it doesn't. Keyed by the printings rather than the text,
+ * so edits that only change counts or names don't look anything up again.
+ */
+function usePreviewCardImages(list: string, stored: Readonly<Record<string, string>>) {
+  const lookup = useServerFn(previewCardArt)
+  const missing = useMemo(() => {
+    const keys = new Set<string>()
+    for (const card of parseDeckList(list).cards) {
+      const key = cardArtKey(card)
+      if (key && !stored[key]) keys.add(key)
+    }
+    return [...keys].sort()
+  }, [list, stored])
+  const { data } = useQuery({
+    queryKey: ['card-art', missing],
+    queryFn: () => lookup({ data: { list } }),
+    enabled: missing.length > 0,
+    staleTime: Infinity,
+    placeholderData: keepPreviousData,
+  })
+  return useMemo(() => (data ? { ...data, ...stored } : stored), [data, stored])
 }

@@ -116,6 +116,8 @@ export const deckInput = z.object({
 })
 export type DeckInput = z.infer<typeof deckInput>
 
+export const cardArtInput = deckInput.pick({ list: true })
+
 export const updateDeckInput = deckInput.extend({ deckId: z.string().min(1) })
 export const deckIdInput = z.object({ deckId: z.string().min(1) })
 
