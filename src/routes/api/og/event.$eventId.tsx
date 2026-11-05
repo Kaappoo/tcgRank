@@ -5,14 +5,24 @@ import { eventCard } from '#/server/og/event-card.ts'
 import { OgFrame, OgStat, ogResponse, palette, renderOgImage } from '#/server/og/render.tsx'
 import { runtime } from '#/server/runtime.ts'
 
+/** The event as its card shows it. A private event's card would give away its name and code, so it gets none. */
+const cardDetail = (eventId: string) =>
+  runtime.runPromise(
+    EventsService.use((s) => s.detail(eventId)).pipe(
+      Effect.catchTag('CodeRequired', () => Effect.succeed('private' as const)),
+      Effect.orElseSucceed(() => 'missing' as const),
+    ),
+  )
+
 export const Route = createFileRoute('/api/og/event/$eventId')({
   server: {
     handlers: {
-      GET: async ({ params }) => {
-        const detail = await runtime.runPromise(EventsService.use((s) => s.detail(params.eventId)).pipe(Effect.option))
-        if (detail._tag === 'None') return new Response('Not found', { status: 404 })
-        const { event } = detail.value
-        const { pill, champion } = eventCard(detail.value)
+      GET: async ({ params, request }) => {
+        const detail = await cardDetail(params.eventId)
+        if (detail === 'missing') return new Response('Not found', { status: 404 })
+        if (detail === 'private') return Response.redirect(new URL('/api/og/default', request.url), 302)
+        const { event } = detail
+        const { pill, champion } = eventCard(detail)
         const when = new Date(event.startsAt).toLocaleDateString('en-US', {
           weekday: 'short',
           month: 'short',

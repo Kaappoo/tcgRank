@@ -34,7 +34,7 @@ import {
   type EventStatus,
   type MatchRow,
 } from '../db/schema.ts'
-import { Forbidden, InvalidState, NotFound } from '../errors.ts'
+import { CodeRequired, Forbidden, InvalidState, NotFound } from '../errors.ts'
 import {
   matchStatus,
   type EntrantView,
@@ -99,6 +99,11 @@ const playerRefColumns = {
   name: user.name,
   username: user.username,
   image: user.image,
+}
+
+interface DetailOptions {
+  /** The join code, for someone opening a private event they have not entered. */
+  readonly code?: string | undefined
 }
 
 interface ListEventsOptions {
@@ -179,6 +184,7 @@ const make = Effect.gen(function* () {
       currentRound: r.currentRound,
       plannedRounds: r.plannedRounds,
       deckRequired: r.deckRequired,
+      isPrivate: r.isPrivate,
       bestOf: r.bestOf,
       pairingSystem: r.pairingSystem,
       topCut: r.topCut,
@@ -210,7 +216,7 @@ const make = Effect.gen(function* () {
         .where(eq(eventPlayers.userId, me.id))
       scopeFilter = or(eq(events.hostId, me.id), inArray(events.id, joined))
     } else {
-      scopeFilter = eq(events.status, statusFor[options.scope])
+      scopeFilter = and(eq(events.status, statusFor[options.scope]), eq(events.isPrivate, false))
     }
 
     const rows = yield* db.query((d) =>
@@ -232,9 +238,30 @@ const make = Effect.gen(function* () {
     return summary!
   })
 
-  const detail = Effect.fn('EventsService.detail')(function* (eventId: string) {
+  /** A private event opens for its host, its entrants (dropped ones too) and anyone holding its join code. */
+  const assertCanView = Effect.fn('EventsService.assertCanView')(function* (
+    event: EventRow,
+    meId: string | null,
+    code: string | undefined,
+  ) {
+    if (!event.isPrivate || meId === event.hostId) return
+    if (code !== undefined && normalizeJoinCode(code) === event.joinCode) return
+    if (meId) {
+      const entry = yield* db.query((d) =>
+        d.query.eventPlayers.findFirst({
+          where: and(eq(eventPlayers.eventId, event.id), eq(eventPlayers.userId, meId)),
+          columns: { userId: true },
+        }),
+      )
+      if (entry) return
+    }
+    return yield* new CodeRequired()
+  })
+
+  const detail = Effect.fn('EventsService.detail')(function* (eventId: string, options: DetailOptions = {}) {
     const me = yield* optionalUser
     const event = yield* loadEvent(eventId)
+    yield* assertCanView(event, me?.id ?? null, options.code)
     const [entries, roundRows, matchRows] = yield* Effect.all(
       [
         db.query((d) =>
@@ -341,6 +368,7 @@ const make = Effect.gen(function* () {
         bestOf: input.bestOf,
         pairingSystem: input.pairingSystem,
         topCut: input.topCut,
+        isPrivate: input.isPrivate,
         joinCode,
       }),
     )
@@ -360,7 +388,8 @@ const make = Effect.gen(function* () {
    * the current deck; `null` registers none, which events that require a deck
    * refuse. Once round 1 starts a registered deck is locked.
    */
-  const join = Effect.fn('EventsService.join')(function* (eventId: string, deckId?: string | null) {
+  /** `code`: the join code, needed to enter a private event the player is not already in. */
+  const join = Effect.fn('EventsService.join')(function* (eventId: string, deckId?: string | null, code?: string) {
     const me = yield* requireUser
     const event = yield* loadEvent(eventId)
     if (event.status === 'finished') return yield* new InvalidState({ reason: 'This event has already finished' })
@@ -375,6 +404,7 @@ const make = Effect.gen(function* () {
         where: and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.userId, me.id)),
       }),
     )
+    if (!existing) yield* assertCanView(event, me.id, code)
     // A player still in the event may fill in a missing deck; anyone else needs open entry.
     const closed = existing?.droppedAtRound === null ? null : entriesClosedReason(event)
     if (closed) return yield* new InvalidState({ reason: closed })
@@ -397,6 +427,12 @@ const make = Effect.gen(function* () {
     yield* db.query((d) =>
       d.insert(eventPlayers).values({ id: newId(), eventId, userId: me.id, deckId: deckId ?? null }),
     )
+  })
+
+  /** Host-only: hide the event from everyone but its entrants and holders of the join code. Allowed at any time. */
+  const setPrivate = Effect.fn('EventsService.setPrivate')(function* (eventId: string, isPrivate: boolean) {
+    yield* loadHostedEvent(eventId)
+    yield* db.query((d) => d.update(events).set({ isPrivate }).where(eq(events.id, eventId)))
   })
 
   /** Host-only: whether entering needs a registered deck. Fixed once round 1 starts. */
@@ -1069,6 +1105,7 @@ const make = Effect.gen(function* () {
     claimPreview,
     claimGuest,
     setDeckRequired,
+    setPrivate,
     setBestOf,
     setPairingSystem,
     setTopCut,

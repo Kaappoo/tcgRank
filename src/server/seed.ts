@@ -67,6 +67,7 @@ export const seedDemo = Effect.fn('seed.demo')(function* ({ host, players }: Dem
         roundMinutes: 50,
         startsAt: now,
         deckRequired: false,
+        isPrivate: false,
         bestOf: DEFAULT_BEST_OF,
         pairingSystem,
         topCut: options.topCut ?? false,

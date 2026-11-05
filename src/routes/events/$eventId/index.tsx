@@ -1,12 +1,14 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { CalendarDays, MonitorPlay, Share2, Store, Trophy, Users } from 'lucide-react'
+import { CalendarDays, Lock, MonitorPlay, Share2, Store, Trophy, Users } from 'lucide-react'
 import { useMemo, type ComponentProps } from 'react'
 import { z } from 'zod'
 import { AddGuestForm, GuestRowActions } from '#/components/events/guests.tsx'
 import { EntryPanel } from '#/components/events/entry-panel.tsx'
 import { DeleteEventButton } from '#/components/events/delete-event.tsx'
 import { HostDesk } from '#/components/events/host-desk.tsx'
+import { EventErrorState } from '#/components/events/private-event-prompt.tsx'
+import { SettingSwitch } from '#/components/forms/setting-switch.tsx'
 import { JoinQrCard } from '#/components/events/join-qr.tsx'
 import { MatchClock } from '#/components/events/match-clock.tsx'
 import { PairingCard } from '#/components/events/pairing-card.tsx'
@@ -25,14 +27,17 @@ import { LocalTime } from '#/components/ui/local-time.tsx'
 import { formatLabel, podiumLine, setupSummary, statusLabel } from '#/lib/format.ts'
 import { tiebreakersFor } from '#/domain/standings.ts'
 import { eventQuery } from '#/lib/queries.ts'
+import { eventUrl, openSearch } from '#/lib/join.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
 import { cn } from '#/lib/utils.ts'
 import type { EventDetail, StandingView } from '#/server/events/views.ts'
 
 export const Route = createFileRoute('/events/$eventId/')({
-  /** `deck`: a deck just created while joining, to preselect. */
-  validateSearch: z.object({ deck: z.string().optional() }),
-  loader: ({ context, params }) => context.queryClient.ensureQueryData(eventQuery(params.eventId)),
+  /** `deck`: a deck just created while joining, to preselect. `code`: the join code, which opens a private event. */
+  validateSearch: z.object({ deck: z.string().optional(), code: z.string().optional() }),
+  loaderDeps: ({ search }) => ({ code: search.code }),
+  loader: ({ context, params, deps }) => context.queryClient.ensureQueryData(eventQuery(params.eventId, deps.code)),
+  errorComponent: EventErrorState,
   head: ({ loaderData, params }) => ({
     meta: loaderData
       ? seo({
@@ -48,9 +53,9 @@ export const Route = createFileRoute('/events/$eventId/')({
 function EventHub() {
   const { eventId } = Route.useParams()
   const { user } = Route.useRouteContext()
-  const { deck: createdDeck } = Route.useSearch()
-  const { data: detail, dataUpdatedAt } = useSuspenseQuery(eventQuery(eventId))
-  const actions = useEventActions(eventId)
+  const { deck: createdDeck, code } = Route.useSearch()
+  const { data: detail, dataUpdatedAt } = useSuspenseQuery(eventQuery(eventId, code))
+  const actions = useEventActions(eventId, code)
   const offsetMs = detail.serverNow - dataUpdatedAt
   const { event, viewer } = detail
   const origin = typeof window === 'undefined' ? absoluteUrl('/') : window.location.origin
@@ -61,7 +66,7 @@ function EventHub() {
   const busy = Object.values(actions).some((m) => m.isPending)
 
   const share = async () => {
-    const url = window.location.href
+    const url = eventUrl(window.location.origin, event)
     if (navigator.share) return navigator.share({ title: event.name, url }).catch(() => {})
     await navigator.clipboard.writeText(url)
     toast.success('Link copied', 'Paste it in your store group chat.')
@@ -77,6 +82,11 @@ function EventHub() {
           </Badge>
           <Badge variant="outline">{formatLabel(event.format)}</Badge>
           <Badge variant="outline">{setupSummary(event)}</Badge>
+          {event.isPrivate ? (
+            <Badge variant="outline">
+              <Lock /> Private
+            </Badge>
+          ) : null}
           {isHost ? <Badge>You&apos;re hosting</Badge> : null}
         </div>
         <h1 className="font-display text-4xl sm:text-6xl">{event.name}</h1>
@@ -101,6 +111,7 @@ function EventHub() {
               <Link
                 to="/events/$eventId/screen"
                 params={{ eventId }}
+                search={openSearch(event)}
                 target="_blank"
                 className={buttonVariants({ variant: 'outline', size: 'sm' })}
               >
@@ -116,6 +127,9 @@ function EventHub() {
           </div>
         </div>
         {event.description ? <p className="max-w-2xl whitespace-pre-line text-paper-dim">{event.description}</p> : null}
+        {isHost ? (
+          <PrivateSwitch isPrivate={event.isPrivate} busy={busy} onChange={(on) => actions.isPrivate.mutate(on)} />
+        ) : null}
       </header>
 
       <div className="flex flex-col gap-6">
@@ -137,12 +151,7 @@ function EventHub() {
 
         {viewer?.currentMatch && event.status === 'running' && currentRound ? (
           <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
-            <PairingCard
-              match={viewer.currentMatch}
-              viewerId={viewer.userId}
-              bestOf={event.bestOf}
-              records={records}
-            />
+            <PairingCard match={viewer.currentMatch} viewerId={viewer.userId} bestOf={event.bestOf} records={records} />
             <div className="flex flex-col gap-6">
               {!isHost ? (
                 <div className="rounded-2xl border border-line bg-surface p-5">
@@ -171,15 +180,11 @@ function EventHub() {
           </div>
         ) : null}
 
-        {event.status === 'finished' ? <Podium standings={detail.standings} topCut={event.topCutSize !== null} /> : null}
+        {event.status === 'finished' ? (
+          <Podium standings={detail.standings} topCut={event.topCutSize !== null} />
+        ) : null}
 
-        <EntryPanel
-          detail={detail}
-          signedIn={Boolean(user)}
-          busy={busy}
-          actions={actions}
-          createdDeck={createdDeck}
-        />
+        <EntryPanel detail={detail} signedIn={Boolean(user)} busy={busy} actions={actions} createdDeck={createdDeck} />
 
         {isHost && event.status !== 'finished' ? (
           <JoinQrCard code={event.joinCode} eventName={event.name} origin={origin} />
@@ -201,6 +206,29 @@ function EventHub() {
         />
       </div>
     </Page>
+  )
+}
+
+/** Host-only: the event's visibility, which can change at any time. */
+function PrivateSwitch({
+  isPrivate,
+  busy,
+  onChange,
+}: {
+  isPrivate: boolean
+  busy: boolean
+  onChange: (on: boolean) => void
+}) {
+  return (
+    <div className="max-w-xl">
+      <SettingSwitch
+        title="Private event"
+        description="Left out of the event lists. Players need the code or QR to find it."
+        checked={isPrivate}
+        disabled={busy}
+        onChange={onChange}
+      />
+    </div>
   )
 }
 
@@ -303,20 +331,15 @@ function EventTabs({
           {event.pairingSystem === 'single_elimination'
             ? 'Final placement follows the round a player went out in; players out in the same round share it. Byes only advance a player.'
             : event.pairingSystem === 'round_robin'
-            ? 'Win 3 · Tie 1 · Loss 0 · Bye 3. A tie between two players goes to the winner of their match (H2H), then game-win % (GW%), then opponents’ win % (OMW, min 25%).'
-            : 'Win 3 · Tie 1 · Loss 0. Ties broken by opponents’ win % (OMW, min 25%), then their opponents’.'}
+              ? 'Win 3 · Tie 1 · Loss 0 · Bye 3. A tie between two players goes to the winner of their match (H2H), then game-win % (GW%), then opponents’ win % (OMW, min 25%).'
+              : 'Win 3 · Tie 1 · Loss 0. Ties broken by opponents’ win % (OMW, min 25%), then their opponents’.'}
           {event.status !== 'finished' ? ' Only confirmed results count.' : ''}
         </p>
       </TabsPanel>
 
       <TabsPanel value="players">
         {viewer?.isHost && event.status !== 'finished' ? (
-          <AddGuestForm
-            players={players}
-            busy={busy}
-            onAdd={onAddGuest}
-            closedReason={event.entriesClosedReason}
-          />
+          <AddGuestForm players={players} busy={busy} onAdd={onAddGuest} closedReason={event.entriesClosedReason} />
         ) : null}
         {players.length === 0 ? (
           <p className="py-6 text-paper-dim">Nobody has joined yet. Share the QR code to get people in.</p>
@@ -354,7 +377,11 @@ function EventTabs({
                   <Badge variant="muted" className="ml-auto">
                     Dropped
                   </Badge>
-                ) : viewer?.isHost && event.deckRequired && !p.isGuest && p.deckId === null && event.status !== 'finished' ? (
+                ) : viewer?.isHost &&
+                  event.deckRequired &&
+                  !p.isGuest &&
+                  p.deckId === null &&
+                  event.status !== 'finished' ? (
                   <Badge variant="loss" className="ml-auto">
                     No deck
                   </Badge>

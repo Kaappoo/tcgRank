@@ -8,11 +8,13 @@ import {
   cutToTopInput,
   deckRequiredInput,
   eventIdInput,
+  eventViewInput,
   joinCodeInput,
   joinEventInput,
   listEventsInput,
   matchIdInput,
   pairingSystemInput,
+  privateInput,
   removeGuestInput,
   reportResultInput,
   topCutInput,
@@ -25,8 +27,8 @@ export const listEvents = createServerFn({ method: 'GET' })
   .handler(({ data }) => runServerEffect(EventsService.use((s) => s.list(data))))
 
 export const getEvent = createServerFn({ method: 'GET' })
-  .validator(eventIdInput)
-  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.detail(data.eventId))))
+  .validator(eventViewInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.detail(data.eventId, { code: data.code }))))
 
 export const getEventByCode = createServerFn({ method: 'GET' })
   .validator(joinCodeInput)
@@ -38,7 +40,11 @@ export const createEvent = createServerFn({ method: 'POST' })
 
 export const joinEvent = createServerFn({ method: 'POST' })
   .validator(joinEventInput)
-  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.join(data.eventId, data.deckId))))
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.join(data.eventId, data.deckId, data.code))))
+
+export const setPrivate = createServerFn({ method: 'POST' })
+  .validator(privateInput)
+  .handler(({ data }) => runServerEffect(EventsService.use((s) => s.setPrivate(data.eventId, data.isPrivate))))
 
 export const setDeckRequired = createServerFn({ method: 'POST' })
   .validator(deckRequiredInput)

@@ -22,10 +22,12 @@ export const eventsQuery = (scope: EventScope, search = '') =>
     staleTime: 15_000,
   })
 
-export const eventQuery = (eventId: string) =>
+/** `code`: the join code, which opens a private event to someone who has not entered it. */
+export const eventQuery = (eventId: string, code?: string) =>
   queryOptions({
+    // The code grants access but doesn't change the event, so it stays out of the key.
     queryKey: ['event', eventId],
-    queryFn: () => getEvent({ data: { eventId } }),
+    queryFn: () => getEvent({ data: { eventId, code } }),
     meta: persist,
     staleTime: 2_000,
     // Live events poll quickly so pairings, results and the clock stay in sync across phones.

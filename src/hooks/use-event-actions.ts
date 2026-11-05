@@ -17,6 +17,7 @@ import {
   reportResult,
   setBestOf,
   setDeckRequired,
+  setPrivate,
   setPairingSystem,
   setTopCut,
   startNextRound,
@@ -24,8 +25,11 @@ import {
 
 export const errorMessage = (error: unknown) => (error instanceof Error ? error.message : 'Something went wrong')
 
-/** Every mutation a player or host can make on an event, wired to refresh the live view. */
-export function useEventActions(eventId: string) {
+/**
+ * Every mutation a player or host can make on an event, wired to refresh the live view.
+ * `code`: the join code the page was opened with, which a private event asks of a new player.
+ */
+export function useEventActions(eventId: string, code?: string) {
   const queryClient = useQueryClient()
   const refresh = () =>
     Promise.all([
@@ -44,6 +48,7 @@ export function useEventActions(eventId: string) {
   const join = useServerFn(joinEvent)
   const leave = useServerFn(leaveEvent)
   const deckRule = useServerFn(setDeckRequired)
+  const privateRule = useServerFn(setPrivate)
   const bestOfRule = useServerFn(setBestOf)
   const pairingSystemRule = useServerFn(setPairingSystem)
   const topCutRule = useServerFn(setTopCut)
@@ -103,9 +108,20 @@ export function useEventActions(eventId: string) {
       onError,
     }),
     join: useMutation({
-      mutationFn: (deckId?: string | null) => join({ data: { eventId, deckId } }),
+      mutationFn: (deckId?: string | null) => join({ data: { eventId, deckId, code } }),
       onSuccess: () =>
         refresh().then(() => toast.success("You're in", 'Pairings will show up here when the round starts.')),
+      onError,
+    }),
+    isPrivate: useMutation({
+      mutationFn: (isPrivate: boolean) => privateRule({ data: { eventId, isPrivate } }),
+      onSuccess: (_, isPrivate) =>
+        refresh().then(() =>
+          toast.success(
+            isPrivate ? 'Event is private' : 'Event is public',
+            isPrivate ? 'Only players with the code or QR can find it.' : 'Anyone can find it in the event lists.',
+          ),
+        ),
       onError,
     }),
     deckRequired: useMutation({

@@ -81,6 +81,8 @@ export interface EventSummary {
   readonly currentRound: number
   readonly plannedRounds: number
   readonly deckRequired: boolean
+  /** Hidden from public lists; only the host, entrants and holders of the join code can open it. */
+  readonly isPrivate: boolean
   readonly bestOf: BestOf
   readonly pairingSystem: PairingSystem
   /** A Swiss event that cuts to a bracket after its Swiss rounds. Always false outside Swiss. */

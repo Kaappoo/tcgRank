@@ -2,16 +2,22 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { BracketScreen } from '#/components/events/bracket-screen.tsx'
 import { QrCode } from '#/components/events/join-qr.tsx'
-import { joinUrl } from '#/lib/join.ts'
+import { eventUrl, joinUrl } from '#/lib/join.ts'
 import { MatchClock } from '#/components/events/match-clock.tsx'
 import { Logo } from '#/components/layout/logo.tsx'
 import { LiveDot } from '#/components/ui/badge.tsx'
 import { statusLabel } from '#/lib/format.ts'
 import { eventQuery } from '#/lib/queries.ts'
 import { absoluteUrl } from '#/lib/seo.ts'
+import { EventErrorState } from '#/components/events/private-event-prompt.tsx'
+import { z } from 'zod'
 
 export const Route = createFileRoute('/events/$eventId/screen')({
-  loader: ({ context, params }) => context.queryClient.ensureQueryData(eventQuery(params.eventId)),
+  /** `code`: the join code, so a private event's screen opens on a counter PC not signed in as the host. */
+  validateSearch: z.object({ code: z.string().optional() }),
+  loaderDeps: ({ search }) => ({ code: search.code }),
+  loader: ({ context, params, deps }) => context.queryClient.ensureQueryData(eventQuery(params.eventId, deps.code)),
+  errorComponent: EventErrorState,
   head: ({ loaderData }) => ({
     meta: [{ title: loaderData ? `${loaderData.event.name} — store screen` : 'Store screen' }],
   }),
@@ -26,7 +32,8 @@ export const Route = createFileRoute('/events/$eventId/screen')({
  */
 function StoreScreen() {
   const { eventId } = Route.useParams()
-  const { data, dataUpdatedAt } = useSuspenseQuery(eventQuery(eventId))
+  const { code } = Route.useSearch()
+  const { data, dataUpdatedAt } = useSuspenseQuery(eventQuery(eventId, code))
   const { event, rounds, matches } = data
   const round = rounds.find((r) => r.number === event.currentRound) ?? null
   const origin = typeof window === 'undefined' ? absoluteUrl('/') : window.location.origin
@@ -49,13 +56,7 @@ function StoreScreen() {
       <BracketScreen
         detail={data}
         clock={clock}
-        qr={
-          <QrCode
-            value={new URL(`/events/${eventId}`, origin).toString()}
-            label="Scan to follow the bracket"
-            className="size-full"
-          />
-        }
+        qr={<QrCode value={eventUrl(origin, event)} label="Scan to follow the bracket" className="size-full" />}
       />
     )
   }

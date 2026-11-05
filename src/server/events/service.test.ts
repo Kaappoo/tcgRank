@@ -19,6 +19,7 @@ const newEvent: CreateEventInput = {
   roundMinutes: 50,
   startsAt: new Date('2026-10-06T19:00:00Z'),
   deckRequired: false,
+  isPrivate: false,
   bestOf: DEFAULT_BEST_OF,
   pairingSystem: 'swiss',
   topCut: false,
@@ -1516,6 +1517,108 @@ describe('Swiss top cut', () => {
         expect(finished.event.topCutSize).toBeNull()
         expect(finished.standings.map((s) => s.playerId)).toEqual(order)
         expect(finished.standings.every((s) => s.stage === null)).toBe(true)
+      }),
+    ),
+  )
+})
+
+describe('private events', () => {
+  const hostPrivate = Effect.fn('hostPrivate')(function* () {
+    const events = yield* EventsService
+    const host = yield* insertUser('Professor Elm')
+    const { id: eventId, joinCode } = yield* events.create({ ...newEvent, isPrivate: true }).pipe(asUser(host))
+    const player = yield* insertUser('Silver')
+    yield* events.join(eventId, undefined, joinCode).pipe(asUser(player))
+    const stranger = yield* insertUser('Gold')
+    return { events, host, eventId, joinCode, player, stranger }
+  })
+
+  it.effect('stay out of public lists but show under mine for the host and entrants', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, player, stranger } = yield* hostPrivate()
+        const ids = (rows: ReadonlyArray<{ id: string }>) => rows.map((e) => e.id)
+
+        expect(ids(yield* events.list({ scope: 'upcoming' }).pipe(asUser(stranger)))).not.toContain(eventId)
+        expect(ids(yield* events.list({ scope: 'upcoming', search: 'Tuesday' }))).not.toContain(eventId)
+        expect(ids(yield* events.list({ scope: 'mine' }).pipe(asUser(stranger)))).not.toContain(eventId)
+        expect(ids(yield* events.list({ scope: 'mine' }).pipe(asUser(host)))).toContain(eventId)
+        expect(ids(yield* events.list({ scope: 'mine' }).pipe(asUser(player)))).toContain(eventId)
+      }),
+    ),
+  )
+
+  it.effect('open only to the host, entrants, dropped entrants and holders of the join code', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, joinCode, player, stranger } = yield* hostPrivate()
+
+        expect((yield* events.detail(eventId).pipe(asUser(host))).event.id).toBe(eventId)
+        expect((yield* events.detail(eventId).pipe(asUser(player))).event.id).toBe(eventId)
+        expect((yield* events.detail(eventId, { code: joinCode.toLowerCase() })).event.id).toBe(eventId)
+
+        const refused = yield* Effect.flip(events.detail(eventId).pipe(asUser(stranger)))
+        expect(refused._tag).toBe('CodeRequired')
+        const wrongCode = yield* Effect.flip(events.detail(eventId, { code: 'ZZZZZZ' }))
+        expect(wrongCode._tag).toBe('CodeRequired')
+
+        const second = yield* insertUser('Crystal')
+        yield* events.join(eventId, undefined, joinCode).pipe(asUser(second))
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        yield* events.leave(eventId).pipe(asUser(player))
+        expect((yield* events.detail(eventId).pipe(asUser(player))).event.id).toBe(eventId)
+      }),
+    ),
+  )
+
+  it.effect('can still be found by join code', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, eventId, joinCode } = yield* hostPrivate()
+        expect((yield* events.findByJoinCode(joinCode)).id).toBe(eventId)
+      }),
+    ),
+  )
+
+  it.effect('the host can make an event private or public at any time, even after it finishes', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId } = yield* setup(2)
+        const outsider = yield* insertUser('Gold')
+        const upcomingIds = Effect.map(events.list({ scope: 'upcoming' }), (rows) => rows.map((e) => e.id))
+
+        yield* events.setPrivate(eventId, true).pipe(asUser(host))
+        expect(yield* upcomingIds).not.toContain(eventId)
+        expect((yield* Effect.flip(events.detail(eventId).pipe(asUser(outsider))))._tag).toBe('CodeRequired')
+
+        const forbidden = yield* Effect.flip(events.setPrivate(eventId, false).pipe(asUser(outsider)))
+        expect(forbidden._tag).toBe('Forbidden')
+
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        const { matches } = yield* events.detail(eventId).pipe(asUser(host))
+        yield* events.reportResult(matches[0]!.id, 2, 0).pipe(asUser(host))
+        yield* events.finishEvent(eventId).pipe(asUser(host))
+        yield* events.setPrivate(eventId, false).pipe(asUser(host))
+        expect((yield* events.detail(eventId).pipe(asUser(outsider))).event.status).toBe('finished')
+      }),
+    ),
+  )
+
+  it.effect('take the join code to enter, except for an entrant rejoining after a drop', () =>
+    run(
+      Effect.gen(function* () {
+        const { events, host, eventId, joinCode, player, stranger } = yield* hostPrivate()
+
+        const refused = yield* Effect.flip(events.join(eventId).pipe(asUser(stranger)))
+        expect(refused._tag).toBe('CodeRequired')
+        yield* events.join(eventId, undefined, joinCode).pipe(asUser(stranger))
+
+        yield* events.startNextRound(eventId).pipe(asUser(host))
+        yield* events.leave(eventId).pipe(asUser(player))
+        yield* events.join(eventId).pipe(asUser(player))
+        const { players } = yield* events.detail(eventId).pipe(asUser(host))
+        expect(players.find((p) => p.id === player.id)?.droppedAtRound).toBeNull()
+        expect(players.map((p) => p.id)).toContain(stranger.id)
       }),
     ),
   )

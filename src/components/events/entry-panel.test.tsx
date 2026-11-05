@@ -36,6 +36,7 @@ const detailWith = (event: Partial<EventDetail['event']>, entry: EntrantView | n
     currentRound: 0,
     plannedRounds: 3,
     deckRequired: false,
+    isPrivate: false,
     bestOf: 3,
     pairingSystem: 'swiss',
     topCut: false,

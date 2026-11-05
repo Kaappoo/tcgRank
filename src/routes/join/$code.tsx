@@ -25,7 +25,7 @@ export const Route = createFileRoute('/join/$code')({
   },
   loader: async ({ context, params, deps }) => {
     const summary = await context.queryClient.ensureQueryData(eventByCodeQuery(params.code.toUpperCase()))
-    const detail = await context.queryClient.ensureQueryData(eventQuery(summary.id))
+    const detail = await context.queryClient.ensureQueryData(eventQuery(summary.id, params.code.toUpperCase()))
     if (detail.viewer?.entry && detail.viewer.entry.droppedAtRound === null) {
       throw redirect({ to: '/events/$eventId', params: { eventId: summary.id }, search: { deck: deps.deck } })
     }
@@ -47,9 +47,7 @@ function ConfirmJoin() {
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">{formatLabel(event.format)}</Badge>
             <Badge variant="outline">{setupSummary(event)}</Badge>
-            <Badge variant={event.status === 'running' ? 'live' : 'muted'}>
-              {statusLabel(event)}
-            </Badge>
+            <Badge variant={event.status === 'running' ? 'live' : 'muted'}>{statusLabel(event)}</Badge>
           </div>
           <h1 className="font-display text-4xl">{event.name}</h1>
           <ul className="flex flex-col gap-2 text-sm text-paper-dim">
@@ -69,14 +67,24 @@ function ConfirmJoin() {
       {event.status === 'finished' ? (
         <div className="flex flex-col gap-3">
           <p className="text-paper-dim">This event has already finished.</p>
-          <Link to="/events/$eventId" params={{ eventId: event.id }} className={buttonVariants({ size: 'lg' })}>
+          <Link
+            to="/events/$eventId"
+            params={{ eventId: event.id }}
+            search={{ code: code.toUpperCase() }}
+            className={buttonVariants({ size: 'lg' })}
+          >
             See the results
           </Link>
         </div>
       ) : event.entriesClosedReason ? (
         <div className="flex flex-col gap-3">
           <ClosedEntryNote reason={event.entriesClosedReason} />
-          <Link to="/events/$eventId" params={{ eventId: event.id }} className={buttonVariants({ size: 'lg' })}>
+          <Link
+            to="/events/$eventId"
+            params={{ eventId: event.id }}
+            search={{ code: code.toUpperCase() }}
+            className={buttonVariants({ size: 'lg' })}
+          >
             Follow the event
           </Link>
         </div>
@@ -91,7 +99,7 @@ function ConfirmJoin() {
 function JoinWithDeck({ event, code }: { event: EventSummary; code: string }) {
   const navigate = useNavigate()
   const { data: decks } = useQuery(myDecksQuery)
-  const actions = useEventActions(event.id)
+  const actions = useEventActions(event.id, code)
   const { deck: createdDeck } = Route.useSearch()
   const [choice, setChoice] = useState<string | null>(createdDeck ?? null)
   const hydrated = useHydrated()

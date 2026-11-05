@@ -32,6 +32,7 @@ export const createEventInput = z
     bestOf: bestOfSchema.default(DEFAULT_BEST_OF),
     pairingSystem: pairingSystemSchema.default(DEFAULT_PAIRING_SYSTEM),
     topCut: z.boolean().default(false),
+    isPrivate: z.boolean().default(false),
   })
   .refine((input) => !input.topCut || input.pairingSystem === 'swiss', {
     message: TOP_CUT_SWISS_ONLY,
@@ -40,11 +41,15 @@ export const createEventInput = z
 export type CreateEventInput = z.infer<typeof createEventInput>
 
 export const eventIdInput = z.object({ eventId: z.string().min(1) })
+/** Opening an event; `code` is the join code, for a private event the viewer has not entered. */
+export const eventViewInput = z.object({ eventId: z.string().min(1), code: z.string().trim().max(12).optional() })
 export const joinCodeInput = z.object({ code: z.string().trim().min(4).max(12) })
 
 export const joinEventInput = z.object({
   eventId: z.string().min(1),
   deckId: z.string().min(1).nullable().optional(),
+  /** The join code, which a private event asks of a player not already in it. */
+  code: z.string().trim().max(12).optional(),
 })
 
 export const guestNameInput = z.string().trim().min(2, 'Give the player a name of at least 2 characters').max(40)
@@ -57,6 +62,11 @@ export const addGuestInput = z.object({
 
 export const removeGuestInput = z.object({ eventId: z.string().min(1), guestId: z.string().min(1) })
 export const claimCodeInput = z.object({ code: z.string().trim().min(16).max(64) })
+
+export const privateInput = z.object({
+  eventId: z.string().min(1),
+  isPrivate: z.boolean(),
+})
 
 export const deckRequiredInput = z.object({
   eventId: z.string().min(1),

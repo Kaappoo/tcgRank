@@ -1,4 +1,5 @@
 import { Schema } from 'effect'
+import { CODE_REQUIRED_MESSAGE } from '#/shared/private-event.ts'
 
 export class NotFound extends Schema.TaggedError<NotFound>()('NotFound', {
   entity: Schema.String,
@@ -36,6 +37,14 @@ export class InvalidState extends Schema.TaggedError<InvalidState>()('InvalidSta
   }
 }
 
+/** A private event, opened by someone who is not its host or an entrant and has not given its join code. */
+export class CodeRequired extends Schema.TaggedError<CodeRequired>()('CodeRequired', {}) {
+  // fallow-ignore-next-line unused-class-member
+  override get message() {
+    return CODE_REQUIRED_MESSAGE
+  }
+}
+
 export class DatabaseError extends Schema.TaggedError<DatabaseError>()('DatabaseError', {
   cause: Schema.Defect(),
 }) {
@@ -45,7 +54,7 @@ export class DatabaseError extends Schema.TaggedError<DatabaseError>()('Database
   }
 }
 
-export type AppError = NotFound | Unauthenticated | Forbidden | InvalidState | DatabaseError
+export type AppError = NotFound | Unauthenticated | Forbidden | CodeRequired | InvalidState | DatabaseError
 
 export const httpStatusFor = (error: AppError): number => {
   switch (error._tag) {
@@ -54,6 +63,7 @@ export const httpStatusFor = (error: AppError): number => {
     case 'Unauthenticated':
       return 401
     case 'Forbidden':
+    case 'CodeRequired':
       return 403
     case 'InvalidState':
       return 409

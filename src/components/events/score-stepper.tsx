@@ -8,8 +8,7 @@ import { describeScore, type ResultText, type ResultTone } from './result-option
 
 /** Who the two steppers belong to: the reporting player and their opponent, or two named players. */
 export type ScoreSides =
-  | { readonly kind: 'mine' }
-  | { readonly kind: 'players'; readonly player1: string; readonly player2: string }
+  { readonly kind: 'mine' } | { readonly kind: 'players'; readonly player1: string; readonly player2: string }
 
 export interface ScoreStepperProps {
   readonly rules: ScoreRules

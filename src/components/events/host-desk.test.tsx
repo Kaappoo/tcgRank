@@ -17,6 +17,7 @@ const detailWith = (event: Partial<EventDetail['event']>): EventDetail => ({
     currentRound: 0,
     plannedRounds: 0,
     deckRequired: false,
+    isPrivate: false,
     bestOf: 3,
     pairingSystem: 'swiss',
     topCut: false,
@@ -35,7 +36,10 @@ const detailWith = (event: Partial<EventDetail['event']>): EventDetail => ({
   rounds: [],
   matches: [],
   standings: [],
-  progress: eventProgress({ topCutSize: null, plannedRounds: 0, currentRound: 0, pairingSystem: 'swiss', topCut: false }, 0),
+  progress: eventProgress(
+    { topCutSize: null, plannedRounds: 0, currentRound: 0, pairingSystem: 'swiss', topCut: false },
+    0,
+  ),
   viewer: { userId: 'host', isHost: true, entry: null, currentMatch: null },
   serverNow: 0,
 })

@@ -167,6 +167,7 @@ export const bracketDetail: EventDetail = {
     currentRound: 2,
     plannedRounds: 3,
     deckRequired: false,
+    isPrivate: false,
     bestOf: 3,
     pairingSystem: 'single_elimination',
     topCut: false,

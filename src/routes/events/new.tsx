@@ -45,6 +45,7 @@ function NewEvent() {
   const [format, setFormat] = useState<EventFormat>('standard')
   const [roundMinutes, setRoundMinutes] = useState(50)
   const [deckRequired, setDeckRequired] = useState(false)
+  const [isPrivate, setIsPrivate] = useState(false)
   const [bestOf, setBestOf] = useState<BestOf>(DEFAULT_BEST_OF)
   const [setup, setSetup] = useState<SetupDraft>({
     pairingSystem: DEFAULT_PAIRING_SYSTEM,
@@ -80,6 +81,7 @@ function NewEvent() {
             format,
             roundMinutes,
             deckRequired,
+            isPrivate,
             bestOf,
             ...setup,
             startsAt: new Date(String(form.get('startsAt'))),
@@ -147,6 +149,12 @@ function NewEvent() {
           description="Players must register a 60-card deck in this format to join. Otherwise they can skip it."
           checked={deckRequired}
           onChange={setDeckRequired}
+        />
+        <SettingSwitch
+          title="Private event"
+          description="Left out of the event lists. Players need the code or QR to find it."
+          checked={isPrivate}
+          onChange={setIsPrivate}
         />
         <Field>
           <FieldLabel>Notes for players</FieldLabel>
