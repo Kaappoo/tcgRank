@@ -1,0 +1,366 @@
+<title>Avatar Look Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap">
+<!--
+  PROTOTYPE — throwaway. Answers "Avatar look and parts list" (map: Player identity, #52 / ticket #54).
+  Three art directions for the same parts, switchable from the bottom bar (← →, or #flat / #sticker / #tile).
+  Not production code: no tests, the SVG composer here is a sketch of the real one.
+-->
+<style>
+  /* Layout: stage + in-context mocks on the left, part pickers on the right; stacks on phones. Dark only, per DESIGN.md. */
+  :root {
+    --ink: #0d0e12;
+    --surface: #15161b;
+    --surface-raised: #1e1f25;
+    --line: #2c2d35;
+    --paper: #f4efe8;
+    --paper-dim: #b3ada5;
+    --orange: #f06a2a;
+    --on-orange: #1a120c;
+    --gold: #e2b33c;
+    --font: 'Archivo', 'Arial Narrow', system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--ink); color: var(--paper); font-family: var(--font); font-size: 15px; line-height: 1.45; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 24px 120px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .display { font-stretch: 125%; font-weight: 850; letter-spacing: -0.01em; }
+  .num { font-stretch: 72%; font-weight: 800; font-variant-numeric: tabular-nums; }
+  h1 { font-size: clamp(26px, 5vw, 40px); margin: 0; text-wrap: balance; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--paper-dim); margin: 0 0 10px; font-weight: 700; }
+  p.lede { color: var(--paper-dim); max-width: 62ch; margin: 8px 0 0; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px; margin-top: 24px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-width: 0; }
+  .stack { display: grid; gap: 18px; }
+  .stage { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .stage-meta { display: grid; gap: 6px; min-width: 0; }
+  .vname { font-size: 24px; }
+  .vnote { color: var(--paper-dim); max-width: 46ch; }
+  .sizes { display: flex; gap: 14px; align-items: end; margin-top: 6px; }
+  .sizes figure { margin: 0; display: grid; justify-items: center; gap: 4px; color: var(--paper-dim); font-size: 11px; }
+
+  /* in-context mocks */
+  .profile { display: flex; gap: 16px; align-items: center; }
+  .profile .who { display: grid; gap: 4px; }
+  .title-chip { justify-self: start; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--paper-dim); }
+  .pairing { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+  .slab { background: var(--orange); color: var(--on-orange); transform: skewX(-12deg); padding: 6px 14px; font-size: 34px; line-height: 1; }
+  .slab span { display: inline-block; transform: skewX(12deg); }
+  .players { display: grid; gap: 8px; min-width: 0; }
+  .prow { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; background: var(--surface-raised); position: relative; overflow: hidden; min-width: 0; }
+  .prow.me::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--sleeve, transparent); }
+  .prow .n { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prow .rec { margin-left: auto; color: var(--paper-dim); }
+  .standings { display: grid; gap: 2px; }
+  .srow { display: grid; grid-template-columns: 26px 32px 1fr auto; gap: 10px; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  .srow .r { color: var(--paper-dim); }
+  .tv { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; font-size: 13px; }
+  .tv div { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; }
+
+  /* controls */
+  .slot { display: grid; gap: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: inherit; font-size: 13px; color: var(--paper); background: var(--surface-raised); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+  .chip[aria-pressed="true"] { border-color: var(--orange); box-shadow: inset 0 0 0 1px var(--orange); }
+  .chip.trophy { color: var(--gold); }
+  .chip:disabled { opacity: .45; cursor: not-allowed; }
+  .chip:focus-visible, .sw:focus-visible, button:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0; }
+  .sw[aria-pressed="true"] { border-color: var(--paper); box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--orange); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .btn { font: inherit; font-weight: 700; background: var(--orange); color: var(--on-orange); border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
+  .btn.ghost { background: var(--surface-raised); color: var(--paper); border: 1px solid var(--line); }
+  input[type=text] { font: inherit; background: var(--ink); color: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; min-width: 0; width: 160px; }
+  label.toggle { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; color: var(--paper-dim); }
+  .defaults { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 10px; }
+  .defaults button { background: none; border: 0; padding: 0; cursor: pointer; display: grid; justify-items: center; gap: 2px; color: var(--paper-dim); font: inherit; font-size: 10px; }
+  pre { background: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 12px; overflow-x: auto; margin: 0; color: var(--paper-dim); }
+  .count { color: var(--paper-dim); font-size: 12px; }
+  .q { border-left: 3px solid var(--orange); padding-left: 12px; color: var(--paper-dim); max-width: 70ch; }
+  .q li { margin: 2px 0; }
+
+  /* prototype switcher: deliberately not part of the design */
+  .switcher { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 4px; background: #fff; color: #111; border-radius: 999px; padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.5); z-index: 20; font-family: system-ui, sans-serif; font-size: 13px; max-width: calc(100vw - 32px); }
+  .switcher button { border: 0; background: #eee; border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 16px; color: #111; }
+  .switcher .lbl { padding: 0 12px; font-weight: 600; white-space: nowrap; }
+  @media (prefers-reduced-motion: no-preference) { .avatar-in { animation: pop .25s ease-out; } @keyframes pop { from { transform: scale(.94); opacity: .6; } } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1 class="display">Avatar look</h1>
+    <p class="lede">Prototype for the ticket <em>Avatar look and parts list</em>. The same parts drawn in three art directions. Flip directions with the bar at the bottom (or ← →), build an avatar on the right, and check it at real sizes on the left.</p>
+  </header>
+
+  <div class="grid">
+    <div class="stack">
+      <section class="panel">
+        <div class="stage">
+          <div id="stage"></div>
+          <div class="stage-meta">
+            <div class="vname display" id="vname"></div>
+            <div class="vnote" id="vnote"></div>
+            <div class="sizes" id="sizes"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Profile header</h2>
+        <div class="profile">
+          <div id="ctx-profile"></div>
+          <div class="who">
+            <div class="display" style="font-size:22px">Kauã Andrade</div>
+            <div class="title-chip">Cup Top 8</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Pairing card (phone)</h2>
+        <div class="pairing">
+          <div class="slab num"><span>12</span></div>
+          <div class="players" id="ctx-pairing"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Standings</h2>
+        <div class="standings" id="ctx-standings"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Store screen (TV list)</h2>
+        <div class="tv" id="ctx-tv"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Defaults from user id</h2>
+        <p class="count" style="margin:0 0 10px">Each new player gets one of these until they customise. Drawn from free parts only. Tap one to load it.</p>
+        <div class="defaults" id="defaults"></div>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="panel stack" id="controls"></section>
+      <section class="panel stack">
+        <div class="row">
+          <input type="text" id="seed" value="usr_kaua" aria-label="User id">
+          <button class="btn ghost" id="use-seed">Default for this id</button>
+        </div>
+        <label class="toggle"><input type="checkbox" id="unlock"> Pretend all trophy items are earned</label>
+      </section>
+      <section class="panel">
+        <h2>To decide</h2>
+        <ul class="q">
+          <li>Which direction: flat bust, outlined sticker or head tile?</li>
+          <li>Bust (shows clothes) or head only (reads at 24&nbsp;px)?</li>
+          <li>Category list and first-release counts (shown per slot).</li>
+          <li>Skin tones and clothing palette.</li>
+          <li>Which items are trophies (gold chips, about 15–20%).</li>
+        </ul>
+      </section>
+      <section class="panel">
+        <h2>State</h2>
+        <pre id="state"></pre>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="switcher" role="toolbar" aria-label="Prototype variant">
+  <button id="prev" aria-label="Previous variant">←</button>
+  <span class="lbl" id="vlabel"></span>
+  <button id="next" aria-label="Next variant">→</button>
+</div>
+
+<script>
+// ---------- palette (avatar palette is content, not UI) ----------
+const SKIN = ['#F7DCC8', '#EBBF9C', '#D49C70', '#AE7449', '#7D4B2C', '#4F2F1D']
+const HAIR = ['#17181B', '#4A2E1E', '#8A5A2B', '#D9A441', '#CFC8BE', '#B5452F', '#3E5DA8']
+const CLOTH = ['#EDE8E0', '#2B2E36', '#3F6FB6', '#C23B3B', '#2F8F5B', '#E2B33C', '#7A4FB0', '#2C8C99']
+const INK = '#14151a'
+const GOLD = '#E2B33C'
+
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16)
+  const f = (c) => Math.max(0, Math.min(255, Math.round(c + (amt < 0 ? c * amt : (255 - c) * amt))))
+  const r = f(n >> 16), g = f((n >> 8) & 255), b = f(n & 255)
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)
+}
+
+// ---------- parts ----------
+// Each part returns { back, front } SVG strings. `s(d, fill)` draws a filled shape (outlined in the sticker direction).
+const HAIRS = {
+  bald: { name: 'Bald', draw: () => ({}) },
+  short: { name: 'Short', draw: (c, s) => ({ front: s('M56 92C54 54 76 44 100 44C124 44 146 54 144 92C136 74 120 66 100 66C80 66 64 74 56 92Z', c) }) },
+  spiky: { name: 'Spiky', draw: (c, s) => ({ front: s('M55 94L57 60L70 66L72 42L88 56L100 34L112 56L128 42L130 66L143 60L145 94C130 74 118 68 100 68C82 68 70 74 55 94Z', c) }) },
+  long: { name: 'Long', draw: (c, s) => ({ back: s('M50 96C48 48 74 40 100 40C126 40 152 48 150 96L156 158L44 158Z', shade(c, -0.15)), front: s('M56 92C54 54 76 44 100 44C124 44 146 54 144 92C132 70 118 62 100 62C82 62 68 70 56 92Z', c) }) },
+  curly: { name: 'Curly', draw: (c, s) => ({ front: [[58, 84], [62, 66], [74, 52], [90, 44], [110, 44], [126, 52], [138, 66], [142, 84]].map(([x, y]) => s(`M${x - 14} ${y}a14 14 0 1 0 28 0a14 14 0 1 0 -28 0Z`, c)).join('') + s('M60 84C60 58 78 50 100 50C122 50 140 58 140 84C126 72 114 68 100 68C86 68 74 72 60 84Z', c) }) },
+  ponytail: { name: 'Ponytail', draw: (c, s) => ({ back: s('M138 76C162 80 166 120 152 146C148 124 146 104 134 92Z', c), front: s('M56 92C54 54 76 44 100 44C124 44 146 54 144 92C136 74 120 66 100 66C80 66 64 74 56 92Z', c) }) },
+  buzz: { name: 'Buzz', draw: (c, s) => ({ front: s('M58 86C58 58 78 50 100 50C122 50 142 58 142 86C126 70 112 66 100 66C88 66 74 70 58 86Z', shade(c, 0.12)) }) },
+}
+
+const TOPS = {
+  tee: { name: 'Tee', draw: (c, s, skin) => ({ body: s(BODY, c) + s('M86 146Q100 164 114 146Z', skin) }) },
+  hoodie: { name: 'Hoodie', draw: (c, s) => ({ behind: s('M58 166C56 128 76 120 100 120C124 120 144 128 142 166Z', shade(c, -0.25)), body: s(BODY, c) + `<path d="M93 156V182M107 156V182" stroke="${shade(c, 0.6)}" stroke-width="3" stroke-linecap="round"/>` }) },
+  jacket: { name: 'Track jacket', draw: (c, s) => ({ body: s(BODY, c) + s('M86 148L100 196L114 148Z', CLOTH[0]) + s('M86 148L100 196L76 160Z', shade(c, -0.2)) + s('M114 148L100 196L124 160Z', shade(c, -0.2)) + `<path d="M40 178L60 162M160 178L140 162" stroke="${CLOTH[0]}" stroke-width="4"/>` }) },
+  jersey: { name: 'Jersey', draw: (c, s) => ({ body: s(BODY, c) + `<rect x="30" y="172" width="140" height="10" fill="${shade(c, 0.55)}"/>` + s('M86 146Q100 162 114 146Z', shade(c, -0.25)) }) },
+  topcut: { name: 'Top-cut jacket', trophy: 'Make a top cut', draw: (c, s) => ({ body: s(BODY, CLOTH[1]) + s('M86 148L100 196L114 148Z', GOLD) + `<path d="M38 182L62 160M162 182L138 160" stroke="${GOLD}" stroke-width="6"/>` }) },
+}
+const BODY = 'M30 212C30 168 60 148 100 148C140 148 170 168 170 212Z'
+
+const HATS = {
+  none: { name: 'None', draw: () => '' },
+  trainer: { name: 'Trainer cap', draw: (c, c2, s) => s('M54 86C54 46 74 32 100 32C126 32 146 46 146 86Z', c) + s('M78 86C78 52 88 38 100 38C112 38 122 52 122 86Z', c2) + s('M92 68L100 59L108 68L104 68L100 64L96 68Z', c) + s('M46 86Q100 74 154 86Q158 96 100 94Q42 96 46 86Z', shade(c, -0.25)) },
+  backwards: { name: 'Backwards cap', draw: (c, c2, s) => s('M54 86C54 46 74 32 100 32C126 32 146 46 146 86Z', c) + s('M80 74H120V84H80Z', shade(c, -0.3)) + `<circle cx="90" cy="79" r="2" fill="${c2}"/><circle cx="100" cy="79" r="2" fill="${c2}"/><circle cx="110" cy="79" r="2" fill="${c2}"/>` },
+  beanie: { name: 'Beanie', draw: (c, c2, s) => s('M100 30a11 11 0 1 0 0.1 0Z', c2) + s('M54 84C54 44 76 34 100 34C124 34 146 44 146 84Z', c) + s('M50 72H150V90H50Z', shade(c, -0.2)) },
+  visor: { name: 'Visor', draw: (c, c2, s) => s('M53 70H147V82H53Z', c) + s('M46 82Q100 70 154 82Q158 94 100 92Q42 94 46 82Z', c2) },
+  bucket: { name: 'Bucket hat', draw: (c, c2, s) => s('M64 76C64 42 80 34 100 34C120 34 136 42 136 76Z', c) + s('M64 66H136V76H64Z', c2) + s('M38 90L62 72H138L162 90Q100 100 38 90Z', shade(c, -0.2)) },
+  headband: { name: 'Headband', draw: (c, c2, s) => s('M54 68H146V80H54Z', c) + s('M144 70L164 62L162 80Z', c2) },
+  champion: { name: 'Champion cap', trophy: 'Win an event', draw: (c, c2, s) => s('M54 86C54 46 74 32 100 32C126 32 146 46 146 86Z', CLOTH[1]) + s('M78 86C78 52 88 38 100 38C112 38 122 52 122 86Z', GOLD) + s('M100 52L104 62L114 62L106 68L109 78L100 72L91 78L94 68L86 62L96 62Z', CLOTH[1]) + s('M46 86Q100 74 154 86Q158 96 100 94Q42 96 46 86Z', GOLD) },
+  cupvisor: { name: 'Cup visor', trophy: 'Top 8 at a League Cup', draw: (c, c2, s) => s('M53 70H147V82H53Z', CLOTH[1]) + s('M46 82Q100 70 154 82Q158 94 100 92Q42 94 46 82Z', GOLD) },
+}
+
+const ACCS = {
+  none: { name: 'None', draw: () => ({}) },
+  glasses: { name: 'Glasses', draw: () => ({ face: `<g fill="none" stroke="${INK}" stroke-width="3.5"><rect x="72" y="88" width="22" height="16" rx="5"/><rect x="106" y="88" width="22" height="16" rx="5"/><path d="M94 95H106"/></g>` }) },
+  plaster: { name: 'Plaster', draw: (s) => ({ face: s('M114 112l14-6l3 6l-14 6Z', CLOTH[0]) }) },
+  straps: { name: 'Backpack', draw: (s) => ({ over: s('M58 156L70 152L76 212L62 212Z', '#5b4634') + s('M142 156L130 152L124 212L138 212Z', '#5b4634') }) },
+  pin: { name: 'League pin', trophy: 'Play 10 events', draw: (s) => ({ over: s('M128 170a8 8 0 1 0 0.1 0Z', GOLD) }) },
+}
+
+// ---------- directions ----------
+const VARIANTS = {
+  flat: { key: 'A', name: 'Flat bust', note: 'Round frame, head and shoulders, flat fills with no outlines. Closest to Duolingo. Clothes are visible, so tops can be trophies.' },
+  sticker: { key: 'B', name: 'Outlined sticker', note: 'The same bust with a heavy ink outline and a paper ring. Reads hardest on the black field and at small sizes, like a sticker on a deck box.' },
+  tile: { key: 'C', name: 'Head tile', note: 'An angular head crop in a skewed tile that echoes the slab, backed by your sleeve colour. Clothes mostly disappear, so the hat does the talking.' },
+}
+const ORDER = Object.keys(VARIANTS)
+
+let uid = 0
+function avatarSVG(cfg, variant, size) {
+  const id = 'a' + (uid++)
+  const outline = variant === 'sticker'
+  const angular = variant === 'tile'
+  const s = (d, fill) => `<path d="${d}" fill="${fill}"${outline ? ` stroke="${INK}" stroke-width="4.5" stroke-linejoin="round"` : ''}/>`
+  const skin = SKIN[cfg.skin]
+  const hairC = HAIR[cfg.hairColour]
+  const hair = HAIRS[cfg.hair].draw(hairC, s)
+  const top = TOPS[cfg.top].draw(CLOTH[cfg.topColour], s, skin)
+  const acc = ACCS[cfg.accessory].draw(s)
+  const hat = HATS[cfg.hat].draw(CLOTH[cfg.hatColour], CLOTH[cfg.hatColour2], s)
+  const head = angular
+    ? s('M70 54L130 54L146 76L146 112L126 134L74 134L54 112L54 76Z', skin)
+    : s('M56 94a44 44 0 1 0 88 0a44 44 0 1 0 -88 0Z', skin)
+  const ears = s('M48 98a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z', shade(skin, -0.08)) + s('M136 98a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z', shade(skin, -0.08))
+  const eyes = angular
+    ? `<rect x="80" y="92" width="8" height="9" fill="${INK}"/><rect x="112" y="92" width="8" height="9" fill="${INK}"/>`
+    : `<circle cx="84" cy="97" r="4.5" fill="${INK}"/><circle cx="116" cy="97" r="4.5" fill="${INK}"/>`
+  const mouth = `<path d="M90 112Q100 120 110 112" fill="none" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>`
+  const neck = s('M88 120H112V152H88Z', shade(skin, -0.12))
+
+  const art = [hair.back, top.behind, neck, top.body, acc.over, ears, head, eyes, mouth, acc.face, hair.front, hat].filter(Boolean).join('')
+
+  let frame, viewBox, clip
+  if (variant === 'tile') {
+    viewBox = '30 18 140 140'
+    clip = `<clipPath id="${id}"><path d="M52 18H170L148 158H30Z"/></clipPath>`
+    frame = `<path d="M52 18H170L148 158H30Z" fill="${CLOTH[cfg.sleeve]}"/><path d="M52 18H170L148 158H30Z" fill="${INK}" opacity=".35"/>`
+  } else {
+    viewBox = '0 0 200 200'
+    clip = `<clipPath id="${id}"><circle cx="100" cy="100" r="${outline ? 94 : 100}"/></clipPath>`
+    frame = `<circle cx="100" cy="100" r="100" fill="${outline ? '#f4efe8' : '#24252c'}"/>` + (outline ? `<circle cx="100" cy="100" r="94" fill="#24252c"/>` : '')
+  }
+  return `<svg class="avatar-in" width="${size}" height="${size}" viewBox="${viewBox}" role="img" aria-label="Avatar">${clip}${frame}<g clip-path="url(#${id})">${art}</g></svg>`
+}
+
+// ---------- deterministic default from user id (FNV-1a → Mulberry32 per slot key) ----------
+function fnv1a(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) } return h >>> 0 }
+function rand(seed, key) { let t = (fnv1a(seed + ':' + key) + 0x6d2b79f5) | 0; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
+const free = (table) => Object.keys(table).filter((k) => !table[k].trophy).sort()
+function pick(seed, key, items) { return items[Math.floor(rand(seed, key) * items.length)] }
+function defaultAvatar(userId) {
+  const idx = (n) => [...Array(n).keys()]
+  const topColour = pick(userId, 'topColour', idx(CLOTH.length))
+  return {
+    skin: pick(userId, 'skin', idx(SKIN.length)),
+    hair: pick(userId, 'hair', free(HAIRS)),
+    hairColour: pick(userId, 'hairColour', idx(HAIR.length)),
+    top: pick(userId, 'top', free(TOPS)),
+    topColour,
+    hat: rand(userId, 'hatChance') < 0.55 ? pick(userId, 'hat', free(HATS).filter((h) => h !== 'none')) : 'none',
+    hatColour: pick(userId, 'hatColour', idx(CLOTH.length).filter((i) => i !== topColour)),
+    hatColour2: pick(userId, 'hatColour2', idx(CLOTH.length)),
+    accessory: rand(userId, 'accChance') < 0.35 ? pick(userId, 'accessory', free(ACCS).filter((a) => a !== 'none')) : 'none',
+    sleeve: pick(userId, 'sleeve', idx(CLOTH.length)),
+  }
+}
+
+// ---------- state ----------
+let cfg = defaultAvatar('usr_kaua')
+let variant = ORDER.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'flat'
+let unlocked = false
+
+const OTHERS = [['Mika Oliveira', 'usr_mika', '3-1-0'], ['Rafa Costa', 'usr_rafa', '3-1-0'], ['Jo Tanaka', 'usr_jo', '2-1-1'], ['Bia Santos', 'usr_bia', '2-2-0'], ['Theo Lima', 'usr_theo', '2-2-0']]
+
+function slotTable(label, key, table) {
+  const ids = Object.keys(table)
+  const trophies = ids.filter((k) => table[k].trophy).length
+  return `<div class="slot"><h2>${label} <span class="count">${ids.length - trophies} free · ${trophies} trophy</span></h2><div class="chips">${ids.map((k) => {
+    const t = table[k].trophy
+    const locked = t && !unlocked
+    return `<button class="chip${t ? ' trophy' : ''}" data-slot="${key}" data-val="${k}" aria-pressed="${cfg[key] === k}"${locked ? ' disabled' : ''} title="${t ? 'Trophy: ' + t : ''}">${t ? (locked ? '🔒 ' : '★ ') : ''}${table[k].name}</button>`
+  }).join('')}</div></div>`
+}
+function swatchRow(label, key, colours) {
+  return `<div class="slot"><h2>${label}</h2><div class="swatches">${colours.map((c, i) => `<button class="sw" style="background:${c}" data-slot="${key}" data-val="${i}" aria-pressed="${cfg[key] === i}" aria-label="${label} ${i + 1}"></button>`).join('')}</div></div>`
+}
+
+function render() {
+  const v = VARIANTS[variant]
+  document.getElementById('vlabel').textContent = `${v.key} (${v.name})`
+  document.getElementById('vname').textContent = `${v.key}. ${v.name}`
+  document.getElementById('vnote').textContent = v.note
+  document.getElementById('stage').innerHTML = avatarSVG(cfg, variant, 168)
+  document.getElementById('sizes').innerHTML = [64, 40, 32, 24].map((n) => `<figure>${avatarSVG(cfg, variant, n)}<figcaption>${n}px</figcaption></figure>`).join('')
+  document.getElementById('ctx-profile').innerHTML = avatarSVG(cfg, variant, 112)
+  const sleeve = CLOTH[cfg.sleeve]
+  const opp = defaultAvatar('usr_mika')
+  document.getElementById('ctx-pairing').innerHTML =
+    `<div class="prow me" style="--sleeve:${sleeve}">${avatarSVG(cfg, variant, 40)}<span class="n">Kauã Andrade</span><span class="rec num">3-0-1</span></div>` +
+    `<div class="prow">${avatarSVG(opp, variant, 40)}<span class="n">Mika Oliveira</span><span class="rec num">3-1-0</span></div>`
+  const rows = [['Kauã Andrade', null, '3-0-1'], ...OTHERS.slice(0, 3)]
+  document.getElementById('ctx-standings').innerHTML = rows.map(([n, id, r], i) => `<div class="srow"><span class="r num">${i + 1}</span>${avatarSVG(id ? defaultAvatar(id) : cfg, variant, 32)}<span>${n}</span><span class="num">${r}</span></div>`).join('')
+  document.getElementById('ctx-tv').innerHTML = [['Kauã Andrade', null], ...OTHERS].map(([n, id], i) => `<div><span class="num" style="color:var(--paper-dim)">${i + 1}</span>${avatarSVG(id ? defaultAvatar(id) : cfg, variant, 24)}${n}</div>`).join('')
+  document.getElementById('defaults').innerHTML = Array.from({ length: 16 }, (_, i) => 'usr_' + String(i + 1).padStart(2, '0')).map((id) => `<button data-seed="${id}">${avatarSVG(defaultAvatar(id), variant, 56)}${id}</button>`).join('')
+  document.getElementById('controls').innerHTML =
+    swatchRow('Skin tone', 'skin', SKIN) + slotTable('Hair', 'hair', HAIRS) + swatchRow('Hair colour', 'hairColour', HAIR) +
+    slotTable('Top', 'top', TOPS) + swatchRow('Top colour', 'topColour', CLOTH) +
+    slotTable('Hat', 'hat', HATS) + swatchRow('Hat colour', 'hatColour', CLOTH) + swatchRow('Hat panel', 'hatColour2', CLOTH) +
+    slotTable('Accessory', 'accessory', ACCS) + swatchRow('Sleeve colour', 'sleeve', CLOTH)
+  document.getElementById('state').textContent = JSON.stringify({ variant, ...cfg }, null, 2)
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-slot]')
+  if (b) { const k = b.dataset.slot; cfg = { ...cfg, [k]: /Colour|skin|sleeve/.test(k) ? Number(b.dataset.val) : b.dataset.val }; render(); return }
+  const d = e.target.closest('[data-seed]')
+  if (d) { cfg = defaultAvatar(d.dataset.seed); document.getElementById('seed').value = d.dataset.seed; render() }
+})
+document.getElementById('use-seed').addEventListener('click', () => { cfg = defaultAvatar(document.getElementById('seed').value || 'x'); render() })
+document.getElementById('unlock').addEventListener('change', (e) => { unlocked = e.target.checked; render() })
+function go(step) { variant = ORDER[(ORDER.indexOf(variant) + step + ORDER.length) % ORDER.length]; try { history.replaceState(null, '', '#' + variant) } catch {} ; render() }
+document.getElementById('prev').addEventListener('click', () => go(-1))
+document.getElementById('next').addEventListener('click', () => go(1))
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest('input, textarea, [contenteditable]')) return
+  if (e.key === 'ArrowLeft') go(-1)
+  if (e.key === 'ArrowRight') go(1)
+})
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (ORDER.includes(h)) { variant = h; render() } })
+render()
+</script>
