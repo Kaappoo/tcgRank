@@ -10,6 +10,7 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Guest** | A player the host entered by hand because they have no account or no phone. They never sign in: the host or their opponent reports for them, and a report against a guest counts without confirmation. A host keeps a guest list to enter the same guest again. | `user.isGuest`, `user.guestOfId` |
 | **Claim** | A guest who has since made an account takes over the guest's results through a claim link from the host. Not possible when both played in the same event. | `user.claimCode`, `/claim/$code` |
 | **Join code** | Six characters from an unambiguous alphabet (no 0/O/1/I/L). Encoded in the QR code as `/join/<code>`. | `domain/ids.ts` |
+| **Private event** | An event the host has hidden from everyone except the host, its entrants and anyone holding its join code. It is left out of public event lists; anyone else who opens it is asked for the join code. Holding the code lets you view it; joining is a separate step. Results still count on profiles. The host can switch it on or off at any time. | |
 | **Round** | One round of pairings under the event's pairing system. Exactly one round is `active` at a time. Owns the match clock. | `rounds` |
 | **Match** | Two players at a numbered table in a round, played over the event's **Best of**. A match with no player 2 is a **bye**. | `matches` |
 | **Game** | One play of the card game within a match. A match's score counts games won by each player ("2–1"). _Avoid_: "match" for a single game. | `player1Games`, `player2Games` |
