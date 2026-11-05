@@ -194,14 +194,16 @@ function shade(hex, amt) {
 
 // ---------- parts ----------
 // Each part returns { back, front } SVG strings. `s(d, fill)` draws a filled shape (outlined in the sticker direction).
+// Hair is a full volume around the skull (not painted on): crown ~16 units above the head, sides past the temples.
+const VOL = 'M48 102C42 50 68 32 100 32C132 32 158 50 152 102C148 86 142 76 132 70C118 75 82 75 68 70C58 76 52 86 48 102Z'
 const HAIRS = {
   bald: { name: 'Bald', draw: () => ({}) },
-  short: { name: 'Short', draw: (c, s) => ({ front: s('M56 92C54 54 76 44 100 44C124 44 146 54 144 92C136 74 120 66 100 66C80 66 64 74 56 92Z', c) }) },
-  spiky: { name: 'Spiky', draw: (c, s) => ({ front: s('M55 94L57 60L70 66L72 42L88 56L100 34L112 56L128 42L130 66L143 60L145 94C130 74 118 68 100 68C82 68 70 74 55 94Z', c) }) },
-  long: { name: 'Long', draw: (c, s) => ({ back: s('M50 96C48 48 74 40 100 40C126 40 152 48 150 96L156 158L44 158Z', shade(c, -0.15)), front: s('M56 92C54 54 76 44 100 44C124 44 146 54 144 92C132 70 118 62 100 62C82 62 68 70 56 92Z', c) }) },
-  curly: { name: 'Curly', draw: (c, s) => ({ front: [[58, 84], [62, 66], [74, 52], [90, 44], [110, 44], [126, 52], [138, 66], [142, 84]].map(([x, y]) => s(`M${x - 14} ${y}a14 14 0 1 0 28 0a14 14 0 1 0 -28 0Z`, c)).join('') + s('M60 84C60 58 78 50 100 50C122 50 140 58 140 84C126 72 114 68 100 68C86 68 74 72 60 84Z', c) }) },
-  ponytail: { name: 'Ponytail', draw: (c, s) => ({ back: s('M138 76C162 80 166 120 152 146C148 124 146 104 134 92Z', c), front: s('M56 92C54 54 76 44 100 44C124 44 146 54 144 92C136 74 120 66 100 66C80 66 64 74 56 92Z', c) }) },
-  buzz: { name: 'Buzz', draw: (c, s) => ({ front: s('M58 86C58 58 78 50 100 50C122 50 142 58 142 86C126 70 112 66 100 66C88 66 74 70 58 86Z', shade(c, 0.12)) }) },
+  short: { name: 'Short', draw: (c, s) => ({ front: s(VOL, c) }) },
+  spiky: { name: 'Spiky', draw: (c, s) => ({ front: s('M50 70L56 34L72 44L76 18L92 36L100 12L110 36L126 18L130 44L146 34L150 70Z', c) + s(VOL, c) }) },
+  long: { name: 'Long', draw: (c, s) => ({ back: s('M46 100C40 46 68 30 100 30C132 30 160 46 154 100L160 168L40 168Z', shade(c, -0.18)), front: s('M48 104C42 50 68 32 100 32C132 32 158 50 152 104C146 84 132 70 112 64C100 74 76 76 60 74C54 82 50 92 48 104Z', c) }) },
+  curly: { name: 'Curly', draw: (c, s) => ({ front: [[50, 92], [52, 70], [64, 50], [82, 36], [100, 32], [118, 36], [136, 50], [148, 70], [150, 92]].map(([x, y]) => s(`M${x - 17} ${y}a17 17 0 1 0 34 0a17 17 0 1 0 -34 0Z`, c)).join('') + s(VOL, c) }) },
+  ponytail: { name: 'Ponytail', draw: (c, s) => ({ back: s('M140 64C172 70 176 124 156 156C152 128 148 104 132 86Z', shade(c, -0.12)), front: s(VOL, c) }) },
+  buzz: { name: 'Buzz', draw: (c, s) => ({ front: s('M52 96C48 54 72 40 100 40C128 40 152 54 148 96C142 80 126 70 100 70C74 70 58 80 52 96Z', shade(c, 0.12)) }) },
 }
 
 const TOPS = {
@@ -213,16 +215,21 @@ const TOPS = {
 }
 const BODY = 'M30 212C30 168 60 148 100 148C140 148 170 168 170 212Z'
 
+// Crowns are wider and taller than any hair volume, so hair never pokes through the top; `covers` hats clip hair above the brim.
+const CROWN = 'M48 90C48 40 72 22 100 22C128 22 152 40 152 90Z'
+const PANEL = 'M76 90C76 48 86 28 100 28C114 28 124 48 124 90Z'
+const BRIM = 'M40 90Q100 77 160 90Q164 102 100 100Q36 102 40 90Z'
+const VBRIM = 'M40 84Q100 71 160 84Q164 96 100 94Q36 96 40 84Z'
 const HATS = {
   none: { name: 'None', draw: () => '' },
-  trainer: { name: 'Trainer cap', draw: (c, c2, s) => s('M54 86C54 46 74 32 100 32C126 32 146 46 146 86Z', c) + s('M78 86C78 52 88 38 100 38C112 38 122 52 122 86Z', c2) + s('M92 68L100 59L108 68L104 68L100 64L96 68Z', c) + s('M46 86Q100 74 154 86Q158 96 100 94Q42 96 46 86Z', shade(c, -0.25)) },
-  backwards: { name: 'Backwards cap', draw: (c, c2, s) => s('M54 86C54 46 74 32 100 32C126 32 146 46 146 86Z', c) + s('M80 74H120V84H80Z', shade(c, -0.3)) + `<circle cx="90" cy="79" r="2" fill="${c2}"/><circle cx="100" cy="79" r="2" fill="${c2}"/><circle cx="110" cy="79" r="2" fill="${c2}"/>` },
-  beanie: { name: 'Beanie', draw: (c, c2, s) => s('M100 30a11 11 0 1 0 0.1 0Z', c2) + s('M54 84C54 44 76 34 100 34C124 34 146 44 146 84Z', c) + s('M50 72H150V90H50Z', shade(c, -0.2)) },
-  visor: { name: 'Visor', draw: (c, c2, s) => s('M53 70H147V82H53Z', c) + s('M46 82Q100 70 154 82Q158 94 100 92Q42 94 46 82Z', c2) },
-  bucket: { name: 'Bucket hat', draw: (c, c2, s) => s('M64 76C64 42 80 34 100 34C120 34 136 42 136 76Z', c) + s('M64 66H136V76H64Z', c2) + s('M38 90L62 72H138L162 90Q100 100 38 90Z', shade(c, -0.2)) },
-  headband: { name: 'Headband', draw: (c, c2, s) => s('M54 68H146V80H54Z', c) + s('M144 70L164 62L162 80Z', c2) },
-  champion: { name: 'Champion cap', trophy: 'Win an event', draw: (c, c2, s) => s('M54 86C54 46 74 32 100 32C126 32 146 46 146 86Z', CLOTH[1]) + s('M78 86C78 52 88 38 100 38C112 38 122 52 122 86Z', GOLD) + s('M100 52L104 62L114 62L106 68L109 78L100 72L91 78L94 68L86 62L96 62Z', CLOTH[1]) + s('M46 86Q100 74 154 86Q158 96 100 94Q42 96 46 86Z', GOLD) },
-  cupvisor: { name: 'Cup visor', trophy: 'Top 8 at a League Cup', draw: (c, c2, s) => s('M53 70H147V82H53Z', CLOTH[1]) + s('M46 82Q100 70 154 82Q158 94 100 92Q42 94 46 82Z', GOLD) },
+  trainer: { name: 'Trainer cap', covers: true, draw: (c, c2, s) => s(CROWN, c) + s(PANEL, c2) + s('M91 66L100 56L109 66L104.5 66L100 61L95.5 66Z', c) + s(BRIM, shade(c, -0.25)) },
+  backwards: { name: 'Backwards cap', covers: true, draw: (c, c2, s) => s(CROWN, c) + s('M78 76H122V88H78Z', shade(c, -0.3)) + `<circle cx="89" cy="82" r="2.2" fill="${c2}"/><circle cx="100" cy="82" r="2.2" fill="${c2}"/><circle cx="111" cy="82" r="2.2" fill="${c2}"/>` },
+  beanie: { name: 'Beanie', covers: true, draw: (c, c2, s) => s('M100 8a13 13 0 1 0 0.1 0Z', c2) + s('M50 84C50 36 74 22 100 22C126 22 150 36 150 84Z', c) + s('M44 72H156V94H44Z', shade(c, -0.2)) },
+  visor: { name: 'Visor', draw: (c, c2, s) => s('M48 70H152V84H48Z', c) + s(VBRIM, c2) },
+  bucket: { name: 'Bucket hat', covers: true, draw: (c, c2, s) => s('M54 82C54 34 78 22 100 22C122 22 146 34 146 82Z', c) + s('M54 70H146V82H54Z', c2) + s('M28 98L54 78H146L172 98Q100 108 28 98Z', shade(c, -0.2)) },
+  headband: { name: 'Headband', draw: (c, c2, s) => s('M48 68H152V82H48Z', c) + s('M150 70L172 60L170 82Z', c2) },
+  champion: { name: 'Champion cap', trophy: 'Win an event', covers: true, draw: (c, c2, s) => s(CROWN, c) + s(PANEL, GOLD) + s('M100 44L104.5 55L116 55L107 62L110.5 74L100 67L89.5 74L93 62L84 55L95.5 55Z', c) + s(BRIM, GOLD) },
+  cupvisor: { name: 'Cup visor', trophy: 'Top 8 at a League Cup', draw: (c, c2, s) => s('M48 70H152V84H48Z', c) + s(VBRIM, GOLD) },
 }
 
 const ACCS = {
@@ -263,7 +270,11 @@ function avatarSVG(cfg, variant, size) {
   const mouth = `<path d="M90 112Q100 120 110 112" fill="none" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>`
   const neck = s('M88 120H112V152H88Z', shade(skin, -0.12))
 
-  const art = [hair.back, top.behind, neck, top.body, acc.over, ears, head, eyes, mouth, acc.face, hair.front, hat].filter(Boolean).join('')
+  const hc = HATS[cfg.hat].covers
+  const hairClip = hc ? `<clipPath id="${id}h"><rect x="0" y="56" width="200" height="200"/></clipPath>` : ''
+  const wrapHair = (x) => x && hc ? `<g clip-path="url(#${id}h)">${x}</g>` : x
+  hair.back = wrapHair(hair.back); hair.front = wrapHair(hair.front)
+  const art = [hair.back, top.behind, neck, top.body, acc.over, ears, head, eyes, mouth, acc.face, hair.front, hat && `<g transform="translate(0 -9)">${hat}</g>`].filter(Boolean).join('')
 
   let frame, viewBox, clip
   if (variant === 'tile') {
@@ -275,7 +286,7 @@ function avatarSVG(cfg, variant, size) {
     clip = `<clipPath id="${id}"><circle cx="100" cy="100" r="${outline ? 94 : 100}"/></clipPath>`
     frame = `<circle cx="100" cy="100" r="100" fill="${outline ? '#f4efe8' : '#24252c'}"/>` + (outline ? `<circle cx="100" cy="100" r="94" fill="#24252c"/>` : '')
   }
-  return `<svg class="avatar-in" width="${size}" height="${size}" viewBox="${viewBox}" role="img" aria-label="Avatar">${clip}${frame}<g clip-path="url(#${id})">${art}</g></svg>`
+  return `<svg class="avatar-in" width="${size}" height="${size}" viewBox="${viewBox}" role="img" aria-label="Avatar">${clip}${hairClip}${frame}<g clip-path="url(#${id})">${art}</g></svg>`
 }
 
 // ---------- deterministic default from user id (FNV-1a → Mulberry32 per slot key) ----------
@@ -302,7 +313,7 @@ function defaultAvatar(userId) {
 
 // ---------- state ----------
 let cfg = defaultAvatar('usr_kaua')
-let variant = ORDER.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'flat'
+let variant = ORDER.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'flat' // picked: A (flat bust)
 let unlocked = false
 
 const OTHERS = [['Mika Oliveira', 'usr_mika', '3-1-0'], ['Rafa Costa', 'usr_rafa', '3-1-0'], ['Jo Tanaka', 'usr_jo', '2-1-1'], ['Bia Santos', 'usr_bia', '2-2-0'], ['Theo Lima', 'usr_theo', '2-2-0']]
