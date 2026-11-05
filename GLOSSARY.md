@@ -43,3 +43,6 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Store screen** | Full-screen projector view for the store TV: QR, clock and an alphabetical pairing list. | `/events/$eventId/screen` |
 | **Avatar** | A player's profile picture, put together from preset parts (skin tone, hair, clothes, hat, …). Every user has one, guests included; there are no uploaded photos. _Avoid_: "profile picture", "pfp", "icon". | |
 | **Featured deck** | The one public deck a player chooses to show on their profile. | |
+| **Achievement** | A goal reached through play, worked out from a player's match history so past events count. Progressive achievements have tiers (e.g. play 10 / 50 / 100 events). Reaching one can award a badge, a title or an avatar item. | |
+| **Partner Pokémon** | A Pokémon card a player picks to stand beside their avatar. | |
+| **Sleeve colour** | A colour from the avatar palette that marks a player's own row on pairing cards and the store screen. | |
