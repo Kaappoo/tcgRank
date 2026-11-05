@@ -1,0 +1,371 @@
+<title>Profile Showcase Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap">
+<!--
+  PROTOTYPE — throwaway. Answers "Profile showcase layout" (map: Player identity, #52 / ticket #58).
+  Three structurally different profile pages with the same data; switch with the bottom bar, ← →, or #card / #shelf / #locker.
+  Card art and banners are placeholders (the catalog art and banner patterns are decided elsewhere).
+-->
+<style>
+  /* Layout: mirrors /u/$username (header, results chart, tabs) so variants are judged in place. Dark only, per DESIGN.md. */
+  :root {
+    --ink: #0d0e12; --surface: #15161b; --surface-raised: #1e1f25; --line: #2c2d35;
+    --paper: #f4efe8; --paper-dim: #b3ada5; --orange: #f06a2a; --on-orange: #1a120c; --gold: #e2b33c;
+    --font: 'Archivo', 'Arial Narrow', system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--ink); color: var(--paper); font-family: var(--font); font-size: 15px; line-height: 1.45; margin: 0; }
+  .page { max-width: 1040px; margin: 0 auto; padding-block: 20px 120px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 28px; }
+  .display { font-stretch: 125%; font-weight: 850; letter-spacing: -0.01em; text-wrap: balance; }
+  .num { font-stretch: 72%; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .dim { color: var(--paper-dim); }
+  .label { font-size: 13px; font-weight: 700; color: var(--paper-dim); }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-size: 13px; font-weight: 700; }
+  .chip.title { border-color: var(--gold); color: var(--gold); }
+  .btn { font: inherit; font-size: 13px; font-weight: 700; background: transparent; color: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  .btn.primary { background: var(--orange); color: var(--on-orange); border-color: var(--orange); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--paper-dim); }
+  .record { font-size: clamp(56px, 12vw, 88px); line-height: .9; }
+  .card-ph { aspect-ratio: 63 / 88; border-radius: 6px; background: linear-gradient(160deg, #2a2c35, #1b1c22); border: 1px solid var(--line); display: grid; align-content: end; padding: 8px; gap: 2px; font-size: 11px; color: var(--paper-dim); max-width: 100%; }
+  .card-ph b { color: var(--paper); font-size: 12px; }
+  .banner { background-color: #2C8C99; background-image: repeating-linear-gradient(-30deg, rgba(13,14,18,.35) 0 14px, transparent 14px 28px); }
+  .badges { display: flex; gap: 10px; flex-wrap: wrap; }
+  .badge-fig { display: grid; justify-items: center; gap: 4px; margin: 0; font-size: 11px; color: var(--paper-dim); text-align: center; width: 72px; }
+  .chart { height: 140px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); display: flex; align-items: end; gap: 6px; padding: 16px; }
+  .chart i { flex: 1; background: var(--surface-raised); border-radius: 3px 3px 0 0; }
+  .chart i.top { background: var(--orange); }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .tabs button { font: inherit; font-weight: 700; background: none; border: 0; color: var(--paper-dim); padding: 10px 12px; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tabs button[aria-selected="true"] { color: var(--paper); border-bottom-color: var(--orange); }
+  .ach-list { display: grid; gap: 2px; }
+  .ach { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+  .bar { height: 6px; background: var(--surface-raised); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .bar span { display: block; height: 100%; background: var(--paper); }
+  .deck { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 16px; align-items: center; }
+  .partner { position: relative; }
+  .hl { min-width: 0; }
+  button:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+
+  /* A: trainer card */
+  .a-head { overflow: hidden; }
+  .a-banner { height: 120px; }
+  .a-body { padding: 0 24px 24px; display: grid; gap: 18px; }
+  .a-id { display: flex; gap: 18px; align-items: end; margin-top: -56px; flex-wrap: wrap; }
+  .a-id .avatar { border-radius: 50%; box-shadow: 0 0 0 5px var(--surface); background: var(--surface); }
+  .a-partner { width: 64px; margin-left: -34px; transform: rotate(8deg); align-self: end; }
+  .a-stats { display: flex; gap: 24px; flex-wrap: wrap; align-items: end; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 18px; }
+
+  /* B: shelf */
+  .b-head { padding: 28px; display: grid; gap: 22px; }
+  .b-top { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .shelf { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 14px; }
+  .shelf > .panel { padding: 16px; display: grid; gap: 10px; align-content: start; }
+  @media (max-width: 760px) { .shelf { grid-template-columns: minmax(0, 1fr); } }
+
+  /* C: locker */
+  .c-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .c-side { position: sticky; top: 16px; overflow: hidden; }
+  .c-side .banner { height: 72px; }
+  .c-side-body { padding: 0 18px 18px; display: grid; gap: 16px; }
+  .c-ava { display: flex; align-items: end; gap: 10px; margin-top: -48px; }
+  .c-ava .avatar { border-radius: 50%; box-shadow: 0 0 0 4px var(--surface); background: var(--surface); }
+  .c-main { display: grid; gap: 24px; min-width: 0; }
+  @media (max-width: 760px) { .c-grid { grid-template-columns: minmax(0, 1fr); } .c-side { position: static; } }
+
+  .switcher { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 4px; background: #fff; color: #111; border-radius: 999px; padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.5); z-index: 20; font-family: system-ui, sans-serif; font-size: 13px; max-width: calc(100vw - 32px); }
+  .switcher button { border: 0; background: #eee; border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 16px; color: #111; }
+  .switcher .lbl { padding: 0 12px; font-weight: 600; white-space: nowrap; }
+</style>
+
+<main class="page" id="root"></main>
+<div class="switcher" role="toolbar" aria-label="Prototype variant">
+  <button id="prev" aria-label="Previous variant">←</button><span class="lbl" id="vlabel"></span><button id="next" aria-label="Next variant">→</button>
+</div>
+
+<script>
+// ---------- palette (avatar palette is content, not UI) ----------
+const SKIN = ['#F7DCC8', '#EBBF9C', '#D49C70', '#AE7449', '#7D4B2C', '#4F2F1D']
+const HAIR = ['#17181B', '#4A2E1E', '#8A5A2B', '#D9A441', '#CFC8BE', '#B5452F', '#3E5DA8']
+const CLOTH = ['#EDE8E0', '#2B2E36', '#3F6FB6', '#C23B3B', '#2F8F5B', '#E2B33C', '#7A4FB0', '#2C8C99']
+const INK = '#14151a'
+const GOLD = '#E2B33C'
+
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16)
+  const f = (c) => Math.max(0, Math.min(255, Math.round(c + (amt < 0 ? c * amt : (255 - c) * amt))))
+  const r = f(n >> 16), g = f((n >> 8) & 255), b = f(n & 255)
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)
+}
+
+// ---------- parts ----------
+// Each part returns { back, front } SVG strings. `s(d, fill)` draws a filled shape (outlined in the sticker direction).
+// Hair is a full volume around the skull (not painted on): crown ~16 units above the head, sides past the temples.
+const VOL = 'M48 102C42 50 68 32 100 32C132 32 158 50 152 102C148 86 142 76 132 70C118 75 82 75 68 70C58 76 52 86 48 102Z'
+const HAIRS = {
+  bald: { name: 'Bald', draw: () => ({}) },
+  short: { name: 'Short', draw: (c, s) => ({ front: s(VOL, c) }) },
+  spiky: { name: 'Spiky', draw: (c, s) => ({ front: s('M50 70L56 34L72 44L76 18L92 36L100 12L110 36L126 18L130 44L146 34L150 70Z', c) + s(VOL, c) }) },
+  long: { name: 'Long', draw: (c, s) => ({ back: s('M46 100C40 46 68 30 100 30C132 30 160 46 154 100L160 168L40 168Z', shade(c, -0.18)), front: s('M48 104C42 50 68 32 100 32C132 32 158 50 152 104C146 84 132 70 112 64C100 74 76 76 60 74C54 82 50 92 48 104Z', c) }) },
+  curly: { name: 'Curly', draw: (c, s) => ({ front: [[50, 92], [52, 70], [64, 50], [82, 36], [100, 32], [118, 36], [136, 50], [148, 70], [150, 92]].map(([x, y]) => s(`M${x - 17} ${y}a17 17 0 1 0 34 0a17 17 0 1 0 -34 0Z`, c)).join('') + s(VOL, c) }) },
+  ponytail: { name: 'Ponytail', draw: (c, s) => ({ back: s('M140 64C172 70 176 124 156 156C152 128 148 104 132 86Z', shade(c, -0.12)), front: s(VOL, c) }) },
+  buzz: { name: 'Buzz', draw: (c, s) => ({ front: s('M52 96C48 54 72 40 100 40C128 40 152 54 148 96C142 80 126 70 100 70C74 70 58 80 52 96Z', shade(c, 0.12)) }) },
+}
+
+const TOPS = {
+  tee: { name: 'Tee', draw: (c, s, skin) => ({ body: s(BODY, c) + s('M86 146Q100 164 114 146Z', skin) }) },
+  hoodie: { name: 'Hoodie', draw: (c, s) => ({ behind: s('M58 166C56 128 76 120 100 120C124 120 144 128 142 166Z', shade(c, -0.25)), body: s(BODY, c) + `<path d="M93 156V182M107 156V182" stroke="${shade(c, 0.6)}" stroke-width="3" stroke-linecap="round"/>` }) },
+  jacket: { name: 'Track jacket', draw: (c, s) => ({ body: s(BODY, c) + s('M86 148L100 196L114 148Z', CLOTH[0]) + s('M86 148L100 196L76 160Z', shade(c, -0.2)) + s('M114 148L100 196L124 160Z', shade(c, -0.2)) + `<path d="M40 178L60 162M160 178L140 162" stroke="${CLOTH[0]}" stroke-width="4"/>` }) },
+  jersey: { name: 'Jersey', draw: (c, s) => ({ body: s(BODY, c) + `<rect x="30" y="172" width="140" height="10" fill="${shade(c, 0.55)}"/>` + s('M86 146Q100 162 114 146Z', shade(c, -0.25)) }) },
+  topcut: { name: 'Top-cut jacket', trophy: 'Make a top cut', draw: (c, s) => ({ body: s(BODY, CLOTH[1]) + s('M86 148L100 196L114 148Z', GOLD) + `<path d="M38 182L62 160M162 182L138 160" stroke="${GOLD}" stroke-width="6"/>` }) },
+}
+const BODY = 'M30 212C30 168 60 148 100 148C140 148 170 168 170 212Z'
+
+// Crowns are wider and taller than any hair volume, so hair never pokes through the top; `covers` hats clip hair above the brim.
+const CROWN = 'M48 90C48 40 72 22 100 22C128 22 152 40 152 90Z'
+const PANEL = 'M76 90C76 48 86 28 100 28C114 28 124 48 124 90Z'
+const BRIM = 'M40 90Q100 77 160 90Q164 102 100 100Q36 102 40 90Z'
+const VBRIM = 'M40 84Q100 71 160 84Q164 96 100 94Q36 96 40 84Z'
+const HATS = {
+  none: { name: 'None', draw: () => '' },
+  trainer: { name: 'Trainer cap', covers: true, draw: (c, c2, s) => s(CROWN, c) + s(PANEL, c2) + s('M91 66L100 56L109 66L104.5 66L100 61L95.5 66Z', c) + s(BRIM, shade(c, -0.25)) },
+  backwards: { name: 'Backwards cap', covers: true, draw: (c, c2, s) => s(CROWN, c) + s('M78 76H122V88H78Z', shade(c, -0.3)) + `<circle cx="89" cy="82" r="2.2" fill="${c2}"/><circle cx="100" cy="82" r="2.2" fill="${c2}"/><circle cx="111" cy="82" r="2.2" fill="${c2}"/>` },
+  beanie: { name: 'Beanie', covers: true, draw: (c, c2, s) => s('M100 8a13 13 0 1 0 0.1 0Z', c2) + s('M50 84C50 36 74 22 100 22C126 22 150 36 150 84Z', c) + s('M44 72H156V94H44Z', shade(c, -0.2)) },
+  visor: { name: 'Visor', draw: (c, c2, s) => s('M48 70H152V84H48Z', c) + s(VBRIM, c2) },
+  bucket: { name: 'Bucket hat', covers: true, draw: (c, c2, s) => s('M54 82C54 34 78 22 100 22C122 22 146 34 146 82Z', c) + s('M54 70H146V82H54Z', c2) + s('M28 98L54 78H146L172 98Q100 108 28 98Z', shade(c, -0.2)) },
+  headband: { name: 'Headband', draw: (c, c2, s) => s('M48 68H152V82H48Z', c) + s('M150 70L172 60L170 82Z', c2) },
+  champion: { name: 'Champion cap', trophy: 'Win an event', covers: true, draw: (c, c2, s) => s(CROWN, c) + s(PANEL, GOLD) + s('M100 44L104.5 55L116 55L107 62L110.5 74L100 67L89.5 74L93 62L84 55L95.5 55Z', c) + s(BRIM, GOLD) },
+  cupvisor: { name: 'Cup visor', trophy: 'Top 8 at a League Cup', draw: (c, c2, s) => s('M48 70H152V84H48Z', c) + s(VBRIM, GOLD) },
+}
+
+const ACCS = {
+  none: { name: 'None', draw: () => ({}) },
+  glasses: { name: 'Glasses', draw: () => ({ face: `<g fill="none" stroke="${INK}" stroke-width="3.5"><rect x="72" y="88" width="22" height="16" rx="5"/><rect x="106" y="88" width="22" height="16" rx="5"/><path d="M94 95H106"/></g>` }) },
+  plaster: { name: 'Plaster', draw: (s) => ({ face: s('M114 112l14-6l3 6l-14 6Z', CLOTH[0]) }) },
+  straps: { name: 'Backpack', draw: (s) => ({ over: s('M58 156L70 152L76 212L62 212Z', '#5b4634') + s('M142 156L130 152L124 212L138 212Z', '#5b4634') }) },
+  pin: { name: 'League pin', trophy: 'Play 10 events', draw: (s) => ({ over: s('M128 170a8 8 0 1 0 0.1 0Z', GOLD) }) },
+}
+
+// ---------- directions ----------
+const VARIANTS = {
+  flat: { key: 'A', name: 'Flat bust', note: 'Round frame, head and shoulders, flat fills with no outlines. Closest to Duolingo. Clothes are visible, so tops can be trophies.' },
+  sticker: { key: 'B', name: 'Outlined sticker', note: 'The same bust with a heavy ink outline and a paper ring. Reads hardest on the black field and at small sizes, like a sticker on a deck box.' },
+  tile: { key: 'C', name: 'Head tile', note: 'An angular head crop in a skewed tile that echoes the slab, backed by your sleeve colour. Clothes mostly disappear, so the hat does the talking.' },
+}
+const ORDER = Object.keys(VARIANTS)
+
+let uid = 0
+function avatarSVG(cfg, variant, size) {
+  const id = 'a' + (uid++)
+  const outline = variant === 'sticker'
+  const angular = variant === 'tile'
+  const s = (d, fill) => `<path d="${d}" fill="${fill}"${outline ? ` stroke="${INK}" stroke-width="4.5" stroke-linejoin="round"` : ''}/>`
+  const skin = SKIN[cfg.skin]
+  const hairC = HAIR[cfg.hairColour]
+  const hair = HAIRS[cfg.hair].draw(hairC, s)
+  const top = TOPS[cfg.top].draw(CLOTH[cfg.topColour], s, skin)
+  const acc = ACCS[cfg.accessory].draw(s)
+  const hat = HATS[cfg.hat].draw(CLOTH[cfg.hatColour], CLOTH[cfg.hatColour2], s)
+  const head = angular
+    ? s('M70 54L130 54L146 76L146 112L126 134L74 134L54 112L54 76Z', skin)
+    : s('M56 94a44 44 0 1 0 88 0a44 44 0 1 0 -88 0Z', skin)
+  const ears = s('M48 98a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z', shade(skin, -0.08)) + s('M136 98a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z', shade(skin, -0.08))
+  const eyes = angular
+    ? `<rect x="80" y="92" width="8" height="9" fill="${INK}"/><rect x="112" y="92" width="8" height="9" fill="${INK}"/>`
+    : `<circle cx="84" cy="97" r="4.5" fill="${INK}"/><circle cx="116" cy="97" r="4.5" fill="${INK}"/>`
+  const mouth = `<path d="M90 112Q100 120 110 112" fill="none" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>`
+  const neck = s('M88 120H112V152H88Z', shade(skin, -0.12))
+
+  const hc = HATS[cfg.hat].covers
+  const hairClip = hc ? `<clipPath id="${id}h"><rect x="0" y="56" width="200" height="200"/></clipPath>` : ''
+  const wrapHair = (x) => x && hc ? `<g clip-path="url(#${id}h)">${x}</g>` : x
+  hair.back = wrapHair(hair.back); hair.front = wrapHair(hair.front)
+  const art = [hair.back, top.behind, neck, top.body, acc.over, ears, head, eyes, mouth, acc.face, hair.front, hat && `<g transform="translate(0 -9)">${hat}</g>`].filter(Boolean).join('')
+
+  let frame, viewBox, clip
+  if (variant === 'tile') {
+    viewBox = '30 18 140 140'
+    clip = `<clipPath id="${id}"><path d="M52 18H170L148 158H30Z"/></clipPath>`
+    frame = `<path d="M52 18H170L148 158H30Z" fill="${CLOTH[cfg.sleeve]}"/><path d="M52 18H170L148 158H30Z" fill="${INK}" opacity=".35"/>`
+  } else {
+    viewBox = '0 0 200 200'
+    clip = `<clipPath id="${id}"><circle cx="100" cy="100" r="${outline ? 94 : 100}"/></clipPath>`
+    frame = `<circle cx="100" cy="100" r="100" fill="${outline ? '#f4efe8' : '#24252c'}"/>` + (outline ? `<circle cx="100" cy="100" r="94" fill="#24252c"/>` : '')
+  }
+  return `<svg class="avatar-in" width="${size}" height="${size}" viewBox="${viewBox}" role="img" aria-label="Avatar">${clip}${hairClip}${frame}<g clip-path="url(#${id})">${art}</g></svg>`
+}
+
+// ---------- deterministic default from user id (FNV-1a → Mulberry32 per slot key) ----------
+function fnv1a(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) } return h >>> 0 }
+function rand(seed, key) { let t = (fnv1a(seed + ':' + key) + 0x6d2b79f5) | 0; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
+const free = (table) => Object.keys(table).filter((k) => !table[k].trophy).sort()
+function pick(seed, key, items) { return items[Math.floor(rand(seed, key) * items.length)] }
+function defaultAvatar(userId) {
+  const idx = (n) => [...Array(n).keys()]
+  const topColour = pick(userId, 'topColour', idx(CLOTH.length))
+  return {
+    skin: pick(userId, 'skin', idx(SKIN.length)),
+    hair: pick(userId, 'hair', free(HAIRS)),
+    hairColour: pick(userId, 'hairColour', idx(HAIR.length)),
+    top: pick(userId, 'top', free(TOPS)),
+    topColour,
+    hat: rand(userId, 'hatChance') < 0.55 ? pick(userId, 'hat', free(HATS).filter((h) => h !== 'none')) : 'none',
+    hatColour: pick(userId, 'hatColour', idx(CLOTH.length).filter((i) => i !== topColour)),
+    hatColour2: pick(userId, 'hatColour2', idx(CLOTH.length)),
+    accessory: rand(userId, 'accChance') < 0.35 ? pick(userId, 'accessory', free(ACCS).filter((a) => a !== 'none')) : 'none',
+    sleeve: pick(userId, 'sleeve', idx(CLOTH.length)),
+  }
+}
+
+
+
+// ---------- sample data ----------
+const ME = { name: 'Kauã Andrade', username: 'kaua', playerId: '2148392', since: 'March 2025', bio: 'Dragapult main. Thursday league at Arena Geek.' }
+const STATS = { w: 58, l: 31, t: 7, rate: '61%', events: 24, best: 1, hosted: 3 }
+const AVATAR = { skin: 1, hair: 'spiky', hairColour: 2, top: 'hoodie', topColour: 7, hat: 'champion', hatColour: 3, hatColour2: 0, accessory: 'none', sleeve: 7 }
+const TITLE = 'Champion'
+const PARTNER = { name: 'Dragapult ex', key: 'TWM 130' }
+const DECK = { name: 'Dragapult Thursday', archetype: 'Dragapult ex / Pidgeot ex', format: 'Standard', cover: 'Dragapult ex', key: 'TWM 130', record: '21-9-2', events: 8 }
+// Catalogue from "Achievement catalogue" ticket. shape: badge silhouette; have: current count.
+const ACH = [
+  { id: 'regular', name: 'Regular', unit: 'events played', tiers: [1, 5, 10, 25, 50, 100], have: 24, shape: 'circle' },
+  { id: 'winner', name: 'Match winner', unit: 'match wins', tiers: [1, 10, 50, 100, 250, 500], have: 58, shape: 'hex' },
+  { id: 'champion', name: 'Champion', unit: 'events won', tiers: [1, 5, 10, 25], have: 5, shape: 'shield' },
+  { id: 'topcut', name: 'Top cut', unit: 'top cuts', tiers: [1, 5, 10, 25], have: 7, shape: 'diamond' },
+  { id: 'host', name: 'Host', unit: 'events hosted', tiers: [1, 10, 25, 50], have: 3, shape: 'square' },
+  { id: 'sweep', name: 'Clean sweep', unit: 'clean sweeps', tiers: [5, 25, 100], have: 26, shape: 'hex' },
+  { id: 'brewer', name: 'Brewer', unit: 'decks registered', tiers: [1, 5, 15], have: 4, shape: 'square' },
+  { id: 'undefeated', name: 'Undefeated', unit: 'event with no losses', tiers: [1], have: 1, shape: 'shield' },
+  { id: 'comeback', name: 'Comeback', secret: true, tiers: [1], have: 0, shape: 'circle' },
+  { id: 'marathon', name: 'Marathon', secret: true, tiers: [1], have: 1, shape: 'diamond' },
+  { id: 'explorer', name: 'Explorer', unit: 'formats', tiers: [4], have: 2, shape: 'circle' },
+  { id: 'loyal', name: 'Loyal', unit: 'events with one deck', tiers: [10], have: 8, shape: 'shield' },
+  { id: 'rival', name: 'Rival', secret: true, tiers: [1], have: 0, shape: 'hex' },
+]
+const SHOWCASE = ['champion', 'regular', 'sweep']
+
+const reached = (a) => a.tiers.filter((t) => a.have >= t)
+const tierOf = (a) => reached(a).at(-1)
+const nextOf = (a) => a.tiers.find((t) => a.have < t)
+const isTop = (a) => tierOf(a) === a.tiers.at(-1)
+
+const SHAPES = {
+  circle: 'M50 6a44 44 0 1 0 0.1 0Z',
+  hex: 'M50 4L90 27V73L50 96L10 73V27Z',
+  shield: 'M50 4L90 16V50C90 74 72 90 50 98C28 90 10 74 10 50V16Z',
+  diamond: 'M50 2L98 50L50 98L2 50Z',
+  square: 'M14 8H86Q92 8 92 14V86Q92 92 86 92H14Q8 92 8 86V14Q8 8 14 8Z',
+}
+function badge(a, size) {
+  const t = tierOf(a)
+  if (!t) return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" aria-label="${a.secret ? 'Secret achievement' : a.name + ' not yet earned'}"><path d="${SHAPES[a.shape]}" fill="none" stroke="#3a3b44" stroke-width="4" stroke-dasharray="7 6"/><text x="50" y="62" text-anchor="middle" font-family="Archivo" font-stretch="72%" font-weight="800" font-size="32" fill="#4a4b55">${a.secret ? '?' : ''}</text></svg>`
+  const fill = isTop(a) ? '#E2B33C' : '#f4efe8'
+  const label = a.tiers.length === 1 ? '★' : t
+  return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" aria-label="${a.name} ${t}"><path d="${SHAPES[a.shape]}" fill="${fill}"/><path d="${SHAPES[a.shape]}" fill="none" stroke="#14151a" stroke-width="5" transform="translate(50 50) scale(.84) translate(-50 -50)"/><text x="50" y="${a.tiers.length === 1 ? 64 : 66}" text-anchor="middle" font-family="Archivo" font-stretch="72%" font-weight="800" font-size="${String(label).length > 2 ? 30 : 40}" fill="#14151a">${label}</text></svg>`
+}
+const fig = (a, size) => `<figure class="badge-fig">${badge(a, size)}<figcaption>${a.name} ${a.tiers.length > 1 ? tierOf(a) : ''}</figcaption></figure>`
+const showcase = (size) => SHOWCASE.map((id) => fig(ACH.find((a) => a.id === id), size)).join('')
+const ava = (size) => avatarSVG(AVATAR, 'flat', size).replace('<svg', '<svg class="avatar"')
+const cardPh = (name, key, w) => `<div class="card-ph" style="width:${w}px"><b>${name}</b><span>${key}</span></div>`
+const earnedCount = ACH.reduce((n, a) => n + reached(a).length, 0)
+const totalBadges = ACH.reduce((n, a) => n + a.tiers.length, 0)
+
+const recordBlock = () => `<div class="hl"><p class="label" style="margin:0">Lifetime record</p><p class="record num" style="margin:4px 0">${STATS.w}<span class="dim">-</span>${STATS.l}<span class="dim">-</span>${STATS.t}</p><p class="dim" style="margin:0;font-size:13px"><b style="color:var(--paper)">${STATS.rate}</b> win rate across <b style="color:var(--paper)">${STATS.events}</b> events · best finish <b style="color:var(--orange)">#${STATS.best}</b> · hosted ${STATS.hosted}</p></div>`
+const actions = () => `<div class="row"><button class="btn primary">Customise</button><button class="btn">Share</button></div>`
+const meta = () => `<div class="meta"><span>@${ME.username}</span><span class="num">Play! ID ${ME.playerId}</span><span>Since ${ME.since}</span></div>`
+const chart = () => `<section style="display:grid;gap:12px"><h2 class="display" style="font-size:22px;margin:0">Results by event</h2><div class="chart">${[5,3,7,2,9,4,6,8,3,9,5,7].map((h, i) => `<i style="height:${h * 10}%" class="${i === 9 ? 'top' : ''}"></i>`).join('')}</div></section>`
+const deckBlock = (cover = 96) => `<div class="deck" style="grid-template-columns:${cover}px minmax(0,1fr)">${cardPh(DECK.cover, DECK.key, cover)}<div class="hl" style="display:grid;gap:4px"><span class="label">Featured deck</span><span class="display" style="font-size:20px">${DECK.name}</span><span class="dim" style="font-size:13px">${DECK.archetype} · ${DECK.format}</span><span style="font-size:13px"><b class="num" style="font-size:22px">${DECK.record}</b> <span class="dim">across ${DECK.events} events with it</span></span></div></div>`
+function achList() {
+  return `<div class="ach-list">${ACH.map((a) => {
+    const t = tierOf(a), nx = nextOf(a)
+    const secretHidden = a.secret && !t
+    const progress = nx ? `${Math.min(a.have, nx)} / ${nx}${a.unit ? ' ' + a.unit : ''}` : 'Complete'
+    const pct = nx ? Math.round((Math.min(a.have, nx) / nx) * 100) : 100
+    return `<div class="ach">${badge(a, 48)}<div class="hl"><b>${secretHidden ? '???' : a.name}</b>${a.tiers.length > 1 ? `<span class="dim" style="font-size:12px"> · tiers ${a.tiers.join(' · ')}</span>` : ''}<div class="dim" style="font-size:13px">${secretHidden ? 'Secret. Keep playing.' : progress}</div>${secretHidden ? '' : `<div class="bar"><span style="width:${pct}%"></span></div>`}</div><span class="num dim" style="font-size:18px">${reached(a).length}/${a.tiers.length}</span></div>`
+  }).join('')}</div>`
+}
+function tabs(withAch) {
+  const ids = ['Matches', 'Events', 'Decks', ...(withAch ? ['Achievements'] : [])]
+  return `<section style="display:grid;gap:14px"><div class="tabs" role="tablist">${ids.map((t) => `<button role="tab" aria-selected="${t === (withAch ? 'Achievements' : 'Matches')}">${t}${t === 'Achievements' ? ` <span class="dim num">${earnedCount}/${totalBadges}</span>` : ''}</button>`).join('')}</div>${withAch ? achList() : '<p class="dim">Match history…</p>'}</section>`
+}
+
+const PAGES = {
+  card: { key: 'A', name: 'Trainer card', render: () => `
+    <header class="panel a-head">
+      <div class="banner a-banner"></div>
+      <div class="a-body">
+        <div class="a-id">
+          ${ava(128)}
+          <div class="a-partner">${cardPh(PARTNER.name, PARTNER.key, 64)}</div>
+          <div class="hl" style="display:grid;gap:6px;flex:1;min-width:220px">
+            <span class="chip title" style="justify-self:start">${TITLE}</span>
+            <h1 class="display" style="font-size:clamp(30px,6vw,46px);margin:0;line-height:1">${ME.name}</h1>
+            ${meta()}
+          </div>
+          ${actions()}
+        </div>
+        <p class="dim" style="margin:0">${ME.bio}</p>
+        <div class="badges">${showcase(64)}</div>
+        <div class="a-stats">${recordBlock()}</div>
+      </div>
+    </header>
+    <section class="panel" style="padding:18px">${deckBlock(110)}</section>
+    ${chart()}
+    ${tabs(true)}` },
+
+  shelf: { key: 'B', name: 'Showcase shelf', render: () => `
+    <header class="panel b-head">
+      <div class="b-top">
+        ${ava(112)}
+        <div class="hl" style="display:grid;gap:6px;flex:1;min-width:220px">
+          <h1 class="display" style="font-size:clamp(30px,6vw,46px);margin:0;line-height:1">${ME.name}</h1>
+          <span class="chip title" style="justify-self:start">${TITLE}</span>
+          ${meta()}
+          <p class="dim" style="margin:0">${ME.bio}</p>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--line);padding-top:20px;display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap">${recordBlock()}${actions()}</div>
+    </header>
+    <section style="display:grid;gap:12px">
+      <h2 class="display" style="font-size:22px;margin:0">Showcase</h2>
+      <div class="shelf">
+        <div class="panel">${deckBlock(96)}</div>
+        <div class="panel" style="justify-items:center"><span class="label" style="justify-self:start">Partner</span>${cardPh(PARTNER.name, PARTNER.key, 96)}</div>
+        <div class="panel"><span class="label">Badges <span class="num">${earnedCount}/${totalBadges}</span></span><div class="badges">${showcase(56)}</div><button class="btn" style="justify-self:start">All achievements</button></div>
+      </div>
+    </section>
+    ${chart()}
+    ${tabs(false)}` },
+
+  locker: { key: 'C', name: 'Locker sidebar', render: () => `
+    <div class="c-grid">
+      <aside class="panel c-side">
+        <div class="banner"></div>
+        <div class="c-side-body">
+          <div class="c-ava">${ava(104)}${cardPh(PARTNER.name, PARTNER.key, 54)}</div>
+          <div style="display:grid;gap:6px"><h1 class="display" style="font-size:28px;margin:0;line-height:1.05">${ME.name}</h1><span class="chip title" style="justify-self:start">${TITLE}</span>${meta()}</div>
+          <p class="dim" style="margin:0;font-size:14px">${ME.bio}</p>
+          <div class="badges">${showcase(54)}</div>
+          <div style="border-top:1px solid var(--line);padding-top:14px">${deckBlock(72)}</div>
+          ${actions()}
+        </div>
+      </aside>
+      <div class="c-main">
+        <section class="panel" style="padding:20px">${recordBlock()}</section>
+        ${chart()}
+        ${tabs(true)}
+      </div>
+    </div>` },
+}
+const PAGE_ORDER = Object.keys(PAGES)
+let variant = PAGE_ORDER.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'card'
+function render() { const v = PAGES[variant]; document.getElementById('vlabel').textContent = `${v.key} (${v.name})`; document.getElementById('root').innerHTML = v.render() }
+function go(step) { variant = PAGE_ORDER[(PAGE_ORDER.indexOf(variant) + step + PAGE_ORDER.length) % PAGE_ORDER.length]; try { history.replaceState(null, '', '#' + variant) } catch {} ; render() }
+document.getElementById('prev').addEventListener('click', () => go(-1))
+document.getElementById('next').addEventListener('click', () => go(1))
+document.addEventListener('keydown', (e) => { if (e.target.closest('input, textarea, [contenteditable]')) return; if (e.key === 'ArrowLeft') go(-1); if (e.key === 'ArrowRight') go(1) })
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (PAGE_ORDER.includes(h)) { variant = h; render() } })
+render()
+</script>
