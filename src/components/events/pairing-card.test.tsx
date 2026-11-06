@@ -25,3 +25,16 @@ describe('PairingCard', () => {
     expect(screen.getByRole('region', { name: 'Round 2 pairing' })).toHaveTextContent(`Best of ${bestOf}`)
   })
 })
+
+describe('PairingCard identity', () => {
+  it('shows both avatars, your opponent’s larger, with a sleeve stripe on each seat and their title', async () => {
+    const titled = { ...match, player1: { ...match.player1, title: 'champion' as const, sleeveColour: 'red' } }
+    const { container } = render(<PairingCard match={titled} viewerId="ash" bestOf={3} />)
+    const avatars = [...container.querySelectorAll('[data-slot="avatar"] svg')]
+    expect(avatars.map((svg) => svg.getAttribute('width'))).toEqual(['40', '56'])
+    const sleeves = [...container.querySelectorAll('[data-slot="sleeve"]')] as Array<HTMLElement>
+    expect(sleeves).toHaveLength(2)
+    expect(sleeves[1]!.style.backgroundColor).toBe('rgb(194, 59, 59)')
+    expect(screen.getByText('Champion')).toBeInTheDocument()
+  })
+})

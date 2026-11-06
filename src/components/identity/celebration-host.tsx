@@ -35,15 +35,16 @@ const celebrated = {
 }
 
 const reducedMotionQuery = '(prefers-reduced-motion: reduce)'
+const motionMedia = () => (typeof window.matchMedia === 'function' ? window.matchMedia(reducedMotionQuery) : null)
 const subscribeMotion = (onChange: () => void) => {
-  const media = window.matchMedia(reducedMotionQuery)
-  media.addEventListener('change', onChange)
-  return () => media.removeEventListener('change', onChange)
+  const media = motionMedia()
+  media?.addEventListener('change', onChange)
+  return () => media?.removeEventListener('change', onChange)
 }
 const usePrefersReducedMotion = () =>
   useSyncExternalStore(
     subscribeMotion,
-    () => window.matchMedia(reducedMotionQuery).matches,
+    () => motionMedia()?.matches ?? false,
     () => false,
   )
 

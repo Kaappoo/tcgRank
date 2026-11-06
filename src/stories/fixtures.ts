@@ -1,7 +1,11 @@
 import type { EntrantView, EventDetail, MatchView, StandingView } from '#/server/events/views.ts'
 import { defaultLook } from '#/domain/avatar-parts.ts'
+import type { TrainerCardData } from '#/components/identity/trainer-card.tsx'
+import { ACHIEVEMENTS, BADGE_COUNT, achievement, trophiesFor, type AchievementId } from '#/domain/achievements.ts'
+import type { PlayerAchievements } from '#/server/identity/achievements.ts'
+import type { FeaturedDeck } from '#/server/profiles/service.ts'
 
-const ash = { id: 'ash', name: 'Ash Ketchum', username: 'ash', ...defaultLook('ash') }
+const ash = { id: 'ash', name: 'Ash Ketchum', username: 'ash', ...defaultLook('ash'), title: 'local-legend' as const }
 const misty = { id: 'misty', name: 'Misty Waterflower', username: 'misty', ...defaultLook('misty') }
 const brock = { id: 'brock', name: 'Brock Harrison', username: 'brock', ...defaultLook('brock') }
 const gary = { id: 'gary', name: 'Gary Oak', username: 'gary', ...defaultLook('gary') }
@@ -22,7 +26,7 @@ export const playingMatch: MatchView = {
 }
 
 const standing = (
-  player: typeof ash,
+  player: MatchView['player1'],
   rank: number,
   wins: number,
   losses: number,
@@ -216,4 +220,74 @@ export const bracketDetail: EventDetail = {
   progress: { mainPhaseRounds: 3, bracket: { firstRound: 1, rounds: 3 }, isLastRound: false, cutDue: false },
   viewer: { userId: 'diego', isHost: false, entry: diego, currentMatch: bracketMatches[4]! },
   serverNow: 0,
+}
+
+/* ------------------------------------------------------------------ */
+/* Player identity                                                     */
+/* ------------------------------------------------------------------ */
+
+export const trainerCard: TrainerCardData = {
+  name: 'Ash Ketchum',
+  username: 'ash',
+  playerId: '1234567',
+  joinedAt: Date.UTC(2025, 2, 1),
+  bio: 'Pikachu main. Never misses a League Challenge.',
+  avatar: { ...defaultLook('ash').avatar, hat: 'champion-cap', hair: 'spiky' },
+  title: 'champion',
+  sleeveColour: 'red',
+  banner: 'prize-grid',
+  bannerColour: 'blue',
+  partner: {
+    cardId: 'sv03.5-025',
+    name: 'Pikachu',
+    setName: '151',
+    imageUrl: 'https://assets.tcgdex.net/en/sv/sv03.5/025/high.webp',
+  },
+  badges: [
+    { achievement: 'champion', tier: 1 },
+    { achievement: 'regular', tier: 3 },
+    { achievement: 'undefeated', tier: 1 },
+  ],
+}
+
+export const featuredDeck: FeaturedDeck = {
+  id: 'deck-1',
+  name: 'Dragapult ex',
+  archetype: 'Dragapult / Dusknoir',
+  format: 'standard',
+  list: DRAGAPULT_LIST,
+  coverCard: null,
+  cardImages: {},
+  wins: 12,
+  losses: 5,
+  draws: 1,
+}
+
+const tierViews = (id: AchievementId, best: number) =>
+  achievement(id).tiers.map((t, i) => ({
+    threshold: t.threshold,
+    title: t.title ?? null,
+    trophies: trophiesFor(id, i + 1),
+    earnedAt: i < best ? Date.UTC(2026, 0, i + 1) : null,
+  }))
+
+export const playerAchievements: PlayerAchievements = {
+  earnedCount: 6,
+  total: BADGE_COUNT,
+  achievements: ACHIEVEMENTS.map((a) => {
+    const best = { regular: 3, champion: 1, 'match-winner': 2 }[a.id as string] ?? 0
+    const hidden = a.secret && best === 0
+    return {
+      id: a.id,
+      name: hidden ? '???' : a.name,
+      description: hidden ? 'A secret achievement' : a.description,
+      unit: a.unit,
+      secret: a.secret,
+      hidden,
+      tiers: hidden ? [] : tierViews(a.id, best),
+      bestTier: best,
+      progress: hidden ? 0 : ({ regular: 12, champion: 1, 'match-winner': 17 }[a.id as string] ?? 0),
+      next: hidden ? null : (a.tiers[best]?.threshold ?? null),
+    }
+  }),
 }
