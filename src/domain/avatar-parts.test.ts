@@ -15,12 +15,54 @@ import {
 const ids = ['usr_kaua', 'usr_mika', 'abc123', 'guest-1', 'z', '0123456789abcdef']
 
 describe('the parts list', () => {
-  it('has the launch counts', () => {
+  it('has the parts, launch parts first', () => {
     expect(AVATAR_PARTS.skin).toHaveLength(7)
-    expect(AVATAR_PARTS.hair.map((p) => p.id)).toEqual(['bald', 'short', 'spiky', 'long', 'curly', 'ponytail', 'buzz'])
-    expect(AVATAR_PARTS.hairColour).toHaveLength(8)
-    expect(AVATAR_PARTS.facialHair.map((p) => p.id)).toEqual(['none', 'stubble', 'moustache', 'beard'])
-    expect(AVATAR_PARTS.face.map((p) => p.id)).toEqual(['smile', 'grin', 'focused'])
+    expect(AVATAR_PARTS.hair.map((p) => p.id)).toEqual([
+      'bald',
+      'short',
+      'spiky',
+      'long',
+      'curly',
+      'ponytail',
+      'buzz',
+      'afro',
+      'mohawk',
+      'bob',
+      'side-part',
+      'bun',
+      'pigtails',
+      'braids',
+      'middle-part',
+    ])
+    expect(AVATAR_PARTS.hairColour).toHaveLength(12)
+    expect(AVATAR_PARTS.facialHair.map((p) => p.id)).toEqual([
+      'none',
+      'stubble',
+      'moustache',
+      'beard',
+      'goatee',
+      'handlebar',
+      'chinstrap',
+      'full-beard',
+    ])
+    expect(AVATAR_PARTS.face.map((p) => p.id)).toEqual([
+      'smile',
+      'grin',
+      'focused',
+      'wink',
+      'surprised',
+      'smirk',
+      'joyful',
+    ])
+    expect(AVATAR_PARTS.top.filter((p) => !p.trophy).map((p) => p.id)).toEqual([
+      'tee',
+      'hoodie',
+      'track-jacket',
+      'jersey',
+      'polo',
+      'turtleneck',
+      'overalls',
+    ])
     expect(AVATAR_PARTS.hat.filter((p) => !p.trophy).map((p) => p.id)).toEqual([
       'none',
       'trainer-cap',
@@ -29,12 +71,23 @@ describe('the parts list', () => {
       'visor',
       'bucket-hat',
       'headband',
+      'beret',
+      'flat-cap',
+      'cowboy-hat',
+      'bandana',
+      'top-hat',
     ])
     expect(AVATAR_PARTS.accessory.filter((p) => !p.trophy).map((p) => p.id)).toEqual([
       'none',
       'glasses',
       'plaster',
       'backpack',
+      'sunglasses',
+      'round-glasses',
+      'headphones',
+      'earrings',
+      'scarf',
+      'freckles',
     ])
     expect(CLOTHING_COLOURS).toHaveLength(8)
     expect(BANNERS.map((b) => b.id)).toEqual([
@@ -60,6 +113,7 @@ describe('the parts list', () => {
   it('knows which hats cover the head', () => {
     expect(hatCoversHead('trainer-cap')).toBe(true)
     expect(hatCoversHead('beanie')).toBe(true)
+    for (const hat of ['beret', 'flat-cap', 'cowboy-hat', 'bandana', 'top-hat']) expect(hatCoversHead(hat)).toBe(true)
     expect(hatCoversHead('visor')).toBe(false)
     expect(hatCoversHead('headband')).toBe(false)
     expect(hatCoversHead('none')).toBe(false)
@@ -90,8 +144,8 @@ describe('defaultAvatar', () => {
   it('does not change when a part is appended to a list', () => {
     const extended: AvatarParts = {
       ...AVATAR_PARTS,
-      hair: [...AVATAR_PARTS.hair, { id: 'mohawk', name: 'Mohawk' }],
-      hat: [...AVATAR_PARTS.hat, { id: 'top-hat', name: 'Top hat' }],
+      hair: [...AVATAR_PARTS.hair, { id: 'dreadlocks', name: 'Dreadlocks' }],
+      hat: [...AVATAR_PARTS.hat, { id: 'party-hat', name: 'Party hat' }],
       topColour: [...AVATAR_PARTS.topColour, { id: 'orange', name: 'Orange', hex: '#F06A2A' }],
     }
     for (let i = 0; i < 100; i++) expect(defaultAvatar(`user-${i}`, extended)).toEqual(defaultAvatar(`user-${i}`))

@@ -55,6 +55,12 @@ export type StudioSlot = (typeof STUDIO_SLOTS)[number]['key']
 
 /** "Reach Champion 1 · Win events": what earns a trophy item or title. */
 const requirement = (id: AchievementId, tier: number) => `Reach ${badgeName(id, tier)} · ${achievement(id).description}`
+/** Parts lists are append-only, so trophy items can sit mid-list; the studio shows the free parts first. */
+const freeFirst = (parts: ReadonlyArray<AvatarPart>) => [
+  ...parts.filter((p) => !p.trophy),
+  ...parts.filter((p) => p.trophy),
+]
+
 const trophyRequirement = (id: TrophyItemId) => {
   const item = TROPHY_ITEMS.find((t) => t.id === id)!
   return requirement(item.earnedAt.achievement, item.earnedAt.tier)
@@ -215,7 +221,7 @@ export function CustomiseStudio({
 
   const partOptions = (part: AvatarSlot) => (
     <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-      {AVATAR_PARTS[part].map((p: AvatarPart) => {
+      {freeFirst(AVATAR_PARTS[part]).map((p: AvatarPart) => {
         const locked = Boolean(p.trophy && !earnedTrophies.has(p.trophy))
         return (
           <Option
