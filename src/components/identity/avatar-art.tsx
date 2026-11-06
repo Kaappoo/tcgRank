@@ -75,7 +75,7 @@ const AFRO_PUFFS: ReadonlyArray<readonly [number, number]> = [
 const MIDDLE_PART_BACK =
   'M48 84C40 60 64 34 100 34C136 34 160 60 152 84C158 100 148 108 154 118C158 128 146 134 138 128H62C54 134 42 128 46 118C52 108 42 100 48 84Z'
 const MIDDLE_PART_LEFT =
-  'M100 36C72 34 48 50 46 82C44 96 52 102 46 112C42 120 50 128 58 124C60 116 58 108 60 100C62 82 76 62 100 56Z'
+  'M100 36C72 34 48 50 46 82C44 96 52 102 46 112C42 120 50 128 58 124C60 116 58 108 60 100C62 86 70 70 84 66C92 64 98 66 100 74Z'
 const BRAID_LINKS = [108, 120, 132, 144, 156, 168]
 
 /** Hats are drawn 9 units up, so in hat space the head's centre is (100, 103). */
@@ -210,7 +210,7 @@ const HAIR: Record<string, (c: string) => HairLayers> = {
         <path d={MIDDLE_PART_LEFT} fill={c} />
         <path d={MIDDLE_PART_LEFT} fill={c} transform="matrix(-1 0 0 1 200 0)" />
         <path
-          d="M100 48C90 38 74 40 66 56C58 72 66 86 60 100Q56 108 58 116M100 48C110 38 126 40 134 56C142 72 134 86 140 100Q144 108 142 116"
+          d="M100 42C88 44 74 50 68 62C60 76 66 88 60 100Q56 108 58 116M100 42C112 44 126 50 132 62C140 76 134 88 140 100Q144 108 142 116"
           stroke={shade(c, -0.22)}
           strokeWidth={2.5}
           strokeLinecap="round"
