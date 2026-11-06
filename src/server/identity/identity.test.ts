@@ -394,6 +394,14 @@ describe('unseen unlocks', () => {
       const unseen = yield* AchievementsService.use((a) => a.unseen()).pipe(asUser(ash!))
       expect(unseen.welcome).toBe(true)
       expect(unseen.unlocks.length).toBe(3)
+      expect(unseen.unlocks.every((u) => u.backfilled)).toBe(true)
+
+      // Ash hosts an event after launch: that tier is a real new unlock, not part of the welcome.
+      yield* TestClock.adjust(HOUR)
+      yield* playEvent(ash!, [host!, gary!, misty!, brock!], [])
+      const later = yield* AchievementsService.use((a) => a.unseen()).pipe(asUser(ash!))
+      expect(later.unlocks.find((u) => u.achievement === 'host')).toMatchObject({ tier: 1, backfilled: false })
+      expect(later.unlocks.filter((u) => u.backfilled)).toHaveLength(3)
 
       yield* AchievementsService.use((a) => a.markSeen()).pipe(asUser(ash!))
       expect((yield* AchievementsService.use((a) => a.unseen()).pipe(asUser(ash!))).welcome).toBe(false)

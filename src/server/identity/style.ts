@@ -1,5 +1,5 @@
 import { inArray } from 'drizzle-orm'
-import { Effect } from 'effect'
+import { Clock, Effect } from 'effect'
 import { ACHIEVEMENT_IDS, TITLE_IDS, type AchievementId, type TitleId } from '#/domain/achievements.ts'
 import {
   BANNERS,
@@ -91,13 +91,15 @@ export const insertDefaultStyles = Effect.fn('insertDefaultStyles')(function* (
 ) {
   if (userIds.length === 0) return
   const db = yield* Db
+  // Stamped from Clock: the backfill's row time tells backfilled tiers from ones earned since.
+  const createdAt = new Date(yield* Clock.currentTimeMillis)
   yield* db.query((d) =>
     d
       .insert(playerStyle)
       .values(
         userIds.map((userId) => {
           const { avatar, sleeveColour } = defaultStyle(userId)
-          return { userId, avatar, sleeveColour, achievementsSeenAt: seenAt }
+          return { userId, avatar, sleeveColour, achievementsSeenAt: seenAt, createdAt, updatedAt: createdAt }
         }),
       )
       .onConflictDoNothing(),

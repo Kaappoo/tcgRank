@@ -9,14 +9,15 @@ const champion = {
   earnedAt: 0,
   title: 'champion',
   trophies: ['champion-cap', 'champion-slab'],
+  backfilled: false,
 } as const
-const regular = { achievement: 'regular', tier: 2, earnedAt: 0, title: null, trophies: [] } as const
+const regular = { achievement: 'regular', tier: 2, earnedAt: 0, title: null, trophies: [], backfilled: false } as const
 
 const meta = {
   title: 'Identity/UnlockCelebration',
   component: UnlockCelebration,
   args: {
-    screens: celebrationScreens({ unlocks: [champion, regular], welcome: false }),
+    screens: celebrationScreens([champion, regular]),
     avatar: defaultAvatar('usr_kaua'),
     onClose: () => {},
     onWear: () => {},
@@ -28,6 +29,8 @@ type Story = StoryObj<typeof meta>
 
 export const EventFinished: Story = {}
 export const LaunchWelcome: Story = {
-  args: { screens: celebrationScreens({ unlocks: [champion, regular, { ...regular, tier: 1 }], welcome: true }) },
+  args: {
+    screens: celebrationScreens([champion, regular, { ...regular, tier: 1 }].map((u) => ({ ...u, backfilled: true }))),
+  },
 }
 export const ReducedMotion: Story = { args: { reducedMotion: true } }

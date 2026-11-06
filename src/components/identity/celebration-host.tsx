@@ -86,7 +86,7 @@ export function CelebrationHost({ userId, avatar }: { userId: string; avatar: Av
     const fresh = unseen.unlocks.filter((u) => !seen.has(tierKey(u.achievement, u.tier)))
     if (fresh.length === 0) return
     celebrated.add(userId, unseen.unlocks)
-    setRun(unseen.welcome ? unseen.unlocks : fresh)
+    setRun(fresh)
   }, [unseen, run, userId, onStoreScreen])
 
   const wear = useServerFn(wearTrophyItem)
@@ -97,10 +97,7 @@ export function CelebrationHost({ userId, avatar }: { userId: string; avatar: Av
       [['profile'], ['session'], ['style'], ['event']].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
     )
 
-  const screens = useMemo(
-    () => (run && unseen ? celebrationScreens({ unlocks: run, welcome: unseen.welcome }) : []),
-    [run, unseen],
-  )
+  const screens = useMemo(() => (run ? celebrationScreens(run) : []), [run])
   if (!run || screens.length === 0 || onStoreScreen) return null
 
   return (

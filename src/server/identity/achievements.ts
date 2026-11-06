@@ -58,13 +58,15 @@ export interface Unlock {
   readonly earnedAt: number
   readonly title: TitleId | null
   readonly trophies: ReadonlyArray<TrophyItemId>
+  /** Earned in the launch backfill (from events before launch): celebrated together in the welcome. */
+  readonly backfilled: boolean
 }
 
 export interface Unseen {
   readonly unlocks: ReadonlyArray<Unlock>
   /** Entered in or hosting a running event: the celebration waits. */
   readonly busy: boolean
-  /** The tiers are the launch backfill: the celebration plays the two-screen welcome. */
+  /** Some tiers are the launch backfill: the celebration opens with the two-screen welcome for them. */
   readonly welcome: boolean
 }
 
@@ -175,7 +177,11 @@ const make = Effect.gen(function* () {
   const unseen = Effect.fn('AchievementsService.unseen')(function* () {
     const me = yield* requireUser
     const [styles, live] = yield* Effect.all([styleRows([me.id]), loadLiveEvents(me.id)], { concurrency: 'unbounded' })
-    const seenAt = styles.get(me.id)?.achievementsSeenAt ?? new Date(yield* Clock.currentTimeMillis)
+    const row = styles.get(me.id)
+    const seenAt = row?.achievementsSeenAt ?? new Date(yield* Clock.currentTimeMillis)
+    const launch = seenAt.getTime() === BACKFILL_SEEN_AT.getTime()
+    // Tiers earned before the backfill wrote the row are history; anything later is a real new unlock.
+    const backfilledUntil = launch ? (row?.createdAt.getTime() ?? 0) : -1
     const rows = yield* db.query((d) =>
       d
         .select()
@@ -191,6 +197,7 @@ const make = Effect.gen(function* () {
           earnedAt: r.earnedAt.getTime(),
           title: titleFor(id, r.tier),
           trophies: trophiesFor(id, r.tier),
+          backfilled: r.earnedAt.getTime() <= backfilledUntil,
         }
       })
       .filter((u) => ACHIEVEMENTS.some((a) => a.id === u.achievement))
@@ -198,7 +205,7 @@ const make = Effect.gen(function* () {
     return {
       unlocks,
       busy: isBusy(live),
-      welcome: seenAt.getTime() === BACKFILL_SEEN_AT.getTime() && unlocks.length > 0,
+      welcome: unlocks.some((u) => u.backfilled),
     } satisfies Unseen
   })
 

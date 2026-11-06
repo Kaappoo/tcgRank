@@ -198,18 +198,12 @@ const make = Effect.gen(function* () {
     return yield* get(me.id)
   })
 
-  /** The signed-in player's default parts, for the editor's Default options and Reset all. */
-  const mineDefault = Effect.fn('PlayerStyleService.defaultAvatar')(function* () {
-    const me = yield* requireUser
-    return defaultAvatar(me.id)
-  })
-
   const searchPartner = Effect.fn('PlayerStyleService.searchPartner')(function* (query: string, page: number) {
     yield* requireUser
     return yield* catalog.search(query, page)
   })
 
-  return { get, ensure, editor, save, wear, showTitle, defaultAvatar: mineDefault, searchPartner }
+  return { get, ensure, editor, save, wear, showTitle, searchPartner }
 })
 
 export class PlayerStyleService extends Context.Service<PlayerStyleService, Effect.Success<typeof make>>()(
