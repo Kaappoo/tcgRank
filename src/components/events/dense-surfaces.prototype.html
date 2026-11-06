@@ -1,0 +1,295 @@
+<title>Dense Surfaces Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap">
+<!--
+  PROTOTYPE — throwaway. Answers "Avatar on dense surfaces" (map: Player identity, #52 / ticket #59).
+  Three treatments of avatar, sleeve colour and title on the pairing card, standings, store screen and OG image.
+  Switch with the bottom bar, ← →, or #ring / #stripe / #opponent.
+-->
+<style>
+  /* Layout: a phone-width pairing card beside standings; store screen and OG image full width below. Dark only. */
+  :root {
+    --ink: #0d0e12; --surface: #15161b; --surface-raised: #1e1f25; --line: #2c2d35;
+    --paper: #f4efe8; --paper-dim: #b3ada5; --orange: #f06a2a; --on-orange: #1a120c; --gold: #e2b33c;
+    --font: 'Archivo', 'Arial Narrow', system-ui, sans-serif; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--ink); color: var(--paper); font-family: var(--font); font-size: 15px; line-height: 1.4; margin: 0; }
+  .page { max-width: 1100px; margin: 0 auto; padding-block: 20px 120px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 28px; }
+  .display { font-stretch: 125%; font-weight: 850; letter-spacing: -0.01em; }
+  .num { font-stretch: 72%; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .dim { color: var(--paper-dim); }
+  h2 { font-size: 13px; font-weight: 700; color: var(--paper-dim); margin: 0 0 10px; text-transform: uppercase; letter-spacing: .08em; }
+  .intro h1 { margin: 0; font-size: clamp(26px, 5vw, 38px); }
+  .intro p { color: var(--paper-dim); max-width: 64ch; margin: 6px 0 0; }
+  .two { display: grid; grid-template-columns: 390px minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 860px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  .phone { max-width: 390px; width: 100%; }
+  .pcard { position: relative; overflow: hidden; border: 1px solid var(--line); background: var(--surface); border-radius: 16px; padding: 20px; display: grid; gap: 22px; }
+  .pc-top { display: flex; justify-content: space-between; align-items: center; }
+  .table { transform: skewX(-12deg); background: var(--orange); color: var(--on-orange); border-radius: 6px; padding: 6px 14px; display: grid; justify-items: end; }
+  .table span:first-child { font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+  .table span:last-child { font-size: 56px; line-height: .85; }
+  .seat { display: flex; align-items: center; gap: 14px; min-width: 0; position: relative; }
+  .seat .who { min-width: 0; display: grid; gap: 2px; }
+  .seat .lbl { font-size: 12px; font-weight: 700; color: var(--paper-dim); }
+  .seat .nm { overflow-wrap: anywhere; }
+  .vs { display: flex; align-items: center; gap: 10px; color: var(--orange); font-size: 13px; }
+  .vs i { flex: 1; height: 1px; background: var(--line); }
+  .title { display: inline-flex; justify-self: start; border: 1px solid var(--gold); color: var(--gold); border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
+  .stripe { position: absolute; left: -20px; top: -4px; bottom: -4px; width: 6px; border-radius: 0 4px 4px 0; }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  .ring { border-radius: 50%; padding: 3px; display: inline-grid; flex: none; }
+  .ring svg { display: block; }
+  .stand { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  .srow { display: grid; grid-template-columns: 30px auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .srow:last-child { border-bottom: 0; }
+  .srow.me { background: var(--surface-raised); }
+  .srow .r { color: var(--paper-dim); font-size: 20px; }
+  .srow .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  .tv { background: #000; border-radius: 12px; padding: 22px; border: 1px solid var(--line); overflow-x: auto; }
+  .tv-grid { display: grid; grid-template-columns: repeat(2, minmax(300px, 1fr)); gap: 6px 28px; min-width: 640px; }
+  .tvrow { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 12px; align-items: center; font-size: 20px; padding: 6px 0; border-bottom: 1px solid #1d1e24; }
+  .tvrow .t { font-size: 34px; color: var(--orange); }
+  .tvrow .p { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .og-wrap { overflow-x: auto; }
+  .og { width: 600px; height: 315px; position: relative; overflow: hidden; border-radius: 10px; background: #0b0b0c; border: 1px solid var(--line); flex: none; }
+  .note { color: var(--paper-dim); font-size: 13px; max-width: 70ch; }
+  .switcher { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 4px; background: #fff; color: #111; border-radius: 999px; padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.5); z-index: 20; font-family: system-ui, sans-serif; font-size: 13px; max-width: calc(100vw - 32px); }
+  .switcher button { border: 0; background: #eee; border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 16px; color: #111; }
+  .switcher .lbl { padding: 0 12px; font-weight: 600; white-space: nowrap; }
+</style>
+
+<main class="page">
+  <header class="intro">
+    <h1 class="display">Avatar on dense surfaces</h1>
+    <p>Three ways to show the avatar, sleeve colour and title where space is tight. The pairing card must still read in under a second. Switch with the bar at the bottom.</p>
+    <p id="vnote" style="color:var(--paper)"></p>
+  </header>
+  <div class="two">
+    <section class="phone"><h2>Pairing card (phone, you are Kauã)</h2><div id="pairing"></div></section>
+    <section><h2>Standings</h2><div class="stand" id="standings"></div></section>
+  </div>
+  <section><h2>Store screen (TV)</h2><div class="tv"><div class="tv-grid" id="tv"></div></div></section>
+  <section><h2>Share image (OG, 1200×630 shown at half size)</h2><div class="og-wrap"><div class="og" id="og"></div></div></section>
+</main>
+<div class="switcher" role="toolbar" aria-label="Prototype variant"><button id="prev" aria-label="Previous variant">←</button><span class="lbl" id="vlabel"></span><button id="next" aria-label="Next variant">→</button></div>
+
+<script>
+// ---------- palette (avatar palette is content, not UI) ----------
+const SKIN = ['#F7DCC8', '#EBBF9C', '#D49C70', '#AE7449', '#7D4B2C', '#4F2F1D']
+const HAIR = ['#17181B', '#4A2E1E', '#8A5A2B', '#D9A441', '#CFC8BE', '#B5452F', '#3E5DA8']
+const CLOTH = ['#EDE8E0', '#2B2E36', '#3F6FB6', '#C23B3B', '#2F8F5B', '#E2B33C', '#7A4FB0', '#2C8C99']
+const INK = '#14151a'
+const GOLD = '#E2B33C'
+
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16)
+  const f = (c) => Math.max(0, Math.min(255, Math.round(c + (amt < 0 ? c * amt : (255 - c) * amt))))
+  const r = f(n >> 16), g = f((n >> 8) & 255), b = f(n & 255)
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)
+}
+
+// ---------- parts ----------
+// Each part returns { back, front } SVG strings. `s(d, fill)` draws a filled shape (outlined in the sticker direction).
+// Hair is a full volume around the skull (not painted on): crown ~16 units above the head, sides past the temples.
+const VOL = 'M48 102C42 50 68 32 100 32C132 32 158 50 152 102C148 86 142 76 132 70C118 75 82 75 68 70C58 76 52 86 48 102Z'
+const HAIRS = {
+  bald: { name: 'Bald', draw: () => ({}) },
+  short: { name: 'Short', draw: (c, s) => ({ front: s(VOL, c) }) },
+  spiky: { name: 'Spiky', draw: (c, s) => ({ front: s('M50 70L56 34L72 44L76 18L92 36L100 12L110 36L126 18L130 44L146 34L150 70Z', c) + s(VOL, c) }) },
+  long: { name: 'Long', draw: (c, s) => ({ back: s('M46 100C40 46 68 30 100 30C132 30 160 46 154 100L160 168L40 168Z', shade(c, -0.18)), front: s('M48 104C42 50 68 32 100 32C132 32 158 50 152 104C146 84 132 70 112 64C100 74 76 76 60 74C54 82 50 92 48 104Z', c) }) },
+  curly: { name: 'Curly', draw: (c, s) => ({ front: [[50, 92], [52, 70], [64, 50], [82, 36], [100, 32], [118, 36], [136, 50], [148, 70], [150, 92]].map(([x, y]) => s(`M${x - 17} ${y}a17 17 0 1 0 34 0a17 17 0 1 0 -34 0Z`, c)).join('') + s(VOL, c) }) },
+  ponytail: { name: 'Ponytail', draw: (c, s) => ({ back: s('M140 64C172 70 176 124 156 156C152 128 148 104 132 86Z', shade(c, -0.12)), front: s(VOL, c) }) },
+  buzz: { name: 'Buzz', draw: (c, s) => ({ front: s('M52 96C48 54 72 40 100 40C128 40 152 54 148 96C142 80 126 70 100 70C74 70 58 80 52 96Z', shade(c, 0.12)) }) },
+}
+
+const TOPS = {
+  tee: { name: 'Tee', draw: (c, s, skin) => ({ body: s(BODY, c) + s('M86 146Q100 164 114 146Z', skin) }) },
+  hoodie: { name: 'Hoodie', draw: (c, s) => ({ behind: s('M58 166C56 128 76 120 100 120C124 120 144 128 142 166Z', shade(c, -0.25)), body: s(BODY, c) + `<path d="M93 156V182M107 156V182" stroke="${shade(c, 0.6)}" stroke-width="3" stroke-linecap="round"/>` }) },
+  jacket: { name: 'Track jacket', draw: (c, s) => ({ body: s(BODY, c) + s('M86 148L100 196L114 148Z', CLOTH[0]) + s('M86 148L100 196L76 160Z', shade(c, -0.2)) + s('M114 148L100 196L124 160Z', shade(c, -0.2)) + `<path d="M40 178L60 162M160 178L140 162" stroke="${CLOTH[0]}" stroke-width="4"/>` }) },
+  jersey: { name: 'Jersey', draw: (c, s) => ({ body: s(BODY, c) + `<rect x="30" y="172" width="140" height="10" fill="${shade(c, 0.55)}"/>` + s('M86 146Q100 162 114 146Z', shade(c, -0.25)) }) },
+  topcut: { name: 'Top-cut jacket', trophy: 'Make a top cut', draw: (c, s) => ({ body: s(BODY, CLOTH[1]) + s('M86 148L100 196L114 148Z', GOLD) + `<path d="M38 182L62 160M162 182L138 160" stroke="${GOLD}" stroke-width="6"/>` }) },
+}
+const BODY = 'M30 212C30 168 60 148 100 148C140 148 170 168 170 212Z'
+
+// Crowns are wider and taller than any hair volume, so hair never pokes through the top; `covers` hats clip hair above the brim.
+const CROWN = 'M48 90C48 40 72 22 100 22C128 22 152 40 152 90Z'
+const PANEL = 'M76 90C76 48 86 28 100 28C114 28 124 48 124 90Z'
+const BRIM = 'M40 90Q100 77 160 90Q164 102 100 100Q36 102 40 90Z'
+const VBRIM = 'M40 84Q100 71 160 84Q164 96 100 94Q36 96 40 84Z'
+const HATS = {
+  none: { name: 'None', draw: () => '' },
+  trainer: { name: 'Trainer cap', covers: true, draw: (c, c2, s) => s(CROWN, c) + s(PANEL, c2) + s('M91 66L100 56L109 66L104.5 66L100 61L95.5 66Z', c) + s(BRIM, shade(c, -0.25)) },
+  backwards: { name: 'Backwards cap', covers: true, draw: (c, c2, s) => s(CROWN, c) + s('M78 76H122V88H78Z', shade(c, -0.3)) + `<circle cx="89" cy="82" r="2.2" fill="${c2}"/><circle cx="100" cy="82" r="2.2" fill="${c2}"/><circle cx="111" cy="82" r="2.2" fill="${c2}"/>` },
+  beanie: { name: 'Beanie', covers: true, draw: (c, c2, s) => s('M100 8a13 13 0 1 0 0.1 0Z', c2) + s('M50 84C50 36 74 22 100 22C126 22 150 36 150 84Z', c) + s('M44 72H156V94H44Z', shade(c, -0.2)) },
+  visor: { name: 'Visor', draw: (c, c2, s) => s('M48 70H152V84H48Z', c) + s(VBRIM, c2) },
+  bucket: { name: 'Bucket hat', covers: true, draw: (c, c2, s) => s('M54 82C54 34 78 22 100 22C122 22 146 34 146 82Z', c) + s('M54 70H146V82H54Z', c2) + s('M28 98L54 78H146L172 98Q100 108 28 98Z', shade(c, -0.2)) },
+  headband: { name: 'Headband', draw: (c, c2, s) => s('M48 68H152V82H48Z', c) + s('M150 70L172 60L170 82Z', c2) },
+  champion: { name: 'Champion cap', trophy: 'Win an event', covers: true, draw: (c, c2, s) => s(CROWN, c) + s(PANEL, GOLD) + s('M100 44L104.5 55L116 55L107 62L110.5 74L100 67L89.5 74L93 62L84 55L95.5 55Z', c) + s(BRIM, GOLD) },
+  cupvisor: { name: 'Cup visor', trophy: 'Top 8 at a League Cup', draw: (c, c2, s) => s('M48 70H152V84H48Z', c) + s(VBRIM, GOLD) },
+}
+
+const ACCS = {
+  none: { name: 'None', draw: () => ({}) },
+  glasses: { name: 'Glasses', draw: () => ({ face: `<g fill="none" stroke="${INK}" stroke-width="3.5"><rect x="72" y="88" width="22" height="16" rx="5"/><rect x="106" y="88" width="22" height="16" rx="5"/><path d="M94 95H106"/></g>` }) },
+  plaster: { name: 'Plaster', draw: (s) => ({ face: s('M114 112l14-6l3 6l-14 6Z', CLOTH[0]) }) },
+  straps: { name: 'Backpack', draw: (s) => ({ over: s('M58 156L70 152L76 212L62 212Z', '#5b4634') + s('M142 156L130 152L124 212L138 212Z', '#5b4634') }) },
+  pin: { name: 'League pin', trophy: 'Play 10 events', draw: (s) => ({ over: s('M128 170a8 8 0 1 0 0.1 0Z', GOLD) }) },
+}
+
+// ---------- directions ----------
+const VARIANTS = {
+  flat: { key: 'A', name: 'Flat bust', note: 'Round frame, head and shoulders, flat fills with no outlines. Closest to Duolingo. Clothes are visible, so tops can be trophies.' },
+  sticker: { key: 'B', name: 'Outlined sticker', note: 'The same bust with a heavy ink outline and a paper ring. Reads hardest on the black field and at small sizes, like a sticker on a deck box.' },
+  tile: { key: 'C', name: 'Head tile', note: 'An angular head crop in a skewed tile that echoes the slab, backed by your sleeve colour. Clothes mostly disappear, so the hat does the talking.' },
+}
+const ORDER = Object.keys(VARIANTS)
+
+let uid = 0
+function avatarSVG(cfg, variant, size) {
+  const id = 'a' + (uid++)
+  const outline = variant === 'sticker'
+  const angular = variant === 'tile'
+  const s = (d, fill) => `<path d="${d}" fill="${fill}"${outline ? ` stroke="${INK}" stroke-width="4.5" stroke-linejoin="round"` : ''}/>`
+  const skin = SKIN[cfg.skin]
+  const hairC = HAIR[cfg.hairColour]
+  const hair = HAIRS[cfg.hair].draw(hairC, s)
+  const top = TOPS[cfg.top].draw(CLOTH[cfg.topColour], s, skin)
+  const acc = ACCS[cfg.accessory].draw(s)
+  const hat = HATS[cfg.hat].draw(CLOTH[cfg.hatColour], CLOTH[cfg.hatColour2], s)
+  const head = angular
+    ? s('M70 54L130 54L146 76L146 112L126 134L74 134L54 112L54 76Z', skin)
+    : s('M56 94a44 44 0 1 0 88 0a44 44 0 1 0 -88 0Z', skin)
+  const ears = s('M48 98a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z', shade(skin, -0.08)) + s('M136 98a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z', shade(skin, -0.08))
+  const eyes = angular
+    ? `<rect x="80" y="92" width="8" height="9" fill="${INK}"/><rect x="112" y="92" width="8" height="9" fill="${INK}"/>`
+    : `<circle cx="84" cy="97" r="4.5" fill="${INK}"/><circle cx="116" cy="97" r="4.5" fill="${INK}"/>`
+  const mouth = `<path d="M90 112Q100 120 110 112" fill="none" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>`
+  const neck = s('M88 120H112V152H88Z', shade(skin, -0.12))
+
+  const hc = HATS[cfg.hat].covers
+  const hairClip = hc ? `<clipPath id="${id}h"><rect x="0" y="56" width="200" height="200"/></clipPath>` : ''
+  const wrapHair = (x) => x && hc ? `<g clip-path="url(#${id}h)">${x}</g>` : x
+  hair.back = wrapHair(hair.back); hair.front = wrapHair(hair.front)
+  const art = [hair.back, top.behind, neck, top.body, acc.over, ears, head, eyes, mouth, acc.face, hair.front, hat && `<g transform="translate(0 -9)">${hat}</g>`].filter(Boolean).join('')
+
+  let frame, viewBox, clip
+  if (variant === 'tile') {
+    viewBox = '30 18 140 140'
+    clip = `<clipPath id="${id}"><path d="M52 18H170L148 158H30Z"/></clipPath>`
+    frame = `<path d="M52 18H170L148 158H30Z" fill="${CLOTH[cfg.sleeve]}"/><path d="M52 18H170L148 158H30Z" fill="${INK}" opacity=".35"/>`
+  } else {
+    viewBox = '0 0 200 200'
+    clip = `<clipPath id="${id}"><circle cx="100" cy="100" r="${outline ? 94 : 100}"/></clipPath>`
+    frame = `<circle cx="100" cy="100" r="100" fill="${outline ? '#f4efe8' : '#24252c'}"/>` + (outline ? `<circle cx="100" cy="100" r="94" fill="#24252c"/>` : '')
+  }
+  return `<svg class="avatar-in" width="${size}" height="${size}" viewBox="${viewBox}" role="img" aria-label="Avatar">${clip}${hairClip}${frame}<g clip-path="url(#${id})">${art}</g></svg>`
+}
+
+// ---------- deterministic default from user id (FNV-1a → Mulberry32 per slot key) ----------
+function fnv1a(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) } return h >>> 0 }
+function rand(seed, key) { let t = (fnv1a(seed + ':' + key) + 0x6d2b79f5) | 0; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
+const free = (table) => Object.keys(table).filter((k) => !table[k].trophy).sort()
+function pick(seed, key, items) { return items[Math.floor(rand(seed, key) * items.length)] }
+function defaultAvatar(userId) {
+  const idx = (n) => [...Array(n).keys()]
+  const topColour = pick(userId, 'topColour', idx(CLOTH.length))
+  return {
+    skin: pick(userId, 'skin', idx(SKIN.length)),
+    hair: pick(userId, 'hair', free(HAIRS)),
+    hairColour: pick(userId, 'hairColour', idx(HAIR.length)),
+    top: pick(userId, 'top', free(TOPS)),
+    topColour,
+    hat: rand(userId, 'hatChance') < 0.55 ? pick(userId, 'hat', free(HATS).filter((h) => h !== 'none')) : 'none',
+    hatColour: pick(userId, 'hatColour', idx(CLOTH.length).filter((i) => i !== topColour)),
+    hatColour2: pick(userId, 'hatColour2', idx(CLOTH.length)),
+    accessory: rand(userId, 'accChance') < 0.35 ? pick(userId, 'accessory', free(ACCS).filter((a) => a !== 'none')) : 'none',
+    sleeve: pick(userId, 'sleeve', idx(CLOTH.length)),
+  }
+}
+
+
+
+const P = [
+  { name: 'Kauã Andrade', seed: 'usr_kaua', title: 'Champion', rec: '3-0-1', av: { skin: 1, hair: 'spiky', hairColour: 2, top: 'hoodie', topColour: 7, hat: 'champion', hatColour: 3, hatColour2: 0, accessory: 'none', sleeve: 7 } },
+  { name: 'Mika Oliveira', seed: 'usr_mika', title: 'Organiser', rec: '3-1-0' },
+  { name: 'Rafa Costa', seed: 'usr_rafa', title: null, rec: '3-1-0' },
+  { name: 'Jo Tanaka', seed: 'usr_jo', title: 'Veteran', rec: '2-1-1' },
+  { name: 'Bia Santos', seed: 'usr_bia', title: null, rec: '2-2-0' },
+  { name: 'Theo Lima', seed: 'usr_theo', title: null, rec: '2-2-0' },
+  { name: 'Lu Ferreira', seed: 'usr_lu', title: null, rec: '1-3-0' },
+  { name: 'Duda Rocha', seed: 'usr_duda', title: 'Sweeper', rec: '1-3-0' },
+].map((p) => ({ ...p, av: p.av ?? defaultAvatar(p.seed) }))
+const ME = P[0], OPP = P[1]
+const sleeve = (p) => CLOTH[p.av.sleeve]
+const av = (p, n) => avatarSVG(p.av, 'flat', n)
+const ringed = (p, n, w = 3) => `<span class="ring" style="background:${sleeve(p)};padding:${w}px">${av(p, n)}</span>`
+const titleChip = (p) => p.title ? `<span class="title">${p.title}</span>` : ''
+const TABLES = [[12, P[0], P[1]], [3, P[2], P[3]], [7, P[4], P[5]], [9, P[6], P[7]]]
+
+function pairing(v) {
+  const top = `<div class="pc-top"><span class="dim" style="font-size:13px;font-weight:700">Round 4 · Best of 3</span><span class="table num"><span>TABLE</span><span>12</span></span></div>`
+  const vs = `<div class="vs"><i></i><span class="display">VS</span><i></i></div>`
+  if (v === 'ring') {
+    const seat = (p, lbl, big) => `<div class="seat">${ringed(p, big ? 60 : 40)}<div class="who"><span class="lbl">${lbl} <span class="num" style="color:var(--paper)">${p.rec}</span></span><span class="nm display" style="font-size:${big ? 28 : 19}px;${big ? '' : 'color:var(--paper-dim)'}">${p.name}</span></div></div>`
+    return `<div class="pcard">${top}<div style="display:grid;gap:14px">${seat(ME, 'You')}${vs}${seat(OPP, 'Opponent', true)}</div></div>`
+  }
+  if (v === 'stripe') {
+    const seat = (p, lbl, big) => `<div class="seat"><span class="stripe" style="background:${sleeve(p)}"></span>${av(p, big ? 56 : 40)}<div class="who"><span class="lbl">${lbl} <span class="num" style="color:var(--paper)">${p.rec}</span></span><span class="nm display" style="font-size:${big ? 28 : 19}px;${big ? '' : 'color:var(--paper-dim)'}">${p.name}</span>${titleChip(p)}</div></div>`
+    return `<div class="pcard">${top}<div style="display:grid;gap:14px">${seat(ME, 'You')}${vs}${seat(OPP, 'Opponent', true)}</div></div>`
+  }
+  // opponent forward
+  return `<div class="pcard">${top}
+    <div style="display:grid;gap:12px;justify-items:center;text-align:center;border:1px solid var(--line);border-radius:12px;padding:16px;border-top:6px solid ${sleeve(OPP)}">
+      ${av(OPP, 104)}
+      <span class="lbl dim" style="font-size:12px;font-weight:700">Opponent <span class="num" style="color:var(--paper)">${OPP.rec}</span></span>
+      <span class="display" style="font-size:28px;line-height:1.05">${OPP.name}</span>${titleChip(OPP).replace('justify-self:start', '')}
+      <span class="dim" style="font-size:12px;display:flex;gap:6px;align-items:center">Look for <span class="sw" style="background:${sleeve(OPP)}"></span> sleeves</span>
+    </div>
+    <div class="seat" style="font-size:14px">${av(ME, 28)}<span class="dim">You · <span class="num" style="color:var(--paper)">${ME.rec}</span> · ${ME.name}</span></div></div>`
+}
+
+function standings(v) {
+  return P.map((p, i) => {
+    const pic = v === 'ring' ? ringed(p, 28, 2) : av(p, v === 'opponent' ? 28 : 32)
+    const extra = v === 'stripe' ? `<span class="sw" style="background:${sleeve(p)}"></span>` : v === 'opponent' && p.title ? `<span class="title">${p.title}</span>` : '<span></span>'
+    return `<div class="srow ${i === 0 ? 'me' : ''}"><span class="r num">${i + 1}</span>${pic}<span class="nm">${p.name}</span>${extra}<span class="num">${p.rec}</span></div>`
+  }).join('')
+}
+
+function tv(v) {
+  const who = (p) => v === 'ring' ? `${ringed(p, 26, 2)}<span>${p.name}</span>` : v === 'stripe' ? `${av(p, 30)}<span class="sw" style="background:${sleeve(p)};width:6px;height:26px"></span><span>${p.name}</span>` : `<span class="sw" style="background:${sleeve(p)};width:14px;height:26px"></span><span>${p.name}</span>`
+  return TABLES.map(([t, a, b]) => `<div class="tvrow"><span class="t num">${t}</span><div style="display:grid;gap:4px"><span class="p">${who(a)}</span><span class="p dim" style="font-size:15px">vs</span><span class="p">${who(b)}</span></div></div>`).join('')
+}
+
+function og(v) {
+  const slab = `<div style="position:absolute;right:-40px;top:0;bottom:0;width:180px;background:var(--orange);transform:skewX(-12deg)"></div>`
+  if (v === 'ring') return `${slab}<div style="position:absolute;left:36px;top:44px;display:flex;gap:22px;align-items:center">${ringed(ME, 150, 6)}<div style="display:grid;gap:6px"><span class="display" style="font-size:36px;line-height:1">${ME.name}</span><span class="title">${ME.title}</span><span class="num" style="font-size:64px;line-height:.9">58-31-7</span><span class="dim" style="font-size:13px">tcgRank · 24 events</span></div></div>`
+  if (v === 'stripe') return `<div style="position:absolute;inset:0 0 auto 0;height:90px;background:${sleeve(ME)};background-image:repeating-linear-gradient(-30deg,rgba(0,0,0,.3) 0 12px,transparent 12px 24px)"></div><div style="position:absolute;left:36px;top:40px;display:flex;gap:20px;align-items:end"><span style="border-radius:50%;box-shadow:0 0 0 5px #0b0b0c;display:inline-grid">${av(ME, 150)}</span><div style="display:grid;gap:6px;padding-bottom:6px"><span class="title">${ME.title}</span><span class="display" style="font-size:34px;line-height:1">${ME.name}</span></div></div><div style="position:absolute;left:36px;bottom:26px;display:flex;gap:20px;align-items:end"><span class="num" style="font-size:60px;line-height:.9">58-31-7</span><span class="dim" style="font-size:13px;padding-bottom:6px">24 events · best #1 · tcgRank</span></div>${slab.replace('width:180px', 'width:110px')}`
+  return `<div style="position:absolute;left:0;top:0;bottom:0;width:300px;background:${sleeve(ME)}"></div><div style="position:absolute;left:30px;bottom:0">${av(ME, 250).replace(/<circle cx="100" cy="100" r="100" fill="#24252c"\/>/, '')}</div><div style="position:absolute;left:330px;top:48px;display:grid;gap:8px"><span class="title">${ME.title}</span><span class="display" style="font-size:34px;line-height:1">${ME.name}</span><span class="num" style="font-size:72px;line-height:.9">58-31-7</span><span class="dim" style="font-size:13px">24 events · best #1 · tcgRank</span></div>`
+}
+
+const PAGES = {
+  ring: { key: 'A', name: 'Sleeve ring', note: 'The avatar replaces the initials, wrapped in a ring of the sleeve colour. Titles stay on the profile only. Quietest change: the pairing card layout is untouched.' },
+  stripe: { key: 'B', name: 'Sleeve stripe + title', note: 'A sleeve-colour stripe marks each seat edge (and a swatch in standings and on the TV). The title chip shows under each name on the pairing card.' },
+  opponent: { key: 'C', name: 'Opponent forward', note: 'The pairing card is about finding your opponent: their avatar is big, with their title and "look for these sleeves". Your own seat shrinks to one line. The TV drops avatars for sleeve swatches only; the OG image goes full sleeve colour.' },
+}
+const PAGE_ORDER = Object.keys(PAGES)
+let page = PAGE_ORDER.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'ring'
+function render() {
+  const v = PAGES[page]
+  document.getElementById('vlabel').textContent = `${v.key} (${v.name})`
+  document.getElementById('vnote').textContent = `${v.key}. ${v.name}: ${v.note}`
+  document.getElementById('pairing').innerHTML = pairing(page)
+  document.getElementById('standings').innerHTML = standings(page)
+  document.getElementById('tv').innerHTML = tv(page)
+  document.getElementById('og').innerHTML = og(page)
+}
+function go(step) { page = PAGE_ORDER[(PAGE_ORDER.indexOf(page) + step + PAGE_ORDER.length) % PAGE_ORDER.length]; try { history.replaceState(null, '', '#' + page) } catch {} ; render() }
+document.getElementById('prev').addEventListener('click', () => go(-1))
+document.getElementById('next').addEventListener('click', () => go(1))
+document.addEventListener('keydown', (e) => { if (e.target.closest('input, textarea, [contenteditable]')) return; if (e.key === 'ArrowLeft') go(-1); if (e.key === 'ArrowRight') go(1) })
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (PAGE_ORDER.includes(h)) { page = h; render() } })
+render()
+</script>
