@@ -45,7 +45,17 @@ export class DatabaseError extends Schema.TaggedError<DatabaseError>()('Database
   }
 }
 
-export type AppError = NotFound | Unauthenticated | Forbidden | InvalidState | DatabaseError
+/** The Poké Cards catalog could not be reached, so a search can't tell "no results" from "unreachable". */
+export class CatalogUnavailable extends Schema.TaggedError<CatalogUnavailable>()('CatalogUnavailable', {
+  cause: Schema.Defect(),
+}) {
+  // fallow-ignore-next-line unused-class-member
+  override get message() {
+    return 'Couldn’t reach the card catalog. Try again in a moment.'
+  }
+}
+
+export type AppError = NotFound | Unauthenticated | Forbidden | InvalidState | DatabaseError | CatalogUnavailable
 
 export const httpStatusFor = (error: AppError): number => {
   switch (error._tag) {
@@ -59,5 +69,7 @@ export const httpStatusFor = (error: AppError): number => {
       return 409
     case 'DatabaseError':
       return 500
+    case 'CatalogUnavailable':
+      return 503
   }
 }

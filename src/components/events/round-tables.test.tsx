@@ -3,13 +3,14 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { MatchView } from '#/server/events/views.ts'
 import { RoundTables } from './round-tables.tsx'
+import { defaultLook } from '#/domain/avatar-parts.ts'
 
 const reported: MatchView = {
   id: 'm1',
   roundNumber: 2,
   table: 4,
-  player1: { id: 'misty', name: 'Misty', username: 'misty', image: null },
-  player2: { id: 'ash', name: 'Ash', username: 'ash', image: null },
+  player1: { id: 'misty', name: 'Misty', username: 'misty', ...defaultLook('misty') },
+  player2: { id: 'ash', name: 'Ash', username: 'ash', ...defaultLook('ash') },
   player1Games: 2,
   player2Games: 1,
   outcome: 'p1',

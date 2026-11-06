@@ -10,7 +10,7 @@ export const currentSessionUser = async (): Promise<SessionUser | null> => {
   const session = await auth.api.getSession({ headers: getRequestHeaders() })
   if (!session) return null
   const u = session.user as typeof session.user & { username?: string | null }
-  return { id: u.id, name: u.name, email: u.email, username: u.username ?? null, image: u.image ?? null }
+  return { id: u.id, name: u.name, email: u.email, username: u.username ?? null }
 }
 
 /**

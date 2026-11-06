@@ -5,12 +5,17 @@ import { database } from './db/index.ts'
 import { DecksService } from './decks/service.ts'
 import { Mailer } from './email/mailer.ts'
 import { EventsService } from './events/service.ts'
+import { AchievementsService } from './identity/achievements.ts'
+import { PlayerStyleService } from './identity/player-style.ts'
 import { ProfilesService } from './profiles/service.ts'
 
-const AppLayer = Layer.mergeAll(EventsService.layer, DecksService.layer, ProfilesService.layer).pipe(
-  Layer.provideMerge(Layer.mergeAll(Db.fromDatabase(database), Mailer.layer, CardCatalog.layer)),
-  Layer.orDie,
-)
+const AppLayer = Layer.mergeAll(
+  EventsService.layer,
+  DecksService.layer,
+  ProfilesService.layer,
+  AchievementsService.layer,
+  PlayerStyleService.layer,
+).pipe(Layer.provideMerge(Layer.mergeAll(Db.fromDatabase(database), Mailer.layer, CardCatalog.layer)), Layer.orDie)
 
 export type AppServices = Layer.Success<typeof AppLayer>
 

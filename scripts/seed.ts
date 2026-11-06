@@ -28,7 +28,7 @@ for (const [name, username] of people) {
     .signUpEmail({ body: { name, email, password: PASSWORD, username } })
     .catch(() => auth.api.signInEmail({ body: { email, password: PASSWORD } }))
   const u = result.user as typeof result.user & { username?: string | null }
-  users.push({ id: u.id, name: u.name, email: u.email, username: u.username ?? username, image: u.image ?? null })
+  users.push({ id: u.id, name: u.name, email: u.email, username: u.username ?? username })
 }
 const [host, ...players] = users as [SessionUser, ...Array<SessionUser>]
 

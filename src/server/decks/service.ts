@@ -7,7 +7,7 @@ import { BASIC_ENERGY_ART } from '../catalog/basic-energy-art.ts'
 import { CardCatalog } from '../catalog/card-catalog.ts'
 import { optionalUser, requireUser } from '../current-user.ts'
 import { Db } from '../db/client.ts'
-import { decks, user, type DeckRow } from '../db/schema.ts'
+import { decks, playerStyle, user, type DeckRow } from '../db/schema.ts'
 import { Forbidden, NotFound } from '../errors.ts'
 
 export interface DeckView {
@@ -133,14 +133,27 @@ const make = Effect.gen(function* () {
   const update = Effect.fn('DecksService.update')(function* (deckId: string, input: DeckInput) {
     const deck = yield* loadOwned(deckId)
     const cardImages = yield* resolveCardImages(input.list, deck.cardImages)
-    yield* db.query((d) => d.update(decks).set({ ...fields(input), cardImages }).where(eq(decks.id, deckId)))
+    yield* db.query((d) =>
+      d.batch([
+        d
+          .update(decks)
+          .set({ ...fields(input), cardImages })
+          .where(eq(decks.id, deckId)),
+        // A private deck is never featured. Making it public again doesn't feature it again.
+        ...(input.isPublic
+          ? []
+          : [d.update(playerStyle).set({ featuredDeckId: null }).where(eq(playerStyle.featuredDeckId, deckId))]),
+      ]),
+    )
     return { id: deckId }
   })
 
   /** Fills in art missing from existing decks (decks saved before art lookups, or while the catalog was down). */
   const backfillCardImages = Effect.fn('DecksService.backfillCardImages')(function* () {
     const rows = yield* db.query((d) =>
-      d.select({ id: decks.id, list: decks.list, cardImages: decks.cardImages, updatedAt: decks.updatedAt }).from(decks),
+      d
+        .select({ id: decks.id, list: decks.list, cardImages: decks.cardImages, updatedAt: decks.updatedAt })
+        .from(decks),
     )
     let updated = 0
     for (const row of rows) {
@@ -150,9 +163,7 @@ const make = Effect.gen(function* () {
         Object.entries(cardImages).every(([key, url]) => row.cardImages[key] === url)
       if (unchanged) continue
       // Keep updatedAt: filling in art isn't an edit, and deck lists sort by it.
-      yield* db.query((d) =>
-        d.update(decks).set({ cardImages, updatedAt: row.updatedAt }).where(eq(decks.id, row.id)),
-      )
+      yield* db.query((d) => d.update(decks).set({ cardImages, updatedAt: row.updatedAt }).where(eq(decks.id, row.id)))
       updated++
     }
     return { decks: rows.length, updated }

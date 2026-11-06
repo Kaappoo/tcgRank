@@ -8,8 +8,9 @@ import type { DeckView } from '#/server/decks/service.ts'
 import type { EntrantView, EventDetail } from '#/server/events/views.ts'
 import { renderWithRouter } from '../../../tests/render.tsx'
 import { EntryPanel } from './entry-panel.tsx'
+import { defaultLook } from '#/domain/avatar-parts.ts'
 
-const me = { id: 'u1', name: 'Ash', username: 'ash', image: null }
+const me = { id: 'u1', name: 'Ash', username: 'ash', ...defaultLook('u1') }
 
 const deck: DeckView = {
   id: 'deck-1',
@@ -42,7 +43,7 @@ const detailWith = (event: Partial<EventDetail['event']>, entry: EntrantView | n
     topCutSize: null,
     entriesClosedReason: null,
     playerCount: 1,
-    host: { id: 'host', name: 'Oak', username: 'oak', image: null },
+    host: { id: 'host', name: 'Oak', username: 'oak', ...defaultLook('host') },
     description: null,
     joinCode: 'ABC234',
     roundMinutes: 50,

@@ -5,9 +5,24 @@ import { countsInRecord } from '#/domain/standings.ts'
 import type { ProfileInput } from '#/shared/schemas.ts'
 import { requireUser } from '../current-user.ts'
 import { Db } from '../db/client.ts'
-import { eventPlayers, events, matches, rounds, user, type EventRow, type MatchOutcome, type MatchRow } from '../db/schema.ts'
+import { bestTiers, type AchievementId } from '#/domain/achievements.ts'
+import {
+  decks,
+  eventPlayers,
+  events,
+  matches,
+  playerStyle,
+  rounds,
+  user,
+  type DeckRow,
+  type EventRow,
+  type MatchOutcome,
+  type MatchRow,
+} from '../db/schema.ts'
 import { InvalidState, NotFound } from '../errors.ts'
 import type { PlayerRef } from '../events/views.ts'
+import { AchievementsService } from '../identity/achievements.ts'
+import { playerRefColumns, styleOf, toPlayerRef, type PartnerPokemon } from '../identity/style.ts'
 
 export type MatchResult = 'win' | 'loss' | 'draw' | 'bye'
 
@@ -50,12 +65,39 @@ export interface ProfileStats {
   readonly bestFinish: number | null
 }
 
+/** The deck a player features, with their record in events where it was their registered deck. */
+export interface FeaturedDeck {
+  readonly id: string
+  readonly name: string
+  readonly archetype: string | null
+  readonly format: DeckRow['format']
+  readonly list: string
+  readonly coverCard: string | null
+  readonly cardImages: Readonly<Record<string, string>>
+  readonly wins: number
+  readonly losses: number
+  readonly draws: number
+}
+
+/** What the trainer card shows beyond the look on `user`. */
+export interface ProfileIdentity {
+  readonly sleeveColour: string
+  readonly banner: string
+  readonly bannerColour: string | null
+  readonly partner: PartnerPokemon | null
+  /** Showcased badges, in the order picked, each at its best tier. */
+  readonly badges: ReadonlyArray<{ readonly achievement: AchievementId; readonly tier: number }>
+  readonly featuredDeck: FeaturedDeck | null
+  readonly earnedCount: number
+}
+
 interface Profile {
   readonly user: PlayerRef & {
     readonly playerId: string | null
     readonly bio: string | null
     readonly joinedAt: number
   }
+  readonly identity: ProfileIdentity
   readonly stats: ProfileStats
   readonly events: ReadonlyArray<EventHistoryEntry>
   readonly matches: ReadonlyArray<MatchHistoryEntry>
@@ -131,18 +173,31 @@ const stageReached = (
 
 const make = Effect.gen(function* () {
   const db = yield* Db
+  const achievements = yield* AchievementsService
 
   const byUsername = Effect.fn('ProfilesService.byUsername')(function* (username: string) {
-    const row = yield* db.query((d) =>
-      d.query.user.findFirst({ where: eq(sql`lower(${user.username})`, username.toLowerCase()) }),
+    const found = yield* db.query((d) =>
+      d
+        .select({ user, style: playerStyle })
+        .from(user)
+        .leftJoin(playerStyle, eq(playerStyle.userId, user.id))
+        .where(eq(sql`lower(${user.username})`, username.toLowerCase()))
+        .limit(1),
     )
+    const row = found[0]?.user
     if (!row) return yield* new NotFound({ entity: 'Player', id: username })
+    const style = styleOf(row.id, found[0]?.style)
 
-    const [entries, matchRows, hosted] = yield* Effect.all(
+    const [entries, matchRows, hosted, earned, featured] = yield* Effect.all(
       [
         db.query((d) =>
           d
-            .select({ event: events, finalRank: eventPlayers.finalRank, droppedAtRound: eventPlayers.droppedAtRound })
+            .select({
+              event: events,
+              finalRank: eventPlayers.finalRank,
+              droppedAtRound: eventPlayers.droppedAtRound,
+              deckId: eventPlayers.deckId,
+            })
             .from(eventPlayers)
             .innerJoin(events, eq(events.id, eventPlayers.eventId))
             .where(eq(eventPlayers.userId, row.id))
@@ -168,6 +223,14 @@ const make = Effect.gen(function* () {
             .from(events)
             .where(eq(events.hostId, row.id)),
         ),
+        achievements.earned(row.id),
+        style.featuredDeckId
+          ? db.query((d) =>
+              d.query.decks.findFirst({
+                where: and(eq(decks.id, style.featuredDeckId!), eq(decks.userId, row.id), eq(decks.isPublic, true)),
+              }),
+            )
+          : Effect.succeed(undefined),
       ],
       { concurrency: 'unbounded' },
     )
@@ -180,10 +243,11 @@ const make = Effect.gen(function* () {
         : new Map(
             (yield* db.query((d) =>
               d
-                .select({ id: user.id, name: user.name, username: user.username, image: user.image })
+                .select(playerRefColumns)
                 .from(user)
+                .leftJoin(playerStyle, eq(playerStyle.userId, user.id))
                 .where(inArray(user.id, [...new Set(ids)])),
-            )).map((r) => [r.id, r]),
+            )).map((r) => [r.id, toPlayerRef(r)]),
           )
 
     const eventIds = entries.map((e) => e.event.id)
@@ -204,16 +268,42 @@ const make = Effect.gen(function* () {
     const record = recordOf(history)
     const played = record.wins + record.losses + record.draws
     const ranks = entries.map((e) => e.finalRank).filter((r): r is number => r !== null)
+    const best = bestTiers(earned)
+    const deckEvents = new Set(entries.filter((e) => featured && e.deckId === featured.id).map((e) => e.event.id))
 
     return {
       user: {
         id: row.id,
         name: row.name,
         username: row.username,
-        image: row.image,
+        avatar: style.avatar,
+        sleeveColour: style.sleeveColour,
+        title: style.title,
         playerId: row.playerId,
         bio: row.bio,
         joinedAt: row.createdAt.getTime(),
+      },
+      identity: {
+        sleeveColour: style.sleeveColour,
+        banner: style.banner,
+        bannerColour: style.bannerColour,
+        partner: style.partner,
+        badges: style.showcase.flatMap((achievement) =>
+          best.has(achievement) ? [{ achievement, tier: best.get(achievement)! }] : [],
+        ),
+        featuredDeck: featured
+          ? {
+              id: featured.id,
+              name: featured.name,
+              archetype: featured.archetype,
+              format: featured.format,
+              list: featured.list,
+              coverCard: featured.coverCard,
+              cardImages: featured.cardImages,
+              ...recordOf(history.filter((h) => deckEvents.has(h.eventId))),
+            }
+          : null,
+        earnedCount: earned.length,
       },
       stats: {
         eventsPlayed: entries.length,
@@ -252,7 +342,6 @@ const make = Effect.gen(function* () {
           displayUsername: input.username,
           playerId: input.playerId || null,
           bio: input.bio || null,
-          ...(input.image !== undefined ? { image: input.image } : {}),
         })
         .where(eq(user.id, me.id)),
     )
@@ -268,7 +357,6 @@ const make = Effect.gen(function* () {
       name: row.name,
       email: row.email,
       username: row.displayUsername ?? row.username,
-      image: row.image,
       playerId: row.playerId,
       bio: row.bio,
     }
@@ -280,5 +368,5 @@ const make = Effect.gen(function* () {
 export class ProfilesService extends Context.Service<ProfilesService, Effect.Success<typeof make>>()(
   'tcgrank/server/profiles/ProfilesService',
 ) {
-  static readonly layer = Layer.effect(ProfilesService, make)
+  static readonly layer = Layer.effect(ProfilesService, make).pipe(Layer.provide(AchievementsService.layer))
 }

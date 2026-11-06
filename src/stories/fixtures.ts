@@ -1,9 +1,10 @@
 import type { EntrantView, EventDetail, MatchView, StandingView } from '#/server/events/views.ts'
+import { defaultLook } from '#/domain/avatar-parts.ts'
 
-const ash = { id: 'ash', name: 'Ash Ketchum', username: 'ash', image: null }
-const misty = { id: 'misty', name: 'Misty Waterflower', username: 'misty', image: null }
-const brock = { id: 'brock', name: 'Brock Harrison', username: 'brock', image: null }
-const gary = { id: 'gary', name: 'Gary Oak', username: 'gary', image: null }
+const ash = { id: 'ash', name: 'Ash Ketchum', username: 'ash', ...defaultLook('ash') }
+const misty = { id: 'misty', name: 'Misty Waterflower', username: 'misty', ...defaultLook('misty') }
+const brock = { id: 'brock', name: 'Brock Harrison', username: 'brock', ...defaultLook('brock') }
+const gary = { id: 'gary', name: 'Gary Oak', username: 'gary', ...defaultLook('gary') }
 
 export const playingMatch: MatchView = {
   id: 'match-1',
@@ -83,7 +84,7 @@ const seededPlayer = (id: string, name: string, seed: number): EntrantView => ({
   id,
   name,
   username: id,
-  image: null,
+  ...defaultLook(id),
   isGuest: false,
   deckId: null,
   deckName: null,
@@ -100,7 +101,14 @@ const elisa = seededPlayer('elisa', 'Elisa Prado', 5)
 const felipe = seededPlayer('felipe', 'Felipe Rocha', 6)
 const gabi = seededPlayer('gabi', 'Gabi Nunes', 7)
 
-const ref = ({ id, name, username, image }: EntrantView) => ({ id, name, username, image })
+const ref = ({ id, name, username, avatar, sleeveColour, title }: EntrantView) => ({
+  id,
+  name,
+  username,
+  avatar,
+  sleeveColour,
+  title,
+})
 
 /** A bracket match being played; `played` gives it a confirmed score. */
 const bracketMatch = (
@@ -173,7 +181,7 @@ export const bracketDetail: EventDetail = {
     topCutSize: null,
     entriesClosedReason: 'Entries are closed: the bracket has started',
     playerCount: 7,
-    host: { id: 'host', name: 'Oak', username: 'oak', image: null },
+    host: { id: 'host', name: 'Oak', username: 'oak', ...defaultLook('host') },
     description: null,
     joinCode: 'CUP234',
     roundMinutes: 50,
@@ -182,7 +190,16 @@ export const bracketDetail: EventDetail = {
   },
   players: [ana, bruno, carla, diego, elisa, felipe, gabi],
   rounds: [
-    { id: 'r1', number: 1, status: 'finished', startedAt: 0, endsAt: 0, pausedRemainingMs: null, elimination: true, minutes: 50 },
+    {
+      id: 'r1',
+      number: 1,
+      status: 'finished',
+      startedAt: 0,
+      endsAt: 0,
+      pausedRemainingMs: null,
+      elimination: true,
+      minutes: 50,
+    },
     {
       id: 'r2',
       number: 2,

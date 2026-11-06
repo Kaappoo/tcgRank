@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { getDeck, listMyDecks, listUserDecks } from '#/server/functions/decks.ts'
 import { getClaimPreview, getEvent, getEventByCode, listEvents, listMyGuests } from '#/server/functions/events.ts'
+import { getAchievements, getStyleEditor, getUnseenUnlocks } from '#/server/functions/identity.ts'
 import { getMyProfile, getProfile } from '#/server/functions/profiles.ts'
 import { getSessionUser } from '#/server/functions/session.ts'
 
@@ -88,4 +89,26 @@ export const myProfileQuery = queryOptions({
   queryKey: ['profile', 'me'],
   queryFn: () => getMyProfile(),
   staleTime: 60_000,
+})
+
+export const achievementsQuery = (userId: string) =>
+  queryOptions({
+    queryKey: ['achievements', userId],
+    queryFn: () => getAchievements({ data: { userId } }),
+    staleTime: 60_000,
+  })
+
+/** The signed-in player's new unlocks: the celebration, the Profile-tab count and NEW tags. */
+export const unseenUnlocksQuery = queryOptions({
+  queryKey: ['unlocks', 'unseen'],
+  queryFn: () => getUnseenUnlocks(),
+  staleTime: 15_000,
+})
+
+/** The customise editor's data. Persisted so the editor opens offline. */
+export const styleEditorQuery = queryOptions({
+  queryKey: ['style', 'editor'],
+  queryFn: () => getStyleEditor(),
+  meta: persist,
+  staleTime: 30_000,
 })

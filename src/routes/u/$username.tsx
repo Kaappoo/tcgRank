@@ -1,18 +1,24 @@
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
+import { useEffect, useState } from 'react'
 import { PencilLine, Share2, Trophy } from 'lucide-react'
 import { DeckRow } from '#/components/decks/deck-row.tsx'
 import { Page } from '#/components/layout/page.tsx'
 import { MatchHistory } from '#/components/profile/match-history.tsx'
 import { ResultsChart } from '#/components/profile/results-chart.tsx'
-import { Avatar } from '#/components/ui/avatar.tsx'
+import { AchievementsList, tierKey } from '#/components/identity/achievements-list.tsx'
+import { FeatureDeckGhost, FeaturedDeckCard } from '#/components/identity/featured-deck-card.tsx'
+import { CustomiseLink, TrainerCard } from '#/components/identity/trainer-card.tsx'
 import { Badge } from '#/components/ui/badge.tsx'
 import { Button, buttonVariants } from '#/components/ui/button.tsx'
 import { LocalTime } from '#/components/ui/local-time.tsx'
+import { BADGE_COUNT } from '#/domain/achievements.ts'
 import { Tabs, TabsList, TabsPanel, TabsTab } from '#/components/ui/tabs.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { formatPercentage } from '#/domain/standings.ts'
-import { profileQuery, userDecksQuery } from '#/lib/queries.ts'
+import { achievementsQuery, profileQuery, unseenUnlocksQuery, userDecksQuery } from '#/lib/queries.ts'
+import { markAchievementsSeen } from '#/server/functions/identity.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
 
 export const Route = createFileRoute('/u/$username')({
@@ -36,26 +42,12 @@ function ProfilePage() {
   const { data: decks } = useQuery(userDecksQuery(profile.user.id))
   const { user, stats } = profile
   const isMe = viewer?.id === user.id
+  const [tab, setTab] = useState('matches')
 
   return (
     <Page>
-      <header className="relative isolate mb-10 flex flex-col gap-8 overflow-hidden rounded-2xl border border-line bg-surface p-6 sm:p-10">
-        <div aria-hidden className="slab right-[-10%] hidden w-[20%] animate-slab sm:block" />
-        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:pr-[18%]">
-          <Avatar name={user.name} src={user.image} size="xl" className="ring-4 ring-ink" />
-          <div className="flex min-w-0 flex-col gap-2">
-            <h1 className="font-display text-4xl sm:text-5xl">{user.name}</h1>
-            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-paper-dim">
-              <span>@{user.username}</span>
-              {user.playerId ? <span className="tabular">Play! ID {user.playerId}</span> : null}
-              <span>
-                Since <LocalTime value={user.joinedAt} options={{ month: 'long', year: 'numeric' }} />
-              </span>
-            </p>
-            {user.bio ? <p className="max-w-xl text-paper-dim">{user.bio}</p> : null}
-          </div>
-        </div>
-        <div className="relative flex flex-col gap-6 border-t border-line pt-6 sm:mr-[18%] sm:flex-row sm:items-end sm:justify-between">
+      <TrainerCard className="mb-6" owner={isMe} player={{ ...user, ...profile.identity, title: user.title }}>
+        <div className="flex flex-col gap-6 border-t border-line pt-6 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-col gap-1">
             <p className="text-sm font-semibold text-paper-dim">Lifetime record</p>
             <p
@@ -81,9 +73,10 @@ function ProfilePage() {
             </p>
           </div>
           <div className="flex gap-2">
+            {isMe ? <CustomiseLink /> : null}
             {isMe ? (
               <Link to="/settings" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-                <PencilLine /> Edit profile
+                <PencilLine /> Settings
               </Link>
             ) : null}
             <Button
@@ -100,7 +93,15 @@ function ProfilePage() {
             </Button>
           </div>
         </div>
-      </header>
+      </TrainerCard>
+
+      {profile.identity.featuredDeck ? (
+        <FeaturedDeckCard deck={profile.identity.featuredDeck} className="mb-10" />
+      ) : isMe ? (
+        <FeatureDeckGhost className="mb-10" />
+      ) : (
+        <div className="mb-10" />
+      )}
 
       <section className="mb-10 flex flex-col gap-4">
         <h2 className="font-display text-2xl">Results by event</h2>
@@ -109,11 +110,17 @@ function ProfilePage() {
         </div>
       </section>
 
-      <Tabs defaultValue="matches">
+      <Tabs defaultValue="matches" onValueChange={(value) => setTab(String(value))}>
         <TabsList>
           <TabsTab value="matches">Matches</TabsTab>
           <TabsTab value="events">Events</TabsTab>
           <TabsTab value="decks">Decks</TabsTab>
+          <TabsTab value="achievements">
+            Achievements{' '}
+            <span className="tabular text-paper-dim">
+              {profile.identity.earnedCount}/{BADGE_COUNT}
+            </span>
+          </TabsTab>
         </TabsList>
         <TabsPanel value="matches">
           <MatchHistory matches={profile.matches} />
@@ -169,7 +176,36 @@ function ProfilePage() {
             </div>
           )}
         </TabsPanel>
+        <TabsPanel value="achievements">
+          {tab === 'achievements' ? <AchievementsTab userId={user.id} owner={isMe} /> : null}
+        </TabsPanel>
       </Tabs>
     </Page>
   )
+}
+
+/**
+ * Loads the tab when opened. On the owner's own profile, opening it is what clears the new unlocks: the NEW tags
+ * show on this visit, from the snapshot taken before the marker moves.
+ */
+function AchievementsTab({ userId, owner }: { userId: string; owner: boolean }) {
+  const queryClient = useQueryClient()
+  const { data } = useQuery(achievementsQuery(userId))
+  const [fresh] = useState(
+    () =>
+      new Set(
+        owner
+          ? (queryClient.getQueryData(unseenUnlocksQuery.queryKey)?.unlocks ?? []).map((u) =>
+              tierKey(u.achievement, u.tier),
+            )
+          : [],
+      ),
+  )
+  const markSeen = useServerFn(markAchievementsSeen)
+  useEffect(() => {
+    if (!owner) return
+    void markSeen().then(() => queryClient.invalidateQueries({ queryKey: unseenUnlocksQuery.queryKey }))
+  }, [owner, markSeen, queryClient])
+  if (!data) return <p className="py-6 text-paper-dim">Loading achievements…</p>
+  return <AchievementsList data={data} fresh={fresh} />
 }

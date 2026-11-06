@@ -2,13 +2,14 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { MatchView } from '#/server/events/views.ts'
 import { PairingCard } from './pairing-card.tsx'
+import { defaultLook } from '#/domain/avatar-parts.ts'
 
 const match: MatchView = {
   id: 'm1',
   roundNumber: 2,
   table: 4,
-  player1: { id: 'misty', name: 'Misty', username: null, image: null },
-  player2: { id: 'ash', name: 'Ash', username: null, image: null },
+  player1: { id: 'misty', name: 'Misty', username: null, ...defaultLook('misty') },
+  player2: { id: 'ash', name: 'Ash', username: null, ...defaultLook('ash') },
   player1Games: 0,
   player2Games: 0,
   outcome: null,

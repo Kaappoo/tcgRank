@@ -92,8 +92,7 @@ function EventHub() {
               <Users className="size-4" /> <span className="tabular">{event.playerCount}</span> players
             </span>
             <span className="inline-flex items-center gap-2">
-              <Avatar name={event.host.name} src={event.host.image} size="sm" className="size-6 text-[11px]" /> Hosted
-              by {event.host.name}
+              <Avatar avatar={event.host.avatar} size={24} /> Hosted by {event.host.name}
             </span>
           </p>
           <div className="flex flex-wrap gap-2">
@@ -137,12 +136,7 @@ function EventHub() {
 
         {viewer?.currentMatch && event.status === 'running' && currentRound ? (
           <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
-            <PairingCard
-              match={viewer.currentMatch}
-              viewerId={viewer.userId}
-              bestOf={event.bestOf}
-              records={records}
-            />
+            <PairingCard match={viewer.currentMatch} viewerId={viewer.userId} bestOf={event.bestOf} records={records} />
             <div className="flex flex-col gap-6">
               {!isHost ? (
                 <div className="rounded-2xl border border-line bg-surface p-5">
@@ -171,15 +165,11 @@ function EventHub() {
           </div>
         ) : null}
 
-        {event.status === 'finished' ? <Podium standings={detail.standings} topCut={event.topCutSize !== null} /> : null}
+        {event.status === 'finished' ? (
+          <Podium standings={detail.standings} topCut={event.topCutSize !== null} />
+        ) : null}
 
-        <EntryPanel
-          detail={detail}
-          signedIn={Boolean(user)}
-          busy={busy}
-          actions={actions}
-          createdDeck={createdDeck}
-        />
+        <EntryPanel detail={detail} signedIn={Boolean(user)} busy={busy} actions={actions} createdDeck={createdDeck} />
 
         {isHost && event.status !== 'finished' ? (
           <JoinQrCard code={event.joinCode} eventName={event.name} origin={origin} />
@@ -219,7 +209,7 @@ function Podium({ standings, topCut }: { standings: ReadonlyArray<StandingView>;
           <Trophy className="size-4" /> Champion
         </p>
         <div className="flex items-center gap-5">
-          <Avatar name={first.player.name} src={first.player.image} size="xl" className="ring-4 ring-orange" />
+          <Avatar avatar={first.player.avatar} size={112} className="ring-4 ring-orange" />
           <div className="min-w-0">
             <p className="truncate font-display text-4xl sm:text-5xl">{first.player.name}</p>
             <p className="tabular text-paper-dim">{podiumLine(first, { topCut })}</p>
@@ -230,7 +220,7 @@ function Podium({ standings, topCut }: { standings: ReadonlyArray<StandingView>;
         {rest.slice(0, 3).map((s) => (
           <li key={s.playerId} className="flex items-center gap-4">
             <span className="font-numerals w-8 text-3xl text-paper-dim">{s.rank}</span>
-            <Avatar name={s.player.name} src={s.player.image} size="sm" />
+            <Avatar avatar={s.player.avatar} size={32} />
             <span className="truncate font-semibold">{s.player.name}</span>
             <span className="tabular ml-auto text-sm text-paper-dim">
               {s.stage ? podiumLine(s, { topCut }) : `${s.points} pts`}
@@ -303,20 +293,15 @@ function EventTabs({
           {event.pairingSystem === 'single_elimination'
             ? 'Final placement follows the round a player went out in; players out in the same round share it. Byes only advance a player.'
             : event.pairingSystem === 'round_robin'
-            ? 'Win 3 · Tie 1 · Loss 0 · Bye 3. A tie between two players goes to the winner of their match (H2H), then game-win % (GW%), then opponents’ win % (OMW, min 25%).'
-            : 'Win 3 · Tie 1 · Loss 0. Ties broken by opponents’ win % (OMW, min 25%), then their opponents’.'}
+              ? 'Win 3 · Tie 1 · Loss 0 · Bye 3. A tie between two players goes to the winner of their match (H2H), then game-win % (GW%), then opponents’ win % (OMW, min 25%).'
+              : 'Win 3 · Tie 1 · Loss 0. Ties broken by opponents’ win % (OMW, min 25%), then their opponents’.'}
           {event.status !== 'finished' ? ' Only confirmed results count.' : ''}
         </p>
       </TabsPanel>
 
       <TabsPanel value="players">
         {viewer?.isHost && event.status !== 'finished' ? (
-          <AddGuestForm
-            players={players}
-            busy={busy}
-            onAdd={onAddGuest}
-            closedReason={event.entriesClosedReason}
-          />
+          <AddGuestForm players={players} busy={busy} onAdd={onAddGuest} closedReason={event.entriesClosedReason} />
         ) : null}
         {players.length === 0 ? (
           <p className="py-6 text-paper-dim">Nobody has joined yet. Share the QR code to get people in.</p>
@@ -331,7 +316,7 @@ function EventTabs({
                   p.droppedAtRound !== null && 'opacity-60',
                 )}
               >
-                <Avatar name={p.name} src={p.image} size="sm" />
+                <Avatar avatar={p.avatar} size={32} />
                 <div className="min-w-0">
                   {p.username ? (
                     <Link
@@ -354,7 +339,11 @@ function EventTabs({
                   <Badge variant="muted" className="ml-auto">
                     Dropped
                   </Badge>
-                ) : viewer?.isHost && event.deckRequired && !p.isGuest && p.deckId === null && event.status !== 'finished' ? (
+                ) : viewer?.isHost &&
+                  event.deckRequired &&
+                  !p.isGuest &&
+                  p.deckId === null &&
+                  event.status !== 'finished' ? (
                   <Badge variant="loss" className="ml-auto">
                     No deck
                   </Badge>

@@ -1,6 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { Avatar } from '#/components/ui/avatar.tsx'
+import { TitleChip } from '#/components/identity/title-chip.tsx'
 import { Badge } from '#/components/ui/badge.tsx'
+import { clothingHex } from '#/domain/avatar-parts.ts'
 import type { BestOf } from '#/domain/best-of.ts'
 import { formatRecord, type Standing } from '#/domain/standings.ts'
 import type { MatchView, PlayerRef } from '#/server/events/views.ts'
@@ -92,9 +94,16 @@ function Seat({
     </span>
   )
   return (
-    <div className="flex min-w-0 items-center gap-4">
-      <Avatar name={player.name} src={player.image} size={emphasize ? 'lg' : 'md'} />
-      <div className="min-w-0">
+    <div className="relative flex min-w-0 items-center gap-4 pl-3">
+      {/* The sleeve colour on the seat's outer edge: a hint to find each other at the table, never on the slab. */}
+      <span
+        aria-hidden
+        data-slot="sleeve"
+        className="absolute inset-y-0 left-0 w-1 rounded-full"
+        style={{ backgroundColor: clothingHex(player.sleeveColour) }}
+      />
+      <Avatar avatar={player.avatar} size={emphasize ? 56 : 40} />
+      <div className="flex min-w-0 flex-col gap-1">
         <p className="text-xs font-semibold text-paper-dim">
           {label}
           {record ? <span className="tabular ml-2 text-paper">{formatRecord(record)}</span> : null}
@@ -106,6 +115,7 @@ function Seat({
         ) : (
           name
         )}
+        <TitleChip title={player.title} />
       </div>
     </div>
   )

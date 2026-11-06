@@ -1,30 +1,29 @@
-import { Avatar as AvatarPrimitive } from '@base-ui/react/avatar'
+import { AvatarArt } from '#/components/identity/avatar-art.tsx'
+import type { Avatar as AvatarValue } from '#/domain/avatar-parts.ts'
 import { cn } from '#/lib/utils.ts'
-import { initials } from '#/lib/format.ts'
 
-const sizes = { sm: 'size-8 text-xs', md: 'size-10 text-sm', lg: 'size-16 text-xl', xl: 'size-28 text-4xl' } as const
-
+/**
+ * A player's avatar: the same head-and-shoulders crop at every size, from the store screen's 24 px to the profile's
+ * 128 px. Decorative by default, since it sits next to the player's name; pass `label` when it stands alone.
+ */
 export function Avatar({
-  name,
-  src,
-  size = 'md',
+  avatar,
+  size,
+  label,
   className,
 }: {
-  name: string
-  src?: string | null
-  size?: keyof typeof sizes
+  avatar: AvatarValue
+  size: number
+  label?: string
   className?: string
 }) {
   return (
-    <AvatarPrimitive.Root
-      className={cn(
-        'relative inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-surface-raised font-display text-paper ring-1 ring-line',
-        sizes[size],
-        className,
-      )}
+    <span
+      data-slot="avatar"
+      className={cn('inline-flex shrink-0 rounded-full', className)}
+      style={{ width: size, height: size }}
     >
-      {src ? <AvatarPrimitive.Image src={src} alt="" className="size-full object-cover" /> : null}
-      <AvatarPrimitive.Fallback className="font-display">{initials(name) || '?'}</AvatarPrimitive.Fallback>
-    </AvatarPrimitive.Root>
+      <AvatarArt avatar={avatar} size={size} label={label} />
+    </span>
   )
 }

@@ -5,6 +5,7 @@ import { EventRow } from '#/components/events/event-row.tsx'
 import { MatchClock } from '#/components/events/match-clock.tsx'
 import { PairingCard } from '#/components/events/pairing-card.tsx'
 import { buttonVariants } from '#/components/ui/button.tsx'
+import { defaultLook } from '#/domain/avatar-parts.ts'
 import { DEFAULT_BEST_OF } from '#/domain/best-of.ts'
 import { eventsQuery } from '#/lib/queries.ts'
 import { cn } from '#/lib/utils.ts'
@@ -23,8 +24,8 @@ const demoMatch: MatchView = {
   id: 'demo',
   roundNumber: 3,
   table: 7,
-  player1: { id: 'you', name: 'Kaua Andrade', username: null, image: null },
-  player2: { id: 'opp', name: 'Marina Costa', username: null, image: null },
+  player1: { id: 'you', name: 'Kaua Andrade', username: null, ...defaultLook('you') },
+  player2: { id: 'opp', name: 'Marina Costa', username: null, ...defaultLook('opp') },
   player1Games: 0,
   player2Games: 0,
   outcome: null,
