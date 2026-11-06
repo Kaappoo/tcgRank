@@ -1,5 +1,13 @@
 import { describe, expect, it } from '@effect/vitest'
-import { coverCard, featuredPokemon, formatDeckList, isBasicEnergy, parseDeckList } from './deck-list.ts'
+import {
+  basicEnergyType,
+  cardArtKey,
+  coverCard,
+  featuredPokemon,
+  formatDeckList,
+  isBasicEnergy,
+  parseDeckList,
+} from './deck-list.ts'
 
 const DRAGAPULT = `Pokémon: 16
 4 Dreepy TWM 128
@@ -82,6 +90,27 @@ describe('parseDeckList', () => {
     expect(parseDeckList(formatDeckList(deck.cards)).cards).toEqual(deck.cards)
   })
 
+  it.each([
+    ['Portuguese', 'Pokémon: 1', 'Treinador: 1', 'Energia: 8', 'Total de cartas: 10'],
+    ['Spanish', 'Pokémon: 1', 'Entrenador: 1', 'Energía: 8', 'Total de cartas: 10'],
+    ['French', 'Pokémon : 1', 'Dresseur : 1', 'Énergie : 8', 'Cartes totales : 10'],
+    ['German', 'Pokémon: 1', 'Trainer: 1', 'Energie: 8', 'Karten insgesamt: 10'],
+    ['Italian', 'Pokémon: 1', 'Allenatore: 1', 'Energia: 8', 'Carte totali: 10'],
+    ['an unknown language', 'Pokémon: 1', 'Trenér: 1', 'Energie: 8', 'Celkem: 10'],
+  ])('reads section headers in %s', (_language, pokemon, trainer, energy, total) => {
+    const deck = parseDeckList(
+      [pokemon, '1 Dreepy TWM 128', trainer, '1 Arven SVI 166', energy, '8 Energia {P} Básica SVE 5', total].join('\n'),
+    )
+    expect(deck.issues.filter((i) => i.kind === 'unrecognized-line')).toEqual([])
+    expect(deck.counts).toEqual({ pokemon: 1, trainer: 1, energy: 8 })
+    expect(deck.issues.some((i) => i.kind === 'too-many-copies')).toBe(false)
+  })
+
+  it('reads the older "Energy" set code on basic energy', () => {
+    const [card] = parseDeckList('8 Basic Psychic Energy Energy 13').cards
+    expect(card).toMatchObject({ name: 'Basic Psychic Energy', setCode: 'Energy', number: '13', section: 'energy' })
+  })
+
   it('picks the most-played Pokémon as the featured card', () => {
     expect(featuredPokemon(parseDeckList(DRAGAPULT).cards)?.name).toBe('Dreepy')
   })
@@ -93,6 +122,24 @@ describe('isBasicEnergy', () => {
   })
   it.each(['Jet Energy', 'Double Turbo Energy', 'Reversal Energy'])('%s is special', (name) => {
     expect(isBasicEnergy(name)).toBe(false)
+  })
+  it('knows the type from the symbol, the English name or a basic-energy printing', () => {
+    expect(basicEnergyType({ name: 'Basic {R} Energy', setCode: 'SVE', number: '2' })).toBe('R')
+    expect(basicEnergyType({ name: 'Energía {W} básica', setCode: null, number: null })).toBe('W')
+    expect(basicEnergyType({ name: 'Fairy Energy', setCode: null, number: null })).toBe('Y')
+    expect(basicEnergyType({ name: 'Psychic-Energie', setCode: 'MEE', number: '5' })).toBe('P')
+    expect(basicEnergyType({ name: 'Metal Energy', setCode: 'SVE', number: '16' })).toBe('M')
+    expect(basicEnergyType({ name: 'Jet Energy', setCode: 'PAL', number: '190' })).toBeNull()
+  })
+})
+
+describe('cardArtKey', () => {
+  it('keys printings by set and number', () => {
+    expect(cardArtKey({ setCode: 'twm', number: '130' })).toBe('TWM 130')
+  })
+  it('keys basic energy without a printing by type', () => {
+    expect(cardArtKey({ name: 'Psychic Energy', setCode: null, number: null })).toBe('ENERGY {P}')
+    expect(cardArtKey({ name: 'Pikachu ex', setCode: null, number: null })).toBeNull()
   })
 })
 

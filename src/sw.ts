@@ -29,7 +29,7 @@ const serwist = new Serwist({
   navigationPreload: true,
   runtimeCaching: [
     {
-      matcher: ({ url }) => url.pathname.startsWith('/api/auth') || url.pathname.startsWith('/api/uploadthing'),
+      matcher: ({ url }) => url.pathname.startsWith('/api/auth'),
       handler: new NetworkOnly(),
     },
     {
@@ -37,7 +37,7 @@ const serwist = new Serwist({
       handler: new NetworkOnly(),
     },
     {
-      matcher: ({ url }) => url.hostname === 'assets.tcgdex.net' || url.hostname.endsWith('.ufs.sh'),
+      matcher: ({ url }) => url.hostname === 'assets.tcgdex.net',
       handler: new CacheFirst({
         cacheName: 'card-images',
         plugins: [new ExpirationPlugin({ maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 60 })],

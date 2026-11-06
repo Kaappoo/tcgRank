@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { eventProgress } from '#/domain/progress.ts'
 import type { EventDetail } from '#/server/events/views.ts'
 import { HostDesk } from './host-desk.tsx'
+import { defaultLook } from '#/domain/avatar-parts.ts'
 
 /** `progress` is worked out from the event and players at render time, as the service does. */
 const detailWith = (event: Partial<EventDetail['event']>): EventDetail => ({
@@ -23,7 +24,7 @@ const detailWith = (event: Partial<EventDetail['event']>): EventDetail => ({
     topCutSize: null,
     entriesClosedReason: null,
     playerCount: 0,
-    host: { id: 'host', name: 'Oak', username: 'oak', image: null },
+    host: { id: 'host', name: 'Oak', username: 'oak', ...defaultLook('host') },
     description: null,
     joinCode: 'ABC234',
     roundMinutes: 50,
@@ -35,7 +36,10 @@ const detailWith = (event: Partial<EventDetail['event']>): EventDetail => ({
   rounds: [],
   matches: [],
   standings: [],
-  progress: eventProgress({ topCutSize: null, plannedRounds: 0, currentRound: 0, pairingSystem: 'swiss', topCut: false }, 0),
+  progress: eventProgress(
+    { topCutSize: null, plannedRounds: 0, currentRound: 0, pairingSystem: 'swiss', topCut: false },
+    0,
+  ),
   viewer: { userId: 'host', isHost: true, entry: null, currentMatch: null },
   serverNow: 0,
 })
@@ -45,7 +49,7 @@ const entrants = (n: number): EventDetail['players'] =>
     id: `p${i + 1}`,
     name: `Trainer ${i + 1}`,
     username: null,
-    image: null,
+    ...defaultLook(`p${i + 1}`),
     isGuest: false,
     deckId: null,
     deckName: null,
@@ -175,8 +179,8 @@ describe('HostDesk round robin', () => {
       id: `m${round}-${table}`,
       roundNumber: round,
       table,
-      player1: { id: `p${table}`, name: `Trainer ${table}`, username: null, image: null },
-      player2: { id: `p${table + 2}`, name: `Trainer ${table + 2}`, username: null, image: null },
+      player1: { id: `p${table}`, name: `Trainer ${table}`, username: null, ...defaultLook(`p${table}`) },
+      player2: { id: `p${table + 2}`, name: `Trainer ${table + 2}`, username: null, ...defaultLook(`p${table + 2}`) },
       player1Games: 2,
       player2Games: 0,
       outcome: status === 'confirmed' ? 'p1' : null,
@@ -240,8 +244,8 @@ describe('HostDesk single elimination', () => {
         id: `m${round}`,
         roundNumber: round,
         table: 1,
-        player1: { id: 'p1', name: 'Trainer 1', username: null, image: null },
-        player2: { id: 'p2', name: 'Trainer 2', username: null, image: null },
+        player1: { id: 'p1', name: 'Trainer 1', username: null, ...defaultLook('p1') },
+        player2: { id: 'p2', name: 'Trainer 2', username: null, ...defaultLook('p2') },
         player1Games: 2,
         player2Games: 0,
         outcome: status === 'confirmed' ? 'p1' : null,
@@ -310,8 +314,8 @@ describe('HostDesk Swiss top cut', () => {
         id: `m${round}`,
         roundNumber: round,
         table: 1,
-        player1: { id: 'p1', name: 'Trainer 1', username: null, image: null },
-        player2: { id: 'p2', name: 'Trainer 2', username: null, image: null },
+        player1: { id: 'p1', name: 'Trainer 1', username: null, ...defaultLook('p1') },
+        player2: { id: 'p2', name: 'Trainer 2', username: null, ...defaultLook('p2') },
         player1Games: 2,
         player2Games: 0,
         outcome: status === 'confirmed' ? 'p1' : null,

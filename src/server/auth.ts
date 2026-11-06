@@ -7,6 +7,7 @@ import { database } from './db/index.ts'
 import * as schema from './db/schema.ts'
 import { Mailer, type Email } from './email/mailer.ts'
 import { magicLinkEmail, resetPasswordEmail, verifyEmail } from './email/templates.ts'
+import { PlayerStyleService } from './identity/player-style.ts'
 import { runtime } from './runtime.ts'
 
 const send = (email: Email) => runtime.runPromise(Mailer.use((m) => m.send(email)).pipe(Effect.orDie))
@@ -29,6 +30,16 @@ export const auth = betterAuth({
     additionalFields: {
       playerId: { type: 'string', required: false, input: false },
       bio: { type: 'string', required: false, input: false },
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // Every account has its default avatar from the moment it exists.
+        after: async (user) => {
+          await runtime.runPromise(PlayerStyleService.use((s) => s.ensure(user.id)).pipe(Effect.orDie))
+        },
+      },
     },
   },
   session: {

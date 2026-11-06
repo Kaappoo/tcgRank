@@ -41,3 +41,16 @@ Domain language for tcgRank. Code, UI copy and issues should use these terms.
 | **Deck list** | A PTCG Live / Limitless export. Stored raw, parsed on read into Pokémon / Trainer / Energy sections. | `domain/deck-list.ts` |
 | **Cover card** | The card from a deck's own list that the owner picks as the deck's face. Without a pick, the deck's most-played Pokémon. | `decks.coverCard` |
 | **Store screen** | Full-screen projector view for the store TV: QR, clock and an alphabetical pairing list. | `/events/$eventId/screen` |
+| **Avatar** | A player's profile picture, put together from preset parts (skin tone, hair, clothes, hat, …). Every user has one, guests included; there are no uploaded photos. _Avoid_: "profile picture", "pfp", "icon". | |
+| **Featured deck** | The one public deck a player chooses to show on their profile. | |
+| **Achievement** | A goal reached through play, worked out from a player's history in qualifying events, so past events count. Every achievement has one or more **tiers** (e.g. play 1 / 5 / 10 events); a one-off achievement has a single tier. | |
+| **Tier** | One step of an achievement. Reaching it earns its badge, and may also grant a title and/or a trophy item. | |
+| **Badge** | The visual mark of a reached tier. A player shows up to three on their profile. | |
+| **Title** | A short earned label, such as "Champion", that a player can show under their name. Only one at a time; never typed in. | |
+| **Trophy item** | An avatar item that can only be had by reaching a particular tier. _Avoid_: "unlockable", "reward". | |
+| **Qualifying event** | A finished event with at least four players, two of them with accounts. Only qualifying events and their confirmed matches count towards achievements; byes don't count as wins there. | |
+| **Partner Pokémon** | A Pokémon card a player picks to stand beside their avatar. | |
+| **Sleeve colour** | A colour from the avatar palette that marks a player's seat on pairing cards and their row on the store screen. A hint, not an identifier: two players at one table may share it. | |
+| **Playmat banner** | The flat, two-tone repeating pattern across the top of a player's trainer card, in a colour from the avatar palette (by default their sleeve colour). One of them is a trophy item. | |
+| **Trainer card** | The header of a player's profile: banner, avatar, partner Pokémon, title, name, badges and lifetime record. The share image mirrors it. | |
+| **Busy** | A player is busy while they are entered (and not dropped) in a running event, or host one. Unlock celebrations wait until they aren't. | |

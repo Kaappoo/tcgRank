@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { BEST_OF_VALUES, DEFAULT_BEST_OF, MAX_GAMES } from '#/domain/best-of.ts'
 import { DEFAULT_PAIRING_SYSTEM, PAIRING_SYSTEMS, TOP_CUT_SIZES } from '#/domain/event-setup.ts'
+import { ACHIEVEMENT_IDS, TITLE_IDS } from '#/domain/achievements.ts'
+import { AVATAR_PARTS, BANNERS, CLOTHING_COLOURS, TROPHY_ITEM_IDS, type AvatarPart } from '#/domain/avatar-parts.ts'
 import { EVENT_FORMATS } from '#/server/db/schema.ts'
 
 /**
@@ -116,6 +118,8 @@ export const deckInput = z.object({
 })
 export type DeckInput = z.infer<typeof deckInput>
 
+export const cardArtInput = deckInput.pick({ list: true })
+
 export const updateDeckInput = deckInput.extend({ deckId: z.string().min(1) })
 export const deckIdInput = z.object({ deckId: z.string().min(1) })
 
@@ -136,6 +140,51 @@ export const profileInput = z.object({
     .optional()
     .or(z.literal('')),
   bio: z.string().trim().max(240).optional(),
-  image: z.url().nullable().optional(),
 })
 export type ProfileInput = z.infer<typeof profileInput>
+
+/* ------------------------------------------------------------------ */
+/* Player identity                                                     */
+/* ------------------------------------------------------------------ */
+
+const partId = (parts: ReadonlyArray<{ id: string }>) => z.enum(parts.map((p) => p.id) as [string, ...Array<string>])
+const slot = (parts: ReadonlyArray<AvatarPart>) => partId(parts)
+
+/** An avatar: each slot names a part from the parts list. */
+const avatarInput = z.object({
+  skin: slot(AVATAR_PARTS.skin),
+  hair: slot(AVATAR_PARTS.hair),
+  hairColour: slot(AVATAR_PARTS.hairColour),
+  facialHair: slot(AVATAR_PARTS.facialHair),
+  face: slot(AVATAR_PARTS.face),
+  top: slot(AVATAR_PARTS.top),
+  topColour: slot(AVATAR_PARTS.topColour),
+  hat: slot(AVATAR_PARTS.hat),
+  hatColour: slot(AVATAR_PARTS.hatColour),
+  hatPanel: slot(AVATAR_PARTS.hatPanel),
+  accessory: slot(AVATAR_PARTS.accessory),
+})
+
+const clothingColour = partId(CLOTHING_COLOURS)
+
+/** Everything the customise editor saves at once. Name, username and bio stay in Settings. */
+export const playerStyleInput = z.object({
+  avatar: avatarInput,
+  sleeveColour: clothingColour,
+  banner: partId(BANNERS),
+  /** Null matches the sleeve colour. */
+  bannerColour: clothingColour.nullable(),
+  title: z.enum(TITLE_IDS as [string, ...Array<string>]).nullable(),
+  showcase: z.array(z.enum(ACHIEVEMENT_IDS)).max(3, 'Show up to 3 badges'),
+  featuredDeckId: z.string().min(1).nullable(),
+  partner: z.object({ cardId: z.string().trim().min(1).max(64), name: z.string().trim().min(1).max(80) }).nullable(),
+})
+export type PlayerStyleInput = z.infer<typeof playerStyleInput>
+
+export const trophyItemInput = z.object({ item: z.enum(TROPHY_ITEM_IDS) })
+export const titleInput = z.object({ title: z.enum(TITLE_IDS as [string, ...Array<string>]).nullable() })
+export const partnerSearchInput = z.object({
+  query: z.string().trim().max(80),
+  page: z.coerce.number().int().min(1).max(500).default(1),
+})
+export const userIdInput = z.object({ userId: z.string().min(1) })

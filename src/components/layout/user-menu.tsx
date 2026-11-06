@@ -3,13 +3,14 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Link, useRouter } from '@tanstack/react-router'
 import { Layers, LogOut, Settings, Trophy, User } from 'lucide-react'
 import { Avatar } from '#/components/ui/avatar.tsx'
+import { UnseenCount } from './bottom-nav.tsx'
 import { signOut } from '#/lib/auth-client.ts'
-import type { SessionUser } from '#/server/current-user.ts'
+import type { SessionView } from '#/server/current-user.ts'
 
 const item =
   'flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm text-paper outline-none select-none data-highlighted:bg-surface-raised [&_svg]:size-4 [&_svg]:text-paper-dim'
 
-export function UserMenu({ user }: { user: SessionUser }) {
+export function UserMenu({ user }: { user: SessionView }) {
   const router = useRouter()
   const queryClient = useQueryClient()
 
@@ -27,7 +28,10 @@ export function UserMenu({ user }: { user: SessionUser }) {
         aria-label="Account menu"
         className="cursor-pointer rounded-full ring-offset-2 ring-offset-ink transition-shadow hover:ring-2 hover:ring-orange/60 focus-visible:ring-2 focus-visible:ring-orange"
       >
-        <Avatar name={user.name} src={user.image} size="sm" />
+        <span className="relative block">
+          <Avatar avatar={user.avatar} size={32} />
+          <UnseenCount />
+        </span>
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner sideOffset={10} align="end" className="z-50 outline-none">

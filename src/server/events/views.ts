@@ -4,12 +4,13 @@ import type { PairingSystem, TopCutSize } from '#/domain/event-setup.ts'
 import type { EventProgress } from '#/domain/progress.ts'
 import type { Standing } from '#/domain/standings.ts'
 import type { EventFormat, EventStatus, MatchOutcome } from '../db/schema.ts'
+import type { PlayerLook } from '../identity/style.ts'
 
-export interface PlayerRef {
+/** A player as every view shows them: name, avatar, sleeve colour and shown title. */
+export interface PlayerRef extends PlayerLook {
   readonly id: string
   readonly name: string
   readonly username: string | null
-  readonly image: string | null
 }
 
 export type MatchStatus = 'playing' | 'reported' | 'confirmed'
