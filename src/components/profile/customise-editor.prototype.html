@@ -1,0 +1,535 @@
+<title>Customise Editor Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap">
+<!--
+  PROTOTYPE — throwaway. Answers "Customise editor" (map: Player identity, #52 / ticket #63).
+  Three editors for the customise route, each a different answer to: tabs vs one scrolling page (and where the preview sits),
+  how locked trophy items show, save model on patchy Wi-Fi, and "back to my default".
+  Switch with the bottom bar, ← →, or #tabs / #scroll / #studio. "Wi-Fi drops" simulates going offline.
+-->
+<style>
+  :root {
+    --ink: #0d0e12; --surface: #15161b; --surface-raised: #1e1f25; --line: #2c2d35;
+    --paper: #f4efe8; --paper-dim: #b3ada5; --orange: #f06a2a; --on-orange: #1a120c; --gold: #e2b33c; --loss: #d8564a;
+    --font: 'Archivo', 'Arial Narrow', system-ui, sans-serif; color-scheme: dark; --expo: cubic-bezier(.16, 1, .3, 1);
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--ink); color: var(--paper); font-family: var(--font); font-size: 15px; line-height: 1.4; margin: 0; }
+  button, input { font: inherit; color: inherit; }
+  .page { max-width: 1040px; margin: 0 auto; padding-block: 20px 120px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+  .display { font-stretch: 125%; font-weight: 850; letter-spacing: -0.01em; }
+  .num { font-stretch: 72%; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .dim { color: var(--paper-dim); }
+  .intro h1 { margin: 0; font-size: clamp(26px, 5vw, 38px); }
+  .intro p { color: var(--paper-dim); max-width: 66ch; margin: 6px 0 0; }
+  .layout { display: grid; grid-template-columns: 390px minmax(0, 1fr); gap: 32px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .tools { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--paper-dim); }
+  .tools label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .linkbtn { background: none; border: 0; color: var(--orange); cursor: pointer; padding: 0; font-weight: 700; }
+
+  .phone { position: relative; width: 100%; max-width: 390px; height: 760px; border: 1px solid var(--line); border-radius: 28px; overflow: hidden; background: var(--ink); isolation: isolate; }
+  .app { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .bar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--ink); }
+  .bar h1 { margin: 0; font-size: 18px; flex: 1; }
+  .label { font-size: 12px; font-weight: 700; color: var(--paper-dim); margin: 0; }
+  .btn { border: 1px solid var(--line); background: var(--surface-raised); border-radius: 10px; padding: 10px 14px; font-weight: 700; cursor: pointer; min-height: 44px; transition: transform .12s; }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { background: var(--orange); color: var(--on-orange); border-color: var(--orange); }
+  .btn.ghost { background: none; }
+  .btn.sm { min-height: 34px; padding: 6px 10px; font-size: 13px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  .sec { padding: 14px; display: grid; gap: 10px; border-bottom: 1px solid var(--line); }
+  .sec h2 { margin: 0; font-size: 16px; }
+  .opts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .opt { position: relative; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 6px 4px 6px; display: grid; justify-items: center; gap: 2px; cursor: pointer; font-size: 11px; color: var(--paper-dim); min-height: 44px; }
+  .opt[aria-pressed="true"] { border-color: var(--orange); box-shadow: inset 0 0 0 1px var(--orange); color: var(--paper); }
+  .opt.locked { cursor: default; }
+  .opt.locked svg, .opt.locked .bnr { opacity: .28; filter: grayscale(1); }
+  .opt .lock { position: absolute; top: 4px; right: 4px; font-size: 10px; }
+  .opt .req { color: var(--paper-dim); font-size: 10px; line-height: 1.15; text-align: center; }
+  .opt .new { position: absolute; top: -5px; left: -4px; font-size: 9px; font-weight: 800; color: var(--on-orange); background: var(--orange); border-radius: 4px; padding: 1px 4px; }
+  .opt.silhouette svg { filter: brightness(0); opacity: .9; }
+  .opt.silhouette .q { position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; font-weight: 800; color: var(--paper-dim); }
+  .sw { width: 34px; height: 34px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+  .sw[aria-pressed="true"] { border-color: var(--paper); outline: 2px solid var(--ink); outline-offset: -4px; }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { display: inline-flex; border: 1px solid var(--gold); color: var(--gold); border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .pill { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; min-height: 36px; }
+  .pill[aria-pressed="true"] { background: var(--paper); color: var(--ink); border-color: var(--paper); }
+  .pills { display: flex; gap: 6px; overflow-x: auto; padding: 10px 14px; scrollbar-width: none; }
+  .bnr { width: 100%; height: 30px; border-radius: 6px; }
+  .search { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 12px; min-height: 44px; }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .card { aspect-ratio: 63 / 88; border-radius: 6px; border: 1px solid var(--line); display: grid; align-content: end; padding: 6px; font-size: 11px; font-weight: 700; cursor: pointer; text-align: left; }
+  .card[aria-pressed="true"] { outline: 2px solid var(--orange); outline-offset: 2px; }
+  .card small { display: block; font-weight: 600; opacity: .8; }
+  .listrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface); cursor: pointer; text-align: left; min-height: 44px; }
+  .listrow[aria-pressed="true"] { border-color: var(--orange); }
+  .listrow[disabled] { opacity: .5; cursor: default; }
+  .err { border: 1px solid var(--loss); color: var(--paper); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+  .status { font-size: 12px; color: var(--paper-dim); white-space: nowrap; }
+  .status.warn { color: var(--gold); }
+
+  /* preview pieces */
+  .tc { position: relative; background: var(--surface); }
+  .tc .bn { height: 72px; }
+  .tc .body { padding: 0 14px 12px; margin-top: -36px; display: grid; gap: 6px; }
+  .tc .who { display: flex; align-items: end; gap: 10px; }
+  .tc .partner { width: 44px; transform: rotate(8deg) translateY(-4px); }
+  .badges { display: flex; gap: 6px; }
+  .mini { display: none; position: sticky; top: 0; z-index: 4; background: var(--ink); border-bottom: 1px solid var(--line); }
+  .mini.on { display: block; }
+  .savebar .status { white-space: normal; min-width: 0; }
+  .savebar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface-raised); border-top: 1px solid var(--line); padding: 10px 14px 14px; display: flex; gap: 8px; align-items: center; animation: up .3s var(--expo); }
+  .toast { position: absolute; left: 14px; right: 14px; bottom: 16px; z-index: 7; background: var(--paper); color: var(--ink); border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 600; display: flex; gap: 10px; align-items: center; animation: up .3s var(--expo); }
+  .toast .linkbtn { color: var(--ink); text-decoration: underline; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; background: var(--surface); border-top: 1px solid var(--line); border-radius: 18px 18px 0 0; padding: 16px; display: grid; gap: 12px; animation: up .3s var(--expo); }
+  .scrim { position: absolute; inset: 0; z-index: 7; background: rgba(0,0,0,.6); }
+  @keyframes up { from { transform: translateY(100%) } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  .notes { display: grid; gap: 14px; }
+  .notes h2 { margin: 0; font-size: 22px; }
+  .notes p { margin: 0; color: var(--paper-dim); max-width: 60ch; }
+  .notes ul { margin: 0; padding-left: 18px; color: var(--paper-dim); display: grid; gap: 6px; max-width: 60ch; }
+  .notes b { color: var(--paper); }
+  .log { font-family: ui-monospace, monospace; font-size: 12px; color: var(--paper-dim); border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  .switcher { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 4px; background: #fff; color: #111; border-radius: 999px; padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.5); z-index: 20; font-family: system-ui, sans-serif; font-size: 13px; max-width: calc(100vw - 32px); }
+  .switcher button { border: 0; background: #eee; border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 16px; color: #111; }
+  .switcher .lbl { padding: 0 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+
+<main class="page">
+  <header class="intro">
+    <h1 class="display">Customise editor</h1>
+    <p>Three editors for the customise route opened from your profile. Each one answers four questions differently: how the screen is laid out, how locked trophy items show, how saving works on bad Wi-Fi, and how to go back to your default. Everything in the phone works. Switch editors with the bar at the bottom.</p>
+  </header>
+  <div class="layout">
+    <div style="display:grid;gap:10px">
+      <div class="phone" id="phone"></div>
+      <div class="tools"><label><input type="checkbox" id="offline"> Wi-Fi drops (offline)</label><button class="linkbtn" id="restart">Start over</button></div>
+    </div>
+    <section class="notes" id="notes"></section>
+  </div>
+</main>
+<div class="switcher" role="toolbar" aria-label="Prototype variant"><button id="prev" aria-label="Previous variant">←</button><span class="lbl" id="vlabel"></span><button id="next" aria-label="Next variant">→</button></div>
+
+<script>
+
+// ---------- palette (from "Avatar look and parts list": 7 skin, 8 hair, 8 clothing) ----------
+const SKIN = ['#F7DCC8', '#EBBF9C', '#D49C70', '#AE7449', '#7D4B2C', '#64391F', '#4F2F1D']
+const HAIR = ['#17181B', '#4A2E1E', '#8A5A2B', '#D9A441', '#CFC8BE', '#B5452F', '#3E5DA8', '#D97BA6']
+const CLOTH = ['#EDE8E0', '#2B2E36', '#3F6FB6', '#C23B3B', '#2F8F5B', '#E2B33C', '#7A4FB0', '#2C8C99']
+const CLOTH_NAMES = ['Paper', 'Ink', 'Blue', 'Red', 'Green', 'Gold', 'Purple', 'Teal']
+const INK = '#14151a'
+const GOLD = '#E2B33C'
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16)
+  const f = (c) => Math.max(0, Math.min(255, Math.round(c + (amt < 0 ? c * amt : (255 - c) * amt))))
+  const r = f(n >> 16), g = f((n >> 8) & 255), b = f(n & 255)
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)
+}
+// ---------- parts ----------
+// Each part returns { back, front } SVG strings. `s(d, fill)` draws a filled shape (outlined in the sticker direction).
+// Hair is a full volume around the skull (not painted on): crown ~16 units above the head, sides past the temples.
+const VOL = 'M48 102C42 50 68 32 100 32C132 32 158 50 152 102C148 86 142 76 132 70C118 75 82 75 68 70C58 76 52 86 48 102Z'
+const HAIRS = {
+  bald: { name: 'Bald', draw: () => ({}) },
+  short: { name: 'Short', draw: (c, s) => ({ front: s(VOL, c) }) },
+  spiky: { name: 'Spiky', draw: (c, s) => ({ front: s('M50 70L56 34L72 44L76 18L92 36L100 12L110 36L126 18L130 44L146 34L150 70Z', c) + s(VOL, c) }) },
+  long: { name: 'Long', draw: (c, s) => ({ back: s('M46 100C40 46 68 30 100 30C132 30 160 46 154 100L160 168L40 168Z', shade(c, -0.18)), front: s('M48 104C42 50 68 32 100 32C132 32 158 50 152 104C146 84 132 70 112 64C100 74 76 76 60 74C54 82 50 92 48 104Z', c) }) },
+  curly: { name: 'Curly', draw: (c, s) => ({ front: [[50, 92], [52, 70], [64, 50], [82, 36], [100, 32], [118, 36], [136, 50], [148, 70], [150, 92]].map(([x, y]) => s(`M${x - 17} ${y}a17 17 0 1 0 34 0a17 17 0 1 0 -34 0Z`, c)).join('') + s(VOL, c) }) },
+  ponytail: { name: 'Ponytail', draw: (c, s) => ({ back: s('M140 64C172 70 176 124 156 156C152 128 148 104 132 86Z', shade(c, -0.12)), front: s(VOL, c) }) },
+  buzz: { name: 'Buzz', draw: (c, s) => ({ front: s('M52 96C48 54 72 40 100 40C128 40 152 54 148 96C142 80 126 70 100 70C74 70 58 80 52 96Z', shade(c, 0.12)) }) },
+}
+
+const TOPS = {
+  tee: { name: 'Tee', draw: (c, s, skin) => ({ body: s(BODY, c) + s('M86 146Q100 164 114 146Z', skin) }) },
+  hoodie: { name: 'Hoodie', draw: (c, s) => ({ behind: s('M58 166C56 128 76 120 100 120C124 120 144 128 142 166Z', shade(c, -0.25)), body: s(BODY, c) + `<path d="M93 156V182M107 156V182" stroke="${shade(c, 0.6)}" stroke-width="3" stroke-linecap="round"/>` }) },
+  jacket: { name: 'Track jacket', draw: (c, s) => ({ body: s(BODY, c) + s('M86 148L100 196L114 148Z', CLOTH[0]) + s('M86 148L100 196L76 160Z', shade(c, -0.2)) + s('M114 148L100 196L124 160Z', shade(c, -0.2)) + `<path d="M40 178L60 162M160 178L140 162" stroke="${CLOTH[0]}" stroke-width="4"/>` }) },
+  jersey: { name: 'Jersey', draw: (c, s) => ({ body: s(BODY, c) + `<rect x="30" y="172" width="140" height="10" fill="${shade(c, 0.55)}"/>` + s('M86 146Q100 162 114 146Z', shade(c, -0.25)) }) },
+  topcut: { name: 'Top-cut jacket', trophy: 'Make a top cut', draw: (c, s) => ({ body: s(BODY, CLOTH[1]) + s('M86 148L100 196L114 148Z', GOLD) + `<path d="M38 182L62 160M162 182L138 160" stroke="${GOLD}" stroke-width="6"/>` }) },
+}
+const BODY = 'M30 212C30 168 60 148 100 148C140 148 170 168 170 212Z'
+
+// Crowns are wider and taller than any hair volume, so hair never pokes through the top; `covers` hats clip hair above the brim.
+const CROWN = 'M48 90C48 40 72 22 100 22C128 22 152 40 152 90Z'
+const PANEL = 'M76 90C76 48 86 28 100 28C114 28 124 48 124 90Z'
+const BRIM = 'M40 90Q100 77 160 90Q164 102 100 100Q36 102 40 90Z'
+const VBRIM = 'M40 84Q100 71 160 84Q164 96 100 94Q36 96 40 84Z'
+const HATS = {
+  none: { name: 'None', draw: () => '' },
+  trainer: { name: 'Trainer cap', covers: true, draw: (c, c2, s) => s(CROWN, c) + s(PANEL, c2) + s('M91 66L100 56L109 66L104.5 66L100 61L95.5 66Z', c) + s(BRIM, shade(c, -0.25)) },
+  backwards: { name: 'Backwards cap', covers: true, draw: (c, c2, s) => s(CROWN, c) + s('M78 76H122V88H78Z', shade(c, -0.3)) + `<circle cx="89" cy="82" r="2.2" fill="${c2}"/><circle cx="100" cy="82" r="2.2" fill="${c2}"/><circle cx="111" cy="82" r="2.2" fill="${c2}"/>` },
+  beanie: { name: 'Beanie', covers: true, draw: (c, c2, s) => s('M100 8a13 13 0 1 0 0.1 0Z', c2) + s('M50 84C50 36 74 22 100 22C126 22 150 36 150 84Z', c) + s('M44 72H156V94H44Z', shade(c, -0.2)) },
+  visor: { name: 'Visor', draw: (c, c2, s) => s('M48 70H152V84H48Z', c) + s(VBRIM, c2) },
+  bucket: { name: 'Bucket hat', covers: true, draw: (c, c2, s) => s('M54 82C54 34 78 22 100 22C122 22 146 34 146 82Z', c) + s('M54 70H146V82H54Z', c2) + s('M28 98L54 78H146L172 98Q100 108 28 98Z', shade(c, -0.2)) },
+  headband: { name: 'Headband', draw: (c, c2, s) => s('M48 68H152V82H48Z', c) + s('M150 70L172 60L170 82Z', c2) },
+  champion: { name: 'Champion cap', trophy: 'Win an event', covers: true, draw: (c, c2, s) => s(CROWN, c) + s(PANEL, GOLD) + s('M100 44L104.5 55L116 55L107 62L110.5 74L100 67L89.5 74L93 62L84 55L95.5 55Z', c) + s(BRIM, GOLD) },
+  cupvisor: { name: 'Cup visor', trophy: 'Top 8 at a League Cup', draw: (c, c2, s) => s('M48 70H152V84H48Z', c) + s(VBRIM, GOLD) },
+}
+
+const ACCS = {
+  none: { name: 'None', draw: () => ({}) },
+  glasses: { name: 'Glasses', draw: () => ({ face: `<g fill="none" stroke="${INK}" stroke-width="3.5"><rect x="72" y="88" width="22" height="16" rx="5"/><rect x="106" y="88" width="22" height="16" rx="5"/><path d="M94 95H106"/></g>` }) },
+  plaster: { name: 'Plaster', draw: (s) => ({ face: s('M114 112l14-6l3 6l-14 6Z', CLOTH[0]) }) },
+  straps: { name: 'Backpack', draw: (s) => ({ over: s('M58 156L70 152L76 212L62 212Z', '#5b4634') + s('M142 156L130 152L124 212L138 212Z', '#5b4634') }) },
+  pin: { name: 'League pin', trophy: 'Play 10 events', draw: (s) => ({ over: s('M128 170a8 8 0 1 0 0.1 0Z', GOLD) }) },
+}
+
+
+HATS.cupvisor.name = 'Top 8 visor'; HATS.cupvisor.trophy = 'Make 5 top cuts'
+HATS.champion.trophy = 'Win an event'
+TOPS.topcut.trophy = 'Make a top cut'
+ACCS.pin.trophy = 'Play 10 events'
+const FACIAL = {
+  none: { name: 'None' },
+  stubble: { name: 'Stubble', draw: (c) => `<path d="M60 108C66 134 84 140 100 140C116 140 134 134 140 108C132 126 116 130 100 130C84 130 68 126 60 108Z" fill="${c}" opacity=".45"/>` },
+  moustache: { name: 'Moustache', draw: (c) => `<path d="M84 110C90 104 98 106 100 109C102 106 110 104 116 110C110 114 104 112 100 111C96 112 90 114 84 110Z" fill="${c}"/>` },
+  beard: { name: 'Beard', draw: (c) => `<path d="M58 100C60 134 80 146 100 146C120 146 140 134 142 100C136 116 126 122 116 120C110 112 90 112 84 120C74 122 64 116 58 100Z" fill="${c}"/>` },
+}
+const FACES = {
+  smile: { name: 'Smile', draw: () => `<circle cx="84" cy="97" r="4.5" fill="${INK}"/><circle cx="116" cy="97" r="4.5" fill="${INK}"/><path d="M90 114Q100 122 110 114" fill="none" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>` },
+  grin: { name: 'Grin', draw: () => `<circle cx="84" cy="97" r="4.5" fill="${INK}"/><circle cx="116" cy="97" r="4.5" fill="${INK}"/><path d="M88 112H112Q110 126 100 126Q90 126 88 112Z" fill="${INK}"/><path d="M91 113H109V116H91Z" fill="#fff"/>` },
+  focused: { name: 'Focused', draw: () => `<path d="M76 88L92 91M124 88L108 91" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/><circle cx="84" cy="98" r="4" fill="${INK}"/><circle cx="116" cy="98" r="4" fill="${INK}"/><path d="M92 116H108" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>` },
+}
+
+let uid = 0
+function avatarSVG(c, size) {
+  const id = 'e' + (uid++)
+  const s = (d, fill) => `<path d="${d}" fill="${fill}"/>`
+  const skin = SKIN[c.skin]
+  const hair = HAIRS[c.hair].draw(HAIR[c.hairColour], s)
+  const top = TOPS[c.top].draw(CLOTH[c.topColour], s, skin)
+  const acc = ACCS[c.accessory].draw(s)
+  const hat = HATS[c.hat].draw(CLOTH[c.hatColour], CLOTH[c.hatColour2], s)
+  const head = s('M56 94a44 44 0 1 0 88 0a44 44 0 1 0 -88 0Z', skin)
+  const ears = s('M48 98a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z', shade(skin, -0.08)) + s('M136 98a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z', shade(skin, -0.08))
+  const neck = s('M88 120H112V152H88Z', shade(skin, -0.12))
+  const facial = FACIAL[c.facial].draw ? FACIAL[c.facial].draw(HAIR[c.hairColour]) : ''
+  const hc = HATS[c.hat].covers
+  const hairClip = hc ? `<clipPath id="${id}h"><rect x="0" y="56" width="200" height="200"/></clipPath>` : ''
+  const wrap = (x) => (x && hc ? `<g clip-path="url(#${id}h)">${x}</g>` : x)
+  const art = [wrap(hair.back), top.behind, neck, top.body, acc.over, ears, head, facial, FACES[c.face].draw(), acc.face, wrap(hair.front), hat && `<g transform="translate(0 -9)">${hat}</g>`].filter(Boolean).join('')
+  return `<svg width="${size}" height="${size}" viewBox="0 0 200 200" role="img" aria-label="Avatar" style="display:block;flex:none"><clipPath id="${id}"><circle cx="100" cy="100" r="100"/></clipPath>${hairClip}<circle cx="100" cy="100" r="100" fill="#24252c"/><g clip-path="url(#${id})">${art}</g></svg>`
+}
+
+// ---------- default avatar from the user id (free parts only) ----------
+function fnv1a(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) } return h >>> 0 }
+function rand(seed, key) { let t = (fnv1a(seed + ':' + key) + 0x6d2b79f5) | 0; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
+const free = (table) => Object.keys(table).filter((k) => !table[k].trophy).sort()
+const pick = (seed, key, items) => items[Math.floor(rand(seed, key) * items.length)]
+const idx = (n) => [...Array(n).keys()]
+function defaultAvatar(u) {
+  const topColour = pick(u, 'topColour', idx(CLOTH.length))
+  return {
+    skin: pick(u, 'skin', idx(SKIN.length)), hair: pick(u, 'hair', free(HAIRS)), hairColour: pick(u, 'hairColour', idx(HAIR.length)),
+    facial: rand(u, 'facialChance') < 0.3 ? pick(u, 'facial', ['stubble', 'moustache', 'beard']) : 'none', face: pick(u, 'face', Object.keys(FACES)),
+    top: pick(u, 'top', free(TOPS)), topColour,
+    hat: rand(u, 'hatChance') < 0.55 ? pick(u, 'hat', free(HATS).filter((h) => h !== 'none')) : 'none',
+    hatColour: pick(u, 'hatColour', idx(CLOTH.length).filter((i) => i !== topColour)), hatColour2: pick(u, 'hatColour2', idx(CLOTH.length)),
+    accessory: rand(u, 'accChance') < 0.35 ? pick(u, 'accessory', free(ACCS).filter((a) => a !== 'none')) : 'none',
+    sleeve: pick(u, 'sleeve', idx(CLOTH.length)),
+  }
+}
+const DEFAULT = defaultAvatar('usr_kaua')
+
+// ---------- banners (from "Playmat banner patterns") ----------
+const BANNERS = {
+  zones: { name: 'Card zones', css: (c, d) => `linear-gradient(90deg, ${d} 3px, transparent 3px) 0 0/52px 100%, linear-gradient(${d} 3px, transparent 3px) 0 0/100% 36px, ${c}` },
+  prize: { name: 'Prize grid', css: (c, d) => `linear-gradient(90deg, ${d} 2px, transparent 2px) 0 0/22px 30px, linear-gradient(${d} 2px, transparent 2px) 0 0/22px 30px, ${c}` },
+  damage: { name: 'Damage counters', css: (c, d) => `radial-gradient(circle at 11px 11px, ${d} 6px, transparent 6.5px) 0 0/26px 24px, ${c}` },
+  slabs: { name: 'Slabs', css: (c, d) => `repeating-linear-gradient(-12deg, ${c} 0 18px, ${d} 18px 36px)` },
+  led: { name: 'LED board', css: (c, d) => `radial-gradient(circle, ${d} 2px, transparent 2.5px) 0 0/7px 7px, ${c}` },
+  champ: { name: 'Champion slab', trophy: 'Win an event', fixed: true, css: () => `repeating-linear-gradient(-12deg, #e2b33c 0 18px, #c79a2c 18px 36px)` },
+}
+const bannerCSS = (d) => { const c = CLOTH[d.bannerColour ?? d.sleeve]; return BANNERS[d.banner].css(c, shade(c, -0.28)) }
+
+// ---------- catalogue bits ----------
+const CARDS = [
+  { id: 'sv03.5-025', name: 'Pikachu', set: '151', no: '025', t: '#E2B33C' },
+  { id: 'sv08-057', name: 'Pikachu ex', set: 'Surging Sparks', no: '057', t: '#E2B33C' },
+  { id: 'sv02-062', name: 'Pikachu', set: 'Paldea Evolved', no: '062', t: '#E2B33C' },
+  { id: 'sv06-130', name: 'Dragapult ex', set: 'Twilight Masquerade', no: '130', t: '#7A4FB0' },
+  { id: 'sv06-128', name: 'Dreepy', set: 'Twilight Masquerade', no: '128', t: '#7A4FB0' },
+  { id: 'sv03-125', name: 'Charizard ex', set: 'Obsidian Flames', no: '125', t: '#C23B3B' },
+  { id: 'sv01-086', name: 'Gardevoir ex', set: 'Scarlet & Violet', no: '086', t: '#D97BA6' },
+  { id: 'sv04-091', name: 'Roaring Moon ex', set: 'Paradox Rift', no: '124', t: '#2B2E36' },
+]
+const DECKS = [
+  { id: 'drag', name: 'Dragapult Thursday', arch: 'Dragapult ex / Pidgeot ex', pub: true },
+  { id: 'gard', name: 'Gardevoir ladder', arch: 'Gardevoir ex', pub: true },
+  { id: 'lost', name: 'Lost Box test', arch: 'Comfey / Sableye', pub: false },
+]
+const TITLES = [
+  { t: 'Champion', earned: true }, { t: 'Undefeated', earned: true },
+  { t: 'Regular', req: 'Play 25 events' }, { t: 'Veteran', req: 'Win 250 matches' }, { t: 'Dynasty', req: 'Win 10 events' },
+  { t: 'Organiser', req: 'Host 10 events' }, { t: 'Sweeper', req: '25 clean sweeps' }, { t: 'Brewer', req: 'Register 15 decks' }, { t: 'Local Legend', req: 'Play 100 events' },
+]
+const SHAPES = { circle: 'M50 6a44 44 0 1 0 0.1 0Z', hex: 'M50 4L90 27V73L50 96L10 73V27Z', shield: 'M50 4L90 16V50C90 74 72 90 50 98C28 90 10 74 10 50V16Z', diamond: 'M50 2L98 50L50 98L2 50Z', square: 'M14 8H86Q92 8 92 14V86Q92 92 86 92H14Q8 92 8 86V14Q8 8 14 8Z' }
+// earned badges, highest tier per achievement (you showcase an achievement at its best tier)
+const BADGES = [
+  { id: 'champion', name: 'Champion', tier: 1, shape: 'shield' }, { id: 'regular', name: 'Regular', tier: 10, shape: 'circle' },
+  { id: 'winner', name: 'Match winner', tier: 50, shape: 'hex' }, { id: 'undefeated', name: 'Undefeated', tier: '★', shape: 'shield' },
+  { id: 'host', name: 'Host', tier: 1, shape: 'square' }, { id: 'brewer', name: 'Brewer', tier: 1, shape: 'square' }, { id: 'marathon', name: 'Marathon', tier: '★', shape: 'diamond' },
+]
+const badgeSVG = (b, size) => `<svg width="${size}" height="${size}" viewBox="0 0 100 100" role="img" aria-label="${b.name} ${b.tier}"><path d="${SHAPES[b.shape]}" fill="#f4efe8"/><path d="${SHAPES[b.shape]}" fill="none" stroke="#14151a" stroke-width="5" transform="translate(50 50) scale(.84) translate(-50 -50)"/><text x="50" y="66" text-anchor="middle" font-family="Archivo" font-stretch="72%" font-weight="800" font-size="40" fill="#14151a">${b.tier}</text></svg>`
+
+// trophy items the player has earned; "new" = earned after the last-seen marker (from "Unlock celebration")
+const EARNED = new Set(['hat:champion', 'accessory:pin', 'banner:champ'])
+const NEW = new Set(['hat:champion', 'banner:champ'])
+
+// ---------- slots ----------
+const SLOTS = {
+  skin: { label: 'Skin', group: 'Look', kind: 'swatch', colours: SKIN },
+  hair: { label: 'Hair', group: 'Look', kind: 'part', table: HAIRS, colourKey: 'hairColour', colours: HAIR },
+  facial: { label: 'Facial hair', group: 'Look', kind: 'part', table: FACIAL },
+  face: { label: 'Face', group: 'Look', kind: 'part', table: FACES },
+  top: { label: 'Top', group: 'Gear', kind: 'part', table: TOPS, colourKey: 'topColour', colours: CLOTH },
+  hat: { label: 'Hat', group: 'Gear', kind: 'part', table: HATS, colourKey: 'hatColour', colours: CLOTH, colour2Key: 'hatColour2' },
+  accessory: { label: 'Accessory', group: 'Gear', kind: 'part', table: ACCS },
+  sleeve: { label: 'Sleeve colour', group: 'Table', kind: 'sleeve' },
+  banner: { label: 'Banner', group: 'Table', kind: 'banner' },
+  partner: { label: 'Partner Pokémon', group: 'Table', kind: 'partner' },
+  title: { label: 'Title', group: 'Showcase', kind: 'title' },
+  badges: { label: 'Badges', group: 'Showcase', kind: 'badges' },
+  deck: { label: 'Featured deck', group: 'Showcase', kind: 'deck' },
+}
+const GROUPS = ['Look', 'Gear', 'Table', 'Showcase']
+const AVATAR_KEYS = ['skin', 'hair', 'hairColour', 'facial', 'face', 'top', 'topColour', 'hat', 'hatColour', 'hatColour2', 'accessory']
+
+// ---------- variants ----------
+const VARIANTS = {
+  tabs: {
+    key: 'A', name: 'Tabs + autosave', lock: 'grey',
+    layout: '<b>Four tabs</b> (Look · Gear · Table · Showcase) under a <b>sticky preview</b>. The preview is the avatar on Look and Gear, and the trainer-card header on Table and Showcase.',
+    locked: '<b>Greyed with a lock and the requirement</b> ("Win an event") in place, so the grid shows what is there to chase.',
+    save: '<b>Autosave</b> each change. The header says Saving… / Saved. Offline, changes queue on the phone ("Offline · 3 waiting") and send when Wi-Fi is back. No Save button to forget.',
+    reset: '<b>⋯ → Back to my default</b>, with a confirm sheet. It resets the avatar only (not the showcase) and offers Undo.',
+  },
+  scroll: {
+    key: 'B', name: 'One page + Save', lock: 'hide',
+    layout: '<b>One scrolling page</b>. A large trainer-card preview at the top; once it scrolls away, a <b>compact sticky bar</b> keeps a small avatar, your title and section jump chips.',
+    locked: '<b>Hidden</b>. Each section ends with one dim line: "1 more to earn · Make a top cut".',
+    save: '<b>Explicit Save</b>. A save bar rises when anything changed (Discard / Save). Offline Save fails loudly; the changes stay in the page and the bar offers Retry.',
+    reset: '<b>Reset avatar to my default</b> at the bottom. It changes the draft only, so Discard is the undo.',
+  },
+  studio: {
+    key: 'C', name: 'Studio + Done', lock: 'silhouette',
+    layout: '<b>Character-creator studio</b>. The preview owns the top of the screen (banner, avatar, partner, title, badges) and never moves; a slot strip and one slot\'s options sit below it.',
+    locked: '<b>Black silhouettes with "?"</b>. Tap one to see its requirement in a toast.',
+    save: '<b>Done saves</b>. Changes go into the preview and are kept on the phone; Done sends them. Offline, Done still closes and they sync later ("Saved on this phone").',
+    reset: '<b>Per slot</b>: the first option in every slot is "Default" (yours from your user id). <b>Reset all</b> at the end of the strip, with Undo.',
+  },
+}
+const ORDER = Object.keys(VARIANTS)
+let variant = ORDER.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'tabs'
+
+// ---------- state ----------
+const START = { skin: 1, hair: 'spiky', hairColour: 2, facial: 'none', face: 'smile', top: 'hoodie', topColour: 7, hat: 'trainer', hatColour: 3, hatColour2: 0, accessory: 'none', sleeve: 7, banner: 'zones', bannerColour: null, partner: 'sv06-130', title: 'Champion', badges: ['champion', 'undefeated', 'winner'], deck: 'drag' }
+let st
+const clone = (o) => JSON.parse(JSON.stringify(o))
+function reset() { st = { saved: clone(START), draft: clone(START), tab: 'Look', slot: 'hair', q: '', status: 'Saved', queue: 0, toast: null, sheet: null, undo: null, log: [] } }
+reset()
+const offline = () => document.getElementById('offline').checked
+const dirty = () => JSON.stringify(st.saved) !== JSON.stringify(st.draft)
+function log(m) { st.log.push(m); if (st.log.length > 7) st.log.shift() }
+let saveTimer
+function changed(what) {
+  log(`change: ${what}`)
+  if (variant === 'tabs') {
+    if (offline()) { clearTimeout(saveTimer); st.queue++; st.status = `Offline · ${st.queue} waiting`; log('autosave queued on the phone') }
+    else { st.status = 'Saving…'; clearTimeout(saveTimer); saveTimer = setTimeout(() => { if (offline()) { st.queue++; st.status = `Offline · ${st.queue} waiting`; return render() } st.saved = clone(st.draft); st.status = 'Saved'; log('autosaved'); render() }, 600) }
+  }
+  render()
+}
+function set(key, val, what) { st.draft[key] = val; changed(what || `${key} → ${val}`) }
+function toast(msg, action) { st.toast = { msg, action }; render(); clearTimeout(toast.t); toast.t = setTimeout(() => { st.toast = null; render() }, 4000) }
+
+// ---------- controls ----------
+const isLocked = (slot, key, t) => t[key]?.trophy && !EARNED.has(`${slot}:${key}`)
+function optButton(slot, key, name, thumb, opts = {}) {
+  const mode = VARIANTS[variant].lock
+  const locked = opts.locked
+  if (locked && mode === 'hide') return ''
+  const pressed = !locked && opts.pressed
+  const isNew = NEW.has(`${slot}:${key}`)
+  if (locked && mode === 'silhouette') return `<button class="opt silhouette" data-locked="${opts.req}" aria-label="Locked: ${opts.req}">${thumb}<span class="q">?</span><span>???</span></button>`
+  if (locked) return `<div class="opt locked" aria-label="${name}, locked: ${opts.req}">${thumb}<span class="lock" aria-hidden="true">🔒</span><span class="req">${opts.req}</span></div>`
+  return `<button class="opt" aria-pressed="${pressed}" data-set="${slot}" data-val="${key}">${isNew ? '<span class="new">NEW</span>' : ''}${thumb}<span>${name}</span></button>`
+}
+function hiddenNote(slot, table) {
+  if (VARIANTS[variant].lock !== 'hide') return ''
+  const l = Object.keys(table).filter((k) => isLocked(slot, k, table))
+  return l.length ? `<p class="dim" style="margin:0;font-size:12px">${l.length} more to earn · ${l.map((k) => table[k].trophy).join(' · ')}</p>` : ''
+}
+const defaultOpt = (slot) => variant === 'studio' ? `<button class="opt" aria-pressed="false" data-default="${slot}">${avatarSVG({ ...st.draft, ...pickDefault(slot) }, 48)}<span>Default</span></button>` : ''
+function pickDefault(slot) { const o = { [slot]: DEFAULT[slot] }; const c = SLOTS[slot]?.colourKey; if (c) o[c] = DEFAULT[c]; if (SLOTS[slot]?.colour2Key) o.hatColour2 = DEFAULT.hatColour2; return o }
+function swatches(key, colours, label) {
+  return `<div><p class="label" style="margin-bottom:6px">${label}</p><div class="swatches">${colours.map((c, i) => `<button class="sw" style="background:${c}" aria-label="${label} ${CLOTH_NAMES[i] || i + 1}" aria-pressed="${st.draft[key] === i}" data-set="${key}" data-val="${i}" data-num="1"></button>`).join('')}</div></div>`
+}
+function slotControls(slot) {
+  const s = SLOTS[slot], d = st.draft
+  if (s.kind === 'swatch') return `<div class="swatches">${s.colours.map((c, i) => `<button class="sw" style="background:${c};width:40px;height:40px" aria-label="Skin tone ${i + 1}" aria-pressed="${d.skin === i}" data-set="skin" data-val="${i}" data-num="1"></button>`).join('')}</div>${variant === 'studio' ? `<button class="btn sm ghost" data-default="skin" style="justify-self:start">Default skin</button>` : ''}`
+  if (s.kind === 'part') {
+    const keys = Object.keys(s.table)
+    return `<div class="opts">${defaultOpt(slot)}${keys.map((k) => optButton(slot, k, s.table[k].name, avatarSVG({ ...d, [slot]: k }, 48), { pressed: d[slot] === k, locked: isLocked(slot, k, s.table), req: s.table[k].trophy })).join('')}</div>${hiddenNote(slot, s.table)}
+      ${s.colourKey && !(slot === 'hat' && d.hat === 'none') && !(slot === 'hair' && d.hair === 'bald') && !(s.table[d[slot]]?.trophy && slot === 'top') ? swatches(s.colourKey, s.colours, slot === 'hat' ? 'Hat colour' : slot === 'hair' ? 'Hair colour' : 'Colour') : ''}
+      ${s.colour2Key && d.hat !== 'none' ? swatches('hatColour2', CLOTH, 'Panel colour') : ''}`
+  }
+  if (s.kind === 'sleeve') return `${swatches('sleeve', CLOTH, 'Shown as a stripe on your seat and a bar on the store screen')}
+      <div style="position:relative;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:10px 12px 10px 18px;display:flex;gap:10px;align-items:center;overflow:hidden"><span style="position:absolute;left:0;top:0;bottom:0;width:6px;background:${CLOTH[d.sleeve]}"></span>${avatarSVG(d, 32)}<b>Kauã Andrade</b><span class="dim" style="font-size:12px">your seat</span></div>`
+  if (s.kind === 'banner') return `<div class="opts" style="grid-template-columns:repeat(3,minmax(0,1fr))">${Object.keys(BANNERS).map((k) => optButton('banner', k, BANNERS[k].name, `<span class="bnr" style="background:${BANNERS[k].css(CLOTH[d.bannerColour ?? d.sleeve], shade(CLOTH[d.bannerColour ?? d.sleeve], -0.28))};display:block"></span>`, { pressed: d.banner === k, locked: isLocked('banner', k, BANNERS), req: BANNERS[k].trophy })).join('')}</div>${hiddenNote('banner', BANNERS)}
+      ${BANNERS[d.banner].fixed ? '<p class="dim" style="margin:0;font-size:12px">The Champion slab is always gold.</p>' : `<div><p class="label" style="margin-bottom:6px">Banner colour</p><div class="swatches"><button class="pill" aria-pressed="${d.bannerColour === null}" data-set="bannerColour" data-val="null">Match sleeve</button>${CLOTH.map((c, i) => `<button class="sw" style="background:${c}" aria-label="Banner ${CLOTH_NAMES[i]}" aria-pressed="${d.bannerColour === i}" data-set="bannerColour" data-val="${i}" data-num="1"></button>`).join('')}</div></div>`}`
+  if (s.kind === 'partner') {
+    const cur = CARDS.find((c) => c.id === d.partner)
+    let res = ''
+    if (st.q.trim().length < 2) res = `<p class="dim" style="margin:0;font-size:13px">Type at least 2 letters. Any Pokémon card from the catalog.</p>`
+    else if (offline()) res = `<div class="err">Card search isn't reachable right now. Your partner stays as it is. <button class="linkbtn" data-retry="1">Try again</button></div>`
+    else {
+      const hits = CARDS.filter((c) => c.name.toLowerCase().includes(st.q.trim().toLowerCase()))
+      res = hits.length ? `<p class="label">${hits.length} printings · newest sets first</p><div class="cards">${hits.map((c) => card(c, d.partner === c.id)).join('')}</div>` : `<p class="dim" style="margin:0">No Pokémon called "${st.q}".</p>`
+    }
+    return `<div class="row">${cur ? `<div style="width:56px">${card(cur, false, true)}</div><div class="grow"><b>${cur.name}</b><div class="dim" style="font-size:12px">${cur.set} · ${cur.no}</div></div><button class="btn sm ghost" data-set="partner" data-val="null">Remove</button>` : '<span class="dim">No partner</span>'}</div>
+      <input class="search" id="q" type="search" placeholder="Search Pokémon, e.g. Pikachu" value="${st.q.replace(/"/g, '&quot;')}" autocomplete="off" aria-label="Search Pokémon cards">${res}`
+  }
+  if (s.kind === 'title') {
+    const mode = VARIANTS[variant].lock
+    const rows = [{ t: null, earned: true }, ...TITLES].map((x) => {
+      if (!x.earned && mode === 'hide') return ''
+      if (!x.earned) return `<button class="listrow" ${mode === 'silhouette' ? `data-locked="${x.req}"` : 'disabled'}><span>${mode === 'silhouette' ? '???' : `<span class="chip" style="opacity:.4">${x.t}</span>`}</span><span class="dim" style="font-size:12px">${mode === 'silhouette' ? '' : '🔒 ' + x.req}</span></button>`
+      return `<button class="listrow" aria-pressed="${d.title === x.t}" data-set="title" data-val="${x.t}"><span>${x.t ? `<span class="chip">${x.t}</span>` : 'No title'}</span><span>${d.title === x.t ? '✓' : ''}</span></button>`
+    }).join('')
+    const hid = TITLES.filter((x) => !x.earned).length
+    return `<div style="display:grid;gap:6px">${rows}</div>${mode === 'hide' ? `<p class="dim" style="margin:0;font-size:12px">${hid} more titles to earn · see Achievements</p>` : ''}`
+  }
+  if (s.kind === 'badges') return `<p class="label">Show up to 3 · ${d.badges.length}/3 picked</p><div class="opts">${BADGES.map((b) => { const on = d.badges.includes(b.id), full = !on && d.badges.length >= 3; return `<button class="opt" aria-pressed="${on}" data-badge="${b.id}" ${full ? 'aria-disabled="true" style="opacity:.45"' : ''}>${on ? `<span class="new" style="background:var(--paper)">${d.badges.indexOf(b.id) + 1}</span>` : ''}${badgeSVG(b, 44)}<span>${b.name}</span></button>` }).join('')}</div>${d.badges.length >= 3 ? '<p class="dim" style="margin:0;font-size:12px">Tap a picked badge to free a slot.</p>' : ''}`
+  if (s.kind === 'deck') return `<div style="display:grid;gap:6px"><button class="listrow" aria-pressed="${d.deck === null}" data-set="deck" data-val="null"><span>No featured deck</span><span>${d.deck === null ? '✓' : ''}</span></button>${DECKS.map((k) => `<button class="listrow" aria-pressed="${d.deck === k.id}" ${k.pub ? `data-set="deck" data-val="${k.id}"` : 'disabled'}><span><b>${k.name}</b><span class="dim" style="display:block;font-size:12px">${k.arch}${k.pub ? '' : ' · Private: make it public to feature it'}</span></span><span>${d.deck === k.id ? '✓' : ''}</span></button>`).join('')}</div>`
+}
+const card = (c, on, small) => `<button class="card" ${small ? 'tabindex="-1"' : `data-set="partner" data-val="${c.id}"`} aria-pressed="${on}" style="background:linear-gradient(${c.t} 0 58%, ${shade(c.t, -0.55)} 58%);color:#fff${small ? ';font-size:8px;padding:3px' : ''}">${c.name}${small ? '' : `<small>${c.set} ${c.no}</small>`}</button>`
+
+// ---------- preview ----------
+function trainerCard(size = 88, showAll = true) {
+  const d = st.draft, p = CARDS.find((c) => c.id === d.partner), deck = DECKS.find((k) => k.id === d.deck)
+  return `<div class="tc"><div class="bn" style="background:${bannerCSS(d)}"></div><div class="body" style="margin-top:-${size / 2.4}px">
+    <div class="who">${avatarSVG(d, size)}${p ? `<div class="partner">${card(p, false, true)}</div>` : ''}<div class="grow"></div><div class="badges">${d.badges.map((id) => badgeSVG(BADGES.find((b) => b.id === id), 26)).join('')}</div></div>
+    <div><b class="display" style="font-size:18px">Kauã Andrade</b> ${d.title ? `<span class="chip">${d.title}</span>` : ''}</div>
+    ${showAll ? `<div class="dim" style="font-size:12px">${deck ? `Featured: <b style="color:var(--paper)">${deck.name}</b>` : 'No featured deck'} · sleeve <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${CLOTH[d.sleeve]}"></span></div>` : ''}</div></div>`
+}
+
+// ---------- variant renderers ----------
+function viewTabs() {
+  const groupSlots = Object.keys(SLOTS).filter((k) => SLOTS[k].group === st.tab)
+  const preview = st.tab === 'Look' || st.tab === 'Gear'
+    ? `<div style="display:grid;place-items:center;padding:12px;background:${bannerCSS(st.draft)}">${avatarSVG(st.draft, 120)}</div>`
+    : trainerCard(72)
+  const warn = st.status.startsWith('Offline')
+  return `<div class="app" id="scroller">
+    <div style="position:sticky;top:0;z-index:4;background:var(--ink)">
+      <div class="bar"><button class="linkbtn" aria-label="Back to profile">←</button><h1 class="display">Customise</h1><span class="status ${warn ? 'warn' : ''}" aria-live="polite">${warn ? '● ' : '✓ '}${st.status}</span><button class="btn sm ghost" data-menu="1" aria-label="More">⋯</button></div>
+      ${preview}
+      <div class="pills" role="tablist" style="border-bottom:1px solid var(--line)">${GROUPS.map((g) => `<button class="pill" role="tab" aria-pressed="${st.tab === g}" data-tab="${g}">${g}</button>`).join('')}</div>
+    </div>
+    ${groupSlots.map((k) => `<section class="sec"><h2 class="display">${SLOTS[k].label}</h2>${slotControls(k)}</section>`).join('')}
+    <div style="height:40px"></div></div>`
+}
+function viewScroll() {
+  const d = dirty()
+  return `<div class="app" id="scroller">
+    <div class="bar"><button class="linkbtn" aria-label="Back to profile">←</button><h1 class="display">Customise</h1></div>
+    <div class="mini" id="mini"><div class="row" style="padding:8px 14px;flex-wrap:nowrap">${avatarSVG(st.draft, 40)}<b style="white-space:nowrap">Kauã Andrade</b>${st.draft.title ? `<span class="chip">${st.draft.title}</span>` : ''}</div><div class="pills" style="padding-top:0">${Object.keys(SLOTS).map((k) => `<button class="pill" data-jump="${k}">${SLOTS[k].label}</button>`).join('')}</div></div>
+    <div id="bigprev">${trainerCard(96)}</div>
+    ${GROUPS.map((g) => `<p class="label" style="padding:16px 14px 0">${g}</p>${Object.keys(SLOTS).filter((k) => SLOTS[k].group === g).map((k) => `<section class="sec" id="s-${k}"><h2 class="display">${SLOTS[k].label}</h2>${slotControls(k)}</section>`).join('')}`).join('')}
+    <section class="sec"><button class="btn" data-resetall="1">Reset avatar to my default</button><p class="dim" style="margin:0;font-size:12px">Only the avatar. Your title, badges, banner, partner and deck stay.</p></section>
+    <div style="height:${d ? 90 : 30}px"></div></div>
+    ${d ? `<div class="savebar"><span class="grow status ${st.saveFailed ? 'warn' : ''}">${st.saveFailed ? "Couldn't save. Your changes are kept here." : 'Unsaved changes'}</span><button class="btn ghost" data-discard="1">Discard</button><button class="btn primary" data-save="1">${st.saveFailed ? 'Retry' : 'Save'}</button></div>` : ''}`
+}
+function viewStudio() {
+  const keys = Object.keys(SLOTS)
+  return `<div style="position:absolute;inset:0;display:grid;grid-template-rows:auto auto minmax(0,1fr)">
+    <div><div class="bar"><button class="linkbtn" aria-label="Back to profile">←</button><h1 class="display">Customise</h1><span class="status">${st.status === 'local' ? 'Kept on this phone' : ''}</span><button class="btn sm primary" data-done="1">Done</button></div>${trainerCard(124, false)}</div>
+    <div class="pills" style="border-top:1px solid var(--line);border-bottom:1px solid var(--line)">${keys.map((k) => `<button class="pill" aria-pressed="${st.slot === k}" data-slot="${k}">${SLOTS[k].label}</button>`).join('')}<button class="pill" data-resetall="1">Reset all</button></div>
+    <div class="app" id="scroller" style="position:static"><section class="sec" style="border:0">${slotControls(st.slot)}</section><div style="height:60px"></div></div>
+  </div>`
+}
+
+// ---------- render ----------
+function render() {
+  const ph = document.getElementById('phone')
+  const sc = document.getElementById('scroller'), top = sc ? sc.scrollTop : 0
+  const q = document.activeElement?.id === 'q' ? document.getElementById('q').selectionStart : null
+  const v = VARIANTS[variant]
+  let html = variant === 'tabs' ? viewTabs() : variant === 'scroll' ? viewScroll() : viewStudio()
+  if (st.sheet === 'menu') html += `<div class="scrim" data-close="1"></div><div class="sheet"><button class="btn" data-confirm="1">Back to my default avatar</button><button class="btn ghost" data-close="1">Cancel</button></div>`
+  if (st.sheet === 'confirm') html += `<div class="scrim" data-close="1"></div><div class="sheet"><div class="row" style="flex-wrap:nowrap">${avatarSVG({ ...st.draft, ...Object.fromEntries(AVATAR_KEYS.map((k) => [k, DEFAULT[k]])) }, 72)}<div><b class="display">Back to your default?</b><p class="dim" style="margin:4px 0 0;font-size:13px">The avatar you were given from your account. Your showcase, banner and sleeve stay.</p></div></div><button class="btn primary" data-resetall="1">Reset avatar</button><button class="btn ghost" data-close="1">Keep mine</button></div>`
+  if (st.toast) html += `<div class="toast" role="status"><span class="grow">${st.toast.msg}</span>${st.toast.action ? `<button class="linkbtn" data-undo="1">${st.toast.action}</button>` : ''}</div>`
+  ph.innerHTML = html
+  const sc2 = document.getElementById('scroller'); if (sc2) sc2.scrollTop = top
+  if (q !== null) { const i = document.getElementById('q'); if (i) { i.focus(); i.setSelectionRange(q, q) } }
+  miniCheck()
+  document.getElementById('vlabel').textContent = `${v.key} (${v.name})`
+  const changedKeys = Object.keys(st.draft).filter((k) => JSON.stringify(st.draft[k]) !== JSON.stringify(st.saved[k]))
+  document.getElementById('notes').innerHTML = `<div><p class="label">${v.key} · ${v.name}</p><h2 class="display">How it answers</h2></div>
+    <ul><li><b>Layout:</b> ${v.layout}</li><li><b>Locked trophy items:</b> ${v.locked}</li><li><b>Saving:</b> ${v.save}</li><li><b>Reset:</b> ${v.reset}</li></ul>
+    <p>Try: the Hat slot (Champion cap is new, Top 8 visor is locked), Partner Pokémon (search "pika"), then tick "Wi-Fi drops" and change something.</p>
+    <div class="log">offline: ${offline()}\nsaved on server ≠ draft: ${changedKeys.join(', ') || '—'}${variant === 'tabs' ? `\nautosave queue: ${st.queue}` : ''}\n\n${st.log.join('\n')}</div>`
+}
+function miniCheck() {
+  const m = document.getElementById('mini'), sc = document.getElementById('scroller'), big = document.getElementById('bigprev')
+  if (m && sc && big) m.classList.toggle('on', sc.scrollTop > big.offsetTop + big.offsetHeight - 50)
+}
+document.addEventListener('scroll', miniCheck, true)
+
+// ---------- events ----------
+document.addEventListener('input', (e) => { if (e.target.id === 'q') { st.q = e.target.value; render() } })
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('button,[data-close]'); if (!el) return
+  const x = el.dataset
+  if (x.set) { const raw = x.val; const val = raw === 'null' ? null : x.num ? Number(raw) : raw; return set(x.set, val) }
+  if (x.badge) { const b = st.draft.badges; if (b.includes(x.badge)) st.draft.badges = b.filter((y) => y !== x.badge); else if (b.length < 3) st.draft.badges = [...b, x.badge]; else return; return changed(`badges → ${st.draft.badges.join(', ')}`) }
+  if (x.locked) return toast(`Locked · ${x.locked}`)
+  if (x.tab) { st.tab = x.tab; document.getElementById('scroller').scrollTop = 0; return render() }
+  if (x.slot) { st.slot = x.slot; return render() }
+  if (x.jump) { const s = document.getElementById('s-' + x.jump), sc = document.getElementById('scroller'); sc.scrollTop = s.offsetTop - 110; return }
+  if (x.default) { Object.assign(st.draft, pickDefault(x.default)); return changed(`${x.default} → your default`) }
+  if (x.menu) { st.sheet = 'menu'; return render() }
+  if (x.confirm) { st.sheet = 'confirm'; return render() }
+  if (x.close) { st.sheet = null; return render() }
+  if (x.resetall) {
+    st.undo = clone(st.draft); st.sheet = null
+    for (const k of AVATAR_KEYS) st.draft[k] = DEFAULT[k]
+    changed('avatar → default from user id')
+    if (variant !== 'scroll') toast('Back to your default avatar.', 'Undo')
+    return
+  }
+  if (x.undo) { st.draft = st.undo; st.toast = null; return changed('undo reset') }
+  if (x.discard) { st.draft = clone(st.saved); st.saveFailed = false; log('discarded'); return render() }
+  if (x.save) {
+    if (offline()) { st.saveFailed = true; log('save failed (offline); kept in the page'); return render() }
+    st.saved = clone(st.draft); st.saveFailed = false; log('saved'); toast('Saved'); return
+  }
+  if (x.done) {
+    if (offline()) { st.status = 'local'; log('Done offline: kept on this phone, sync later'); return toast('Saved on this phone. It syncs when you are back online.') }
+    st.saved = clone(st.draft); st.status = ''; log('Done: saved, back to profile'); return toast('Saved. Back to your profile.')
+  }
+  if (x.retry) return render()
+})
+document.getElementById('offline').onchange = () => {
+  if (!offline()) {
+    if (variant === 'tabs' && st.queue) { st.saved = clone(st.draft); log(`back online: ${st.queue} queued changes sent`); st.queue = 0; st.status = 'Saved' }
+    if (variant === 'studio' && st.status === 'local') { st.saved = clone(st.draft); st.status = ''; log('back online: synced') }
+  } else log('Wi-Fi dropped')
+  render()
+}
+function setVariant(k) { variant = k; history.replaceState(null, '', '#' + k); reset(); render() }
+const cycle = (dd) => setVariant(ORDER[(ORDER.indexOf(variant) + dd + ORDER.length) % ORDER.length])
+document.getElementById('prev').onclick = () => cycle(-1)
+document.getElementById('next').onclick = () => cycle(1)
+document.getElementById('restart').onclick = () => { reset(); render() }
+addEventListener('keydown', (e) => { if (e.target.matches('input,textarea,[contenteditable]')) return; if (e.key === 'ArrowLeft') cycle(-1); if (e.key === 'ArrowRight') cycle(1) })
+addEventListener('hashchange', () => { const k = location.hash.slice(1); if (ORDER.includes(k) && k !== variant) setVariant(k) })
+render()
+</script>
