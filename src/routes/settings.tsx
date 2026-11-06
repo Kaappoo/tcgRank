@@ -1,17 +1,14 @@
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
-import { Camera, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { Page, PageHeader } from '#/components/layout/page.tsx'
-import { Avatar } from '#/components/ui/avatar.tsx'
 import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import { Textarea } from '#/components/ui/textarea.tsx'
 import { toast } from '#/components/ui/toast.tsx'
 import { requireAuth } from '#/lib/guards.ts'
 import { myProfileQuery, sessionQuery } from '#/lib/queries.ts'
-import { useUploadThing } from '#/lib/uploadthing.ts'
 import { updateProfile } from '#/server/functions/profiles.ts'
 import { profileInput } from '#/shared/schemas.ts'
 import { SubmitButton } from '#/components/ui/submit-button.tsx'
@@ -29,15 +26,7 @@ function Settings() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const update = useServerFn(updateProfile)
-  const [image, setImage] = useState<string | null>(me.image)
   const [errors, setErrors] = useState<Record<string, string>>({})
-
-  const { startUpload, isUploading } = useUploadThing('avatar', {
-    onClientUploadComplete: (files) => setImage(files[0]?.ufsUrl ?? null),
-    onUploadError: (error) => {
-      toast.error('Upload failed', error.message)
-    },
-  })
 
   const save = useMutation({
     mutationFn: (data: Parameters<typeof update>[0]['data']) => update({ data }),
@@ -55,14 +44,17 @@ function Settings() {
 
   return (
     <Page className="max-w-2xl">
-      <PageHeader title="Settings" description="How you appear on pairings, standings and your public profile." />
+      <PageHeader
+        title="Settings"
+        description="Your name, username and bio. Change your avatar and trainer card from your profile."
+      />
       <form
         noValidate
         className="flex flex-col gap-6"
         onSubmit={(e) => {
           e.preventDefault()
           const form = Object.fromEntries(new FormData(e.currentTarget))
-          const parsed = profileInput.safeParse({ ...form, image })
+          const parsed = profileInput.safeParse(form)
           if (!parsed.success) {
             setErrors(fieldErrors(parsed.error))
             return
@@ -71,22 +63,6 @@ function Settings() {
           save.mutate(parsed.data)
         }}
       >
-        <div className="flex items-center gap-5">
-          <Avatar name={me.name} src={image} size="xl" />
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-line-strong px-4 py-2.5 text-sm font-semibold transition-colors hover:border-orange">
-            {isUploading ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
-            {isUploading ? 'Uploading…' : 'Change photo'}
-            <input
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) void startUpload([file])
-              }}
-            />
-          </label>
-        </div>
         <div className="grid gap-6 sm:grid-cols-2">
           <Field invalid={Boolean(errors.name)}>
             <FieldLabel>Display name</FieldLabel>
@@ -116,7 +92,7 @@ function Settings() {
         </Field>
         <p className="text-sm text-paper-dim">Signed in as {me.email}</p>
         <div className="flex justify-end">
-          <SubmitButton size="lg" disabled={save.isPending || isUploading}>
+          <SubmitButton size="lg" disabled={save.isPending}>
             {save.isPending ? 'Saving…' : 'Save profile'}
           </SubmitButton>
         </div>

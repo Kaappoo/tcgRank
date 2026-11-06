@@ -1,20 +1,22 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from '@tanstack/react-router'
 import { useEffect, type ReactNode } from 'react'
+import { CelebrationHost } from '#/components/identity/celebration-host.tsx'
 import { BottomNav } from '#/components/layout/bottom-nav.tsx'
 import { Devtools } from '#/components/layout/devtools.tsx'
 import { SiteHeader } from '#/components/layout/site-header.tsx'
 import { Toaster } from '#/components/ui/toast.tsx'
+import { usePendingStyleSync } from '#/hooks/use-save-style.ts'
 import { startQueryPersistence } from '#/lib/persist.ts'
 import { sessionQuery } from '#/lib/queries.ts'
 import { registerServiceWorker } from '#/lib/register-sw.ts'
 import { absoluteUrl, seo } from '#/lib/seo.ts'
-import type { SessionUser } from '#/server/current-user.ts'
+import type { SessionView } from '#/server/current-user.ts'
 import appCss from '#/styles/app.css?url'
 
 interface RouterContext {
   queryClient: QueryClient
-  user: SessionUser | null
+  user: SessionView | null
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
@@ -50,7 +52,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 function RootLayout() {
-  const { queryClient } = Route.useRouteContext()
+  const { queryClient, user } = Route.useRouteContext()
+  usePendingStyleSync(user?.id ?? null)
   useEffect(() => startQueryPersistence(queryClient), [queryClient])
   useEffect(() => registerServiceWorker(), [])
   // Lets e2e tests (and CSS, if ever needed) know the page is interactive.
@@ -70,6 +73,7 @@ function RootLayout() {
           <Outlet />
         </main>
         <BottomNav />
+        {user ? <CelebrationHost userId={user.id} avatar={user.avatar} /> : null}
       </div>
     </Toaster>
   )

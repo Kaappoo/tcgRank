@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/tanstack-react'
 import { playingMatch } from '#/stories/fixtures.ts'
 import { PairingCard } from './pairing-card.tsx'
+import { defaultLook } from '#/domain/avatar-parts.ts'
 
 const meta = {
   title: 'Events/PairingCard',
@@ -32,7 +33,7 @@ export const LongNames: Story = {
   args: {
     match: {
       ...playingMatch,
-      player2: { id: 'misty', name: 'Maria Eduarda Albuquerque dos Santos', username: null, image: null },
+      player2: { id: 'misty', name: 'Maria Eduarda Albuquerque dos Santos', username: null, ...defaultLook('misty') },
     },
   },
 }

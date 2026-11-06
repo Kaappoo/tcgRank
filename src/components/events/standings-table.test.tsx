@@ -35,3 +35,15 @@ describe('StandingsTable', () => {
     expect(headers()).toEqual(['#', 'Player', 'Pts', 'W-L-T', 'OMW', 'OOMW'])
   })
 })
+
+describe('StandingsTable identity', () => {
+  it('shows a 32 px avatar and the title chip, but no sleeve colour', async () => {
+    const { container } = await renderWithRouter(<StandingsTable standings={standings} />)
+    const avatars = [...container.querySelectorAll('[data-slot="avatar"] svg')]
+    expect(avatars).toHaveLength(standings.length)
+    expect(avatars.every((svg) => svg.getAttribute('width') === '32')).toBe(true)
+    expect(container.querySelector('[data-slot="sleeve"]')).toBeNull()
+    const [first] = screen.getAllByRole('row').slice(1)
+    expect(within(first!).getByText('Local Legend')).toBeInTheDocument()
+  })
+})

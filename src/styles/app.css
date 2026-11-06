@@ -27,6 +27,8 @@
   --win: oklch(0.8 0.17 150);
   --loss: oklch(0.68 0.2 22);
   --draw: oklch(0.84 0.09 90);
+  /* The avatar palette's gold: earned things only (top-tier badges, title chips, trophy items). Never an action. */
+  --trophy: #e2b33c;
 
   /* shadcn contract */
   --background: var(--ink);
@@ -99,6 +101,7 @@
   --color-orange-hot: var(--orange-hot);
   --color-ember: var(--ember);
   --color-on-orange: var(--on-orange);
+  --color-trophy: var(--trophy);
   --color-win: var(--win);
   --color-loss: var(--loss);
   --color-draw: var(--draw);
@@ -366,4 +369,27 @@ html[data-card-zoom] header[style*='site-header'] {
   ::view-transition-old(card-zoom) {
     animation: 120ms linear both fade-only;
   }
+}
+
+/* Unlock celebration (components/identity/unlock-celebration.tsx): the slab wipes in, then the unlock stamps onto it. */
+.celebrate-slab {
+  animation: var(--animate-slab);
+}
+.celebrate-stamp {
+  animation: celebrate-stamp 420ms var(--ease-out-expo) 360ms both;
+}
+@keyframes celebrate-stamp {
+  from {
+    opacity: 0;
+    scale: 1.35;
+  }
+}
+@keyframes celebrate-fade {
+  from {
+    opacity: 0;
+  }
+}
+[data-motion='reduced'] .celebrate-slab,
+[data-motion='reduced'] .celebrate-stamp {
+  animation: celebrate-fade 200ms linear both;
 }

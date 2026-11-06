@@ -1,5 +1,13 @@
 import { relations, sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+  type AnySQLiteColumn,
+} from 'drizzle-orm/sqlite-core'
 import { DEFAULT_BEST_OF, type BestOf } from '#/domain/best-of.ts'
 import { DEFAULT_PAIRING_SYSTEM, PAIRING_SYSTEMS, type TopCutSize } from '#/domain/event-setup.ts'
 
@@ -242,6 +250,56 @@ export const decks = sqliteTable(
 )
 
 /* ------------------------------------------------------------------ */
+/* Player identity                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How a player looks and what they show: 1:1 with the user. Every user has a row, guests included, written with their
+ * default look when the account (or guest) is created. Ids are names from `domain/avatar-parts.ts` and
+ * `domain/achievements.ts`; an id that no longer exists reads as its fallback.
+ */
+export const playerStyle = sqliteTable('player_style', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  /** Avatar slot → part id. */
+  avatar: text('avatar', { mode: 'json' }).$type<Record<string, string>>().notNull(),
+  sleeveColour: text('sleeve_colour').notNull(),
+  banner: text('banner').notNull().default('card-zones'),
+  /** A clothing colour id; null matches the sleeve colour. */
+  bannerColour: text('banner_colour'),
+  /** Partner Pokémon: the catalog card id plus a copy of what is shown, resolved when the player saves. */
+  partnerCardId: text('partner_card_id'),
+  partnerName: text('partner_name'),
+  partnerSetName: text('partner_set_name'),
+  partnerImageUrl: text('partner_image_url'),
+  /** The shown title; null shows none. */
+  titleId: text('title_id'),
+  /** Up to 3 achievement ids, in the order picked; each shows at its best tier. */
+  showcase: text('showcase', { mode: 'json' }).$type<Array<string>>().notNull().default([]),
+  featuredDeckId: text('featured_deck_id').references(() => decks.id, { onDelete: 'set null' }),
+  /** Tiers earned after this are new: the Profile-tab count and NEW tags (ADR 0004). */
+  achievementsSeenAt: integer('achievements_seen_at', { mode: 'timestamp_ms' }).notNull(),
+  ...timestamps,
+})
+
+/** One row per earned tier, rebuilt from history as a whole on each refresh (ADR 0004). */
+export const earnedTiers = sqliteTable(
+  'earned_tiers',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    achievementId: text('achievement_id').notNull(),
+    /** 1-based. */
+    tier: integer('tier').notNull(),
+    /** The finish date of the event that crossed the tier's threshold. */
+    earnedAt: integer('earned_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.achievementId, t.tier] })],
+)
+
+/* ------------------------------------------------------------------ */
 /* Relations                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -284,6 +342,7 @@ export type EventPlayerRow = typeof eventPlayers.$inferSelect
 export type RoundRow = typeof rounds.$inferSelect
 export type MatchRow = typeof matches.$inferSelect
 export type DeckRow = typeof decks.$inferSelect
+export type PlayerStyleRow = typeof playerStyle.$inferSelect
 export type EventFormat = (typeof EVENT_FORMATS)[number]
 export type EventStatus = (typeof EVENT_STATUSES)[number]
 export type MatchOutcome = (typeof MATCH_OUTCOMES)[number]

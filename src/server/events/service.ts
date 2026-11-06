@@ -9,6 +9,7 @@ import {
   nextBracketRound,
   type BracketPairing,
 } from '#/domain/bracket.ts'
+import { defaultLook } from '#/domain/avatar-parts.ts'
 import { newId, newJoinCode, normalizeJoinCode } from '#/domain/ids.ts'
 import { allowedCutSizes, mainPhaseRounds, type PairingSystem, type TopCutSize } from '#/domain/event-setup.ts'
 import { bracketPlacements, placedStandings, standingsMatches } from '#/domain/placement.ts'
@@ -27,6 +28,7 @@ import {
   eventPlayers,
   events,
   matches,
+  playerStyle,
   rounds,
   user,
   type EventRow,
@@ -35,6 +37,8 @@ import {
   type MatchRow,
 } from '../db/schema.ts'
 import { Forbidden, InvalidState, NotFound } from '../errors.ts'
+import { AchievementsService } from '../identity/achievements.ts'
+import { insertDefaultStyles, playerRefColumns, toPlayerRef } from '../identity/style.ts'
 import {
   matchStatus,
   type EntrantView,
@@ -94,13 +98,6 @@ const nextRound = (
   draws: Partial<Pick<NextRound, 'schedule' | 'seeds'>> = {},
 ): NextRound => ({ pairings, elimination, schedule: draws.schedule ?? [], seeds: draws.seeds ?? [] })
 
-const playerRefColumns = {
-  id: user.id,
-  name: user.name,
-  username: user.username,
-  image: user.image,
-}
-
 interface ListEventsOptions {
   readonly scope: 'upcoming' | 'live' | 'finished' | 'mine'
   readonly search?: string | undefined
@@ -108,6 +105,7 @@ interface ListEventsOptions {
 
 const make = Effect.gen(function* () {
   const db = yield* Db
+  const achievements = yield* AchievementsService
 
   /* ----------------------------- loaders ----------------------------- */
 
@@ -132,9 +130,10 @@ const make = Effect.gen(function* () {
             d
               .select(playerRefColumns)
               .from(user)
+              .leftJoin(playerStyle, eq(playerStyle.userId, user.id))
               .where(inArray(user.id, [...new Set(ids)])),
           )
-          .pipe(Effect.map((rows) => new Map(rows.map((r) => [r.id, r]))))
+          .pipe(Effect.map((rows) => new Map(rows.map((r) => [r.id, toPlayerRef(r)]))))
 
   /** Reads drops from the players' `droppedAtRound`, in elimination rounds of an event played to `bestOf`. */
   const toMatchView = (
@@ -153,8 +152,7 @@ const make = Effect.gen(function* () {
     reportedById: m.reportedById,
     status: matchStatus(m),
     bracketSlot: m.bracketSlot,
-    dropped:
-      drops.elimination && lostByDrop(m, (id) => drops.droppedAtRound.get(id) ?? null, majority(drops.bestOf)),
+    dropped: drops.elimination && lostByDrop(m, (id) => drops.droppedAtRound.get(id) ?? null, majority(drops.bestOf)),
   })
 
   const summaries = Effect.fn('EventsService.summaries')(function* (rows: ReadonlyArray<EventRow>) {
@@ -250,6 +248,7 @@ const make = Effect.gen(function* () {
             })
             .from(eventPlayers)
             .innerJoin(user, eq(user.id, eventPlayers.userId))
+            .leftJoin(playerStyle, eq(playerStyle.userId, eventPlayers.userId))
             .leftJoin(decks, eq(decks.id, eventPlayers.deckId))
             .where(eq(eventPlayers.eventId, eventId))
             .orderBy(eventPlayers.joinedAt),
@@ -266,9 +265,19 @@ const make = Effect.gen(function* () {
       event.hostId,
       ...matchRows.flatMap((m) => [m.player1Id, m.player2Id ?? m.player1Id]),
     ])
-    for (const e of entries) refs.set(e.id, { id: e.id, name: e.name, username: e.username, image: e.image })
-
-    const players: Array<EntrantView> = entries
+    const players: Array<EntrantView> = entries.map(({ styleAvatar, styleSleeve, styleTitle, ...e }) => ({
+      ...e,
+      ...toPlayerRef({ ...e, styleAvatar, styleSleeve, styleTitle }),
+    }))
+    for (const p of players)
+      refs.set(p.id, {
+        id: p.id,
+        name: p.name,
+        username: p.username,
+        avatar: p.avatar,
+        sleeveColour: p.sleeveColour,
+        title: p.title,
+      })
     const droppedAtRound = new Map(entries.map((e) => [e.id, e.droppedAtRound]))
     const eliminationRounds = new Set(roundRows.filter((r) => r.elimination).map((r) => r.id))
     const matchViews = matchRows.map((m) =>
@@ -481,11 +490,17 @@ const make = Effect.gen(function* () {
       const name = who.name.trim()
       const clash = yield* db.query((d) =>
         d.query.user.findFirst({
-          where: and(eq(user.guestOfId, me.id), eq(user.isGuest, true), eq(sql`lower(${user.name})`, name.toLowerCase())),
+          where: and(
+            eq(user.guestOfId, me.id),
+            eq(user.isGuest, true),
+            eq(sql`lower(${user.name})`, name.toLowerCase()),
+          ),
         }),
       )
       if (clash) {
-        return yield* new InvalidState({ reason: `You already have a guest called ${clash.name}: pick them from the list` })
+        return yield* new InvalidState({
+          reason: `You already have a guest called ${clash.name}: pick them from the list`,
+        })
       }
       const id = newId()
       // Guests never sign in: the address is unroutable (.invalid) and there is no password.
@@ -499,6 +514,7 @@ const make = Effect.gen(function* () {
           claimCode: `${newId()}${newId()}`,
         }),
       )
+      yield* insertDefaultStyles([id], new Date(yield* Clock.currentTimeMillis))
       guest = { id, name }
     }
 
@@ -608,7 +624,10 @@ const make = Effect.gen(function* () {
     const [hosts, [count]] = yield* Effect.all([
       playerRefs(guest.guestOfId ? [guest.guestOfId] : []),
       db.query((d) =>
-        d.select({ n: sql<number>`count(*)` }).from(eventPlayers).where(eq(eventPlayers.userId, guest.id)),
+        d
+          .select({ n: sql<number>`count(*)` })
+          .from(eventPlayers)
+          .where(eq(eventPlayers.userId, guest.id)),
       ),
     ])
     return {
@@ -644,7 +663,10 @@ const make = Effect.gen(function* () {
       })
     }
     const [count] = yield* db.query((d) =>
-      d.select({ n: sql<number>`count(*)` }).from(eventPlayers).where(eq(eventPlayers.userId, guest.id)),
+      d
+        .select({ n: sql<number>`count(*)` })
+        .from(eventPlayers)
+        .where(eq(eventPlayers.userId, guest.id)),
     )
     yield* db.query((d) =>
       d.batch([
@@ -652,9 +674,11 @@ const make = Effect.gen(function* () {
         d.update(matches).set({ player1Id: me.id }).where(eq(matches.player1Id, guest.id)),
         d.update(matches).set({ player2Id: me.id }).where(eq(matches.player2Id, guest.id)),
         d.update(matches).set({ reportedById: me.id }).where(eq(matches.reportedById, guest.id)),
+        // The guest's style row goes with the guest: the account keeps its own look.
         d.delete(user).where(eq(user.id, guest.id)),
       ]),
     )
+    yield* achievements.refresh([me.id])
     return { eventCount: Number(count?.n ?? 0) }
   })
 
@@ -795,7 +819,9 @@ const make = Effect.gen(function* () {
             ...(p.player2Id === null
               ? { outcome: 'bye' as const, player1Games: 2, reportedAt: startedAt, confirmedAt: startedAt }
               : {}),
-            ...('walkover' in p && p.walkover ? { outcome: p.walkover, reportedAt: startedAt, confirmedAt: startedAt } : {}),
+            ...('walkover' in p && p.walkover
+              ? { outcome: p.walkover, reportedAt: startedAt, confirmedAt: startedAt }
+              : {}),
           })),
         ),
         d
@@ -889,7 +915,21 @@ const make = Effect.gen(function* () {
       return yield* new InvalidState({ reason: 'Play the bracket to its final first' })
     }
 
-    const [entries, history] = yield* loadEntriesAndHistory(eventId)
+    const now = new Date(yield* Clock.currentTimeMillis)
+    yield* db.query((d) =>
+      d.batch([
+        d.update(rounds).set({ status: 'finished', finishedAt: now }).where(eq(rounds.eventId, eventId)),
+        d.update(events).set({ status: 'finished', finishedAt: now }).where(eq(events.id, eventId)),
+      ]),
+    )
+    const entrants = yield* storePlacements(event)
+    yield* achievements.refresh([event.hostId, ...entrants])
+  })
+
+  /** Stores each entrant's placement from the event's results; returns the entrants. */
+  const storePlacements = Effect.fn('EventsService.storePlacements')(function* (event: EventRow) {
+    const [entries, history] = yield* loadEntriesAndHistory(event.id)
+    const bracket = eventBracket(event)
     const standings = computeStandings(
       entries.map((e) => e.userId),
       standingsMatches(event, history),
@@ -904,19 +944,16 @@ const make = Effect.gen(function* () {
           standings.map((s) => s.playerId),
         ).placements
       : new Map<string, number>()
-    const now = new Date(yield* Clock.currentTimeMillis)
-    yield* db.query((d) =>
-      d.batch([
-        d.update(rounds).set({ status: 'finished', finishedAt: now }).where(eq(rounds.eventId, eventId)),
-        d.update(events).set({ status: 'finished', finishedAt: now }).where(eq(events.id, eventId)),
-        ...standings.map((s) =>
-          d
-            .update(eventPlayers)
-            .set({ finalRank: placements.get(s.playerId) ?? s.rank })
-            .where(and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.userId, s.playerId))),
-        ),
-      ]),
-    )
+    yield* db.query(async (d) => {
+      const [first, ...rest] = standings.map((s) =>
+        d
+          .update(eventPlayers)
+          .set({ finalRank: placements.get(s.playerId) ?? s.rank })
+          .where(and(eq(eventPlayers.eventId, event.id), eq(eventPlayers.userId, s.playerId))),
+      )
+      if (first) await d.batch([first, ...rest])
+    })
+    return entries.map((e) => e.userId)
   })
 
   const loadMatchForActor = Effect.fn('EventsService.loadMatchForActor')(function* (matchId: string) {
@@ -1008,6 +1045,11 @@ const make = Effect.gen(function* () {
         })
         .where(eq(matches.id, matchId)),
     )
+    // A host's correction on a finished event changes its placements and both players' achievements follow it.
+    if (event.status === 'finished') {
+      const entrants = yield* storePlacements(event)
+      yield* achievements.refresh(entrants)
+    }
     return yield* matchView(matchId, event.bestOf)
   })
 
@@ -1086,7 +1128,7 @@ const make = Effect.gen(function* () {
 export class EventsService extends Context.Service<EventsService, Effect.Success<typeof make>>()(
   'tcgrank/server/events/EventsService',
 ) {
-  static readonly layer = Layer.effect(EventsService, make)
+  static readonly layer = Layer.effect(EventsService, make).pipe(Layer.provide(AchievementsService.layer))
 }
 
-const unknownPlayer = (id: string): PlayerRef => ({ id, name: 'Unknown player', username: null, image: null })
+const unknownPlayer = (id: string): PlayerRef => ({ id, name: 'Unknown player', username: null, ...defaultLook(id) })

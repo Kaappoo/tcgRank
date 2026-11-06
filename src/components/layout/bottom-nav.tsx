@@ -1,5 +1,7 @@
 import { Link, useRouteContext } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { CalendarDays, Layers, QrCode, User } from 'lucide-react'
+import { unseenUnlocksQuery } from '#/lib/queries.ts'
 
 const tab =
   'flex flex-1 flex-col items-center gap-1 py-2 text-[11px] font-semibold text-paper-dim transition-colors data-[status=active]:text-orange [&_svg]:size-5'
@@ -33,7 +35,10 @@ export function BottomNav() {
         </Link>
         {user?.username ? (
           <Link to="/u/$username" params={{ username: user.username }} className={tab}>
-            <User />
+            <span className="relative">
+              <User />
+              <UnseenCount />
+            </span>
             Profile
           </Link>
         ) : (
@@ -44,5 +49,20 @@ export function BottomNav() {
         )}
       </div>
     </nav>
+  )
+}
+
+/** New unlocks not yet seen in the Achievements tab: the only hint while a player is busy. */
+export function UnseenCount() {
+  const { data } = useQuery(unseenUnlocksQuery)
+  const count = data?.unlocks.length ?? 0
+  if (count === 0) return null
+  return (
+    <span
+      aria-label={`${count} new unlocks`}
+      className="absolute -top-1.5 -right-2.5 grid min-w-4 place-items-center rounded-full bg-orange px-1 font-numerals text-[11px] leading-4 text-on-orange"
+    >
+      {count}
+    </span>
   )
 }

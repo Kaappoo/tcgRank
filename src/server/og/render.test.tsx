@@ -1,5 +1,7 @@
 import { describe, expect, it } from '@effect/vitest'
+import { BANNERS, defaultAvatar } from '#/domain/avatar-parts.ts'
 import { eventCard } from './event-card.ts'
+import { PlayerOgCard } from './player-card.tsx'
 import { OgFrame, OgStat, OG_HEIGHT, OG_WIDTH, renderOgImage } from './render.tsx'
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47]
@@ -63,5 +65,50 @@ describe('eventCard', () => {
     const finished = { ...event, status: 'finished', currentRound: 5 } as const
     expect(eventCard({ event: finished, standings }).champion).toBe('Ash')
     expect(eventCard({ event, standings }).champion).toBeNull()
+  })
+})
+
+describe('the player share image', () => {
+  const base = {
+    name: 'Ash Ketchum',
+    username: 'ash',
+    avatar: defaultAvatar('ash'),
+    title: null,
+    sleeveColour: 'teal',
+    banner: 'card-zones',
+    bannerColour: null,
+    badges: [],
+    record: '0-0-0',
+    summary: '0 events · 0%',
+  } as const
+
+  it.each([
+    ['only the defaults', base],
+    [
+      'every identity piece',
+      {
+        ...base,
+        avatar: {
+          ...defaultAvatar('ash'),
+          hat: 'champion-cap',
+          top: 'topcut-jacket',
+          accessory: 'league-pin',
+          hair: 'long',
+        },
+        title: 'champion',
+        banner: 'champion-slab',
+        badges: [
+          { achievement: 'champion', tier: 4 },
+          { achievement: 'regular', tier: 2 },
+          { achievement: 'undefeated', tier: 1 },
+        ],
+        record: '58-31-7',
+      },
+    ],
+    ...BANNERS.map((b) => [`the ${b.name} banner`, { ...base, banner: b.id }] as const),
+  ] as const)('renders a player with %s through satori', async (_, player) => {
+    const png = await renderOgImage(<PlayerOgCard player={player} />)
+    expect([...png.subarray(0, 4)]).toEqual(PNG_SIGNATURE)
+    expect(png.readUInt32BE(16)).toBe(OG_WIDTH)
   })
 })

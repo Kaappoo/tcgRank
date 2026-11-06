@@ -1,8 +1,9 @@
-import { Effect, Layer } from 'effect'
+import { Clock, Effect, Layer } from 'effect'
 import { newId } from '#/domain/ids.ts'
 import { CurrentUser, type SessionUser } from './current-user.ts'
 import { Db } from './db/client.ts'
 import { user } from './db/schema.ts'
+import { insertDefaultStyles } from './identity/style.ts'
 
 /** Inserts a user row straight into the test database. */
 export const insertUser = Effect.fn('testing.insertUser')(function* (name: string) {
@@ -12,9 +13,10 @@ export const insertUser = Effect.fn('testing.insertUser')(function* (name: strin
     name,
     email: `${name.toLowerCase().replace(/\W/g, '')}-${newId()}@example.test`,
     username: `${name.toLowerCase().replace(/\W/g, '')}_${newId().slice(0, 4)}`,
-    image: null,
   }
   yield* db.query((d) => d.insert(user).values(row))
+  // As account creation does (the auth hook): every user has a stored default style.
+  yield* insertDefaultStyles([row.id], new Date(yield* Clock.currentTimeMillis))
   return row
 })
 

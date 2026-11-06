@@ -29,7 +29,6 @@
 | Backend logic | Effect 4 services, typed errors, `ManagedRuntime` bridge to server functions |
 | Data | Drizzle ORM on Turso / libSQL (`file:local.db` locally) |
 | Auth | better-auth: email + password, username, magic link (via Resend) |
-| Uploads | UploadThing (avatars, deck covers) |
 | Share images | satori + sharp (`/api/og/*`) |
 | Validation | Zod 4 for user input (forms + server functions), Effect Schema for domain models |
 | Offline | Serwist service worker |
@@ -44,14 +43,14 @@
 ```bash
 pnpm install
 cp .env.example .env            # set BETTER_AUTH_SECRET at minimum
-pnpm tsx scripts/migrate.ts     # create local.db
+pnpm tsx scripts/migrate.ts     # create local.db (and backfill avatars and achievements)
 pnpm db:seed                    # optional: demo store, 9 players, an event per pairing system
 pnpm dev                        # http://localhost:3000
 ```
 
 Seeded accounts: `oak` (host), `ash`, `misty`, `brock`, … — password `pallet-town-1`.
 
-Without `RESEND_API_KEY` emails are logged to the console; without `UPLOADTHING_TOKEN` image uploads are disabled; without `CARD_CATALOG_URL` decks are saved without card art (run `pnpm tsx scripts/backfill-card-images.ts` once it is set). For production point `DATABASE_URL` / `DATABASE_AUTH_TOKEN` at Turso and set `APP_URL` so QR codes and share images use your domain. On Vercel, `pnpm vercel-build` applies pending migrations before building, on production deploys only (previews skip them).
+Without `RESEND_API_KEY` emails are logged to the console; without `CARD_CATALOG_URL` decks are saved without card art (run `pnpm tsx scripts/backfill-card-images.ts` once it is set) and the partner Pokémon search says the catalog is unreachable. `scripts/migrate.ts` also backfills player identity (default avatars and achievements from history) for users who don't have it yet. Uploaded profile photos are gone: run `pnpm tsx scripts/delete-uploaded-photos.ts` once with the old `UPLOADTHING_TOKEN` to delete the stored files. For production point `DATABASE_URL` / `DATABASE_AUTH_TOKEN` at Turso and set `APP_URL` so QR codes and share images use your domain. On Vercel, `pnpm vercel-build` applies pending migrations before building, on production deploys only (previews skip them).
 
 ## Scripts
 
@@ -75,7 +74,7 @@ src/
   domain/        pure rules: standings, swiss, match-clock, deck-list, ids (+ tests)
   server/        Effect services (events, decks, profiles), db, auth, email, og, functions/
   shared/        Zod schemas used by forms and server functions
-  routes/        file routes; api/ for auth, uploadthing, og images
+  routes/        file routes; api/ for auth, og images
   components/    ui/ primitives (Base UI) and feature components (+ stories, tests)
   sw.ts          Serwist service worker
 e2e/             Playwright specs

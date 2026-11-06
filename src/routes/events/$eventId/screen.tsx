@@ -2,6 +2,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { BracketScreen } from '#/components/events/bracket-screen.tsx'
 import { QrCode } from '#/components/events/join-qr.tsx'
+import { StorePairings } from '#/components/events/store-pairings.tsx'
 import { joinUrl } from '#/lib/join.ts'
 import { MatchClock } from '#/components/events/match-clock.tsx'
 import { Logo } from '#/components/layout/logo.tsx'
@@ -60,16 +61,6 @@ function StoreScreen() {
     )
   }
 
-  const seats = matches
-    .filter((m) => m.roundNumber === event.currentRound)
-    .flatMap((m) => [
-      { name: m.player1.name, table: m.table, opponent: m.player2?.name ?? 'Bye', done: m.status === 'confirmed' },
-      ...(m.player2
-        ? [{ name: m.player2.name, table: m.table, opponent: m.player1.name, done: m.status === 'confirmed' }]
-        : []),
-    ])
-    .sort((a, b) => a.name.localeCompare(b.name))
-
   return (
     <div className="fixed inset-0 z-50 grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-10 overflow-hidden bg-ink p-10">
       <aside className="flex flex-col gap-8">
@@ -96,20 +87,7 @@ function StoreScreen() {
         <h2 className="mb-4 font-display text-3xl">
           {event.currentRound > 0 ? `Round ${event.currentRound} pairings` : `${event.playerCount} players registered`}
         </h2>
-        <ol className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 content-start gap-x-8 gap-y-1 overflow-hidden text-xl">
-          {seats.map((s) => (
-            <li
-              key={`${s.table}-${s.name}`}
-              className={`grid grid-cols-[1fr_auto] items-baseline gap-4 border-b border-line py-2 ${s.done ? 'text-paper-dim' : ''}`}
-            >
-              <span className="truncate">
-                <span className="font-semibold">{s.name}</span>
-                <span className="text-base text-paper-dim"> vs {s.opponent}</span>
-              </span>
-              <span className="font-numerals text-3xl text-orange">{s.table}</span>
-            </li>
-          ))}
-        </ol>
+        <StorePairings matches={matches.filter((m) => m.roundNumber === event.currentRound)} />
       </section>
     </div>
   )

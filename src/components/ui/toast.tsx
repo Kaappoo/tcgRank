@@ -12,6 +12,22 @@ export const toast = {
     toastManager.add({ title, description, type: tone }),
   success: (title: string, description?: string) => toastManager.add({ title, description, type: 'success' }),
   error: (title: string, description?: string) => toastManager.add({ title, description, type: 'error' }),
+  /** A toast with an Undo button, for a change that has already happened. */
+  undo: (title: string, onUndo: () => void) => {
+    const id: string = toastManager.add({
+      title,
+      type: 'default',
+      timeout: 6000,
+      actionProps: {
+        children: 'Undo',
+        onClick: () => {
+          onUndo()
+          toastManager.close(id)
+        },
+      },
+    })
+    return id
+  },
 }
 
 export function Toaster({ children }: { children: ReactNode }) {
@@ -52,6 +68,7 @@ function ToastList() {
           <Toast.Title className="text-sm font-bold" />
           <Toast.Description className="text-sm text-paper-dim" />
         </div>
+        <Toast.Action className="cursor-pointer rounded-md border border-line-strong px-2.5 py-1 text-sm font-semibold text-paper hover:border-orange hover:text-orange" />
         <Toast.Close aria-label="Dismiss" className="cursor-pointer rounded p-1 text-paper-dim hover:text-paper">
           <X className="size-4" />
         </Toast.Close>

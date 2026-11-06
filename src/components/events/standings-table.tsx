@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Fragment } from 'react'
+import { TitleChip } from '#/components/identity/title-chip.tsx'
 import { Avatar } from '#/components/ui/avatar.tsx'
 import { Badge } from '#/components/ui/badge.tsx'
 import { formatPercentage, formatRecord, type Tiebreakers } from '#/domain/standings.ts'
@@ -86,7 +87,7 @@ export function StandingsTable({
                 </td>
                 <td className="px-2 py-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <Avatar name={s.player.name} src={s.player.image} size="sm" />
+                    <Avatar avatar={s.player.avatar} size={32} />
                     {s.player.username ? (
                       <Link
                         to="/u/$username"
@@ -98,6 +99,7 @@ export function StandingsTable({
                     ) : (
                       <span className="truncate font-semibold">{s.player.name}</span>
                     )}
+                    <TitleChip title={s.player.title} />
                     {s.playerId === highlightId ? <Badge variant="live">You</Badge> : null}
                     {cut > 0 && s.stage ? <Badge variant="outline">{s.stage}</Badge> : null}
                     {s.dropped ? <Badge variant="muted">Dropped</Badge> : null}
