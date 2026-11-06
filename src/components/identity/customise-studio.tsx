@@ -1,8 +1,10 @@
 import { useDebouncedValue } from '@tanstack/react-pacer'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
-import { Lock, RotateCcw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Lock, RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Button } from '#/components/ui/button.tsx'
+import { Dialog, DialogClose, DialogContent, DialogTrigger } from '#/components/ui/dialog.tsx'
 import { SubmitButton } from '#/components/ui/submit-button.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import { toast } from '#/components/ui/toast.tsx'
@@ -156,9 +158,9 @@ function Swatches({
 }
 
 /**
- * The customise studio: the trainer-card preview fixed at the top, a strip of slots with Reset all at its end, and
- * only the selected slot's options below, each a thumbnail of the player's own avatar wearing it. The draft is kept
- * on the phone; Done hands it to `onDone`.
+ * The customise studio: the trainer-card preview fixed at the top, a strip of slots, and only the selected slot's
+ * options below, each a thumbnail of the player's own avatar wearing it. The draft is kept on the phone; Done hands
+ * it to `onDone`, and Reset all (behind a confirmation) sits beside it.
  */
 export function CustomiseStudio({
   editor,
@@ -213,13 +215,6 @@ export function CustomiseStudio({
 
   const partOptions = (part: AvatarSlot) => (
     <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-      <Option
-        label="Default"
-        pressed={draft.avatar[part] === editor.defaultAvatar[part]}
-        onPick={() => setPart(part, editor.defaultAvatar[part])}
-      >
-        <AvatarArt avatar={{ ...draft.avatar, [part]: editor.defaultAvatar[part] }} size={56} />
-      </Option>
       {AVATAR_PARTS[part].map((p: AvatarPart) => {
         const locked = Boolean(p.trophy && !earnedTrophies.has(p.trophy))
         return (
@@ -502,32 +497,7 @@ export function CustomiseStudio({
         </div>
       </section>
 
-      <nav
-        aria-label="Slots"
-        className="-mx-4 flex gap-1.5 overflow-x-auto px-4 py-3 [scrollbar-width:none] sm:mx-0 sm:px-0"
-      >
-        {STUDIO_SLOTS.map((s) => (
-          <button
-            key={s.key}
-            type="button"
-            aria-pressed={slot === s.key}
-            onClick={() => setSlot(s.key)}
-            className={cn(
-              'min-h-9 shrink-0 cursor-pointer rounded-full border border-line bg-surface px-3 text-sm font-semibold whitespace-nowrap',
-              slot === s.key && 'border-paper bg-paper text-ink',
-            )}
-          >
-            {s.label}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={resetAll}
-          className="inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3 text-sm font-semibold whitespace-nowrap text-paper-dim hover:text-paper"
-        >
-          <RotateCcw className="size-3.5" /> Reset all
-        </button>
-      </nav>
+      <SlotStrip slot={slot} onPick={setSlot} />
 
       <section aria-label={STUDIO_SLOTS.find((s) => s.key === slot)!.label} className="flex flex-col gap-5 pb-28">
         {panels[slot]()}
@@ -536,12 +506,121 @@ export function CustomiseStudio({
       <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 border-t border-line bg-surface-raised px-4 py-3 sm:bottom-0">
         <div className="mx-auto flex max-w-3xl items-center justify-end gap-3">
           <p className="mr-auto text-xs text-paper-dim">Changes stay on this phone until you tap Done.</p>
+          <ResetAll onConfirm={resetAll} />
           <SubmitButton size="lg" disabled={saving}>
             {saving ? 'Saving…' : 'Done'}
           </SubmitButton>
         </div>
       </div>
     </form>
+  )
+}
+
+/**
+ * The slot chips. Phones scroll them sideways, with a fade and an arrow on whichever side has more; wider screens
+ * wrap them onto a second row so nothing is hidden. The picked chip is scrolled into view.
+ */
+function SlotStrip({ slot, onPick }: { slot: StudioSlot; onPick: (slot: StudioSlot) => void }) {
+  const strip = useRef<HTMLDivElement>(null)
+  const [more, setMore] = useState({ left: false, right: false })
+
+  useEffect(() => {
+    const el = strip.current
+    if (!el) return
+    const measure = () =>
+      setMore({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 })
+    measure()
+    el.addEventListener('scroll', measure, { passive: true })
+    window.addEventListener('resize', measure)
+    return () => {
+      el.removeEventListener('scroll', measure)
+      window.removeEventListener('resize', measure)
+    }
+  }, [])
+
+  useEffect(() => {
+    strip.current
+      ?.querySelector<HTMLElement>('[aria-pressed="true"]')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+  }, [slot])
+
+  const page = (direction: 1 | -1) =>
+    strip.current?.scrollBy({ left: direction * strip.current.clientWidth * 0.7, behavior: 'smooth' })
+
+  const arrow =
+    'absolute top-1/2 z-10 grid size-9 -translate-y-1/2 cursor-pointer place-items-center rounded-full border border-line bg-surface-raised text-paper shadow-[0_4px_12px_rgb(0_0_0/0.4)] sm:hidden'
+
+  return (
+    <nav aria-label="Slots" className="relative -mx-4 sm:mx-0">
+      <div
+        ref={strip}
+        className={cn(
+          'flex gap-1.5 overflow-x-auto scroll-px-12 px-4 py-3 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:px-0',
+          more.left && more.right
+            ? 'mask-x-from-85% mask-x-to-100% sm:mask-none'
+            : more.right
+              ? 'mask-r-from-85% mask-r-to-100% sm:mask-none'
+              : more.left
+                ? 'mask-l-from-85% mask-l-to-100% sm:mask-none'
+                : null,
+        )}
+      >
+        {STUDIO_SLOTS.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            aria-pressed={slot === s.key}
+            onClick={() => onPick(s.key)}
+            className={cn(
+              'min-h-9 shrink-0 cursor-pointer rounded-full border border-line bg-surface px-3 text-sm font-semibold whitespace-nowrap',
+              slot === s.key && 'border-paper bg-paper text-ink',
+            )}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+      {more.left ? (
+        <button type="button" aria-label="Earlier slots" onClick={() => page(-1)} className={cn(arrow, 'left-2')}>
+          <ChevronLeft className="size-4" />
+        </button>
+      ) : null}
+      {more.right ? (
+        <button type="button" aria-label="More slots" onClick={() => page(1)} className={cn(arrow, 'right-2')}>
+          <ChevronRight className="size-4" />
+        </button>
+      ) : null}
+    </nav>
+  )
+}
+
+/** Puts the avatar back to the player's default, after asking. */
+function ResetAll({ onConfirm }: { onConfirm: () => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button type="button" variant="ghost" size="lg" />}>
+        <RotateCcw /> Reset all
+      </DialogTrigger>
+      <DialogContent
+        title="Reset your avatar?"
+        description="Skin, hair, face, clothes, hat and accessory all go back to your default look. Sleeve colour, banner, partner, title, badges and deck stay as they are."
+      >
+        <div className="flex justify-end gap-2">
+          <DialogClose render={<Button type="button" variant="ghost" />}>Keep it</DialogClose>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => {
+              onConfirm()
+              setOpen(false)
+            }}
+          >
+            Reset avatar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
