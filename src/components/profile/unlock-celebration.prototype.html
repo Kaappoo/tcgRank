@@ -1,0 +1,543 @@
+<title>Unlock Celebration Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap">
+<!--
+  PROTOTYPE — throwaway. Answers "Unlock celebration" (map: Player identity, #52 / ticket #61).
+  Three variants of how a player learns they earned a badge, title or trophy item, each shown across four scenes:
+  the event finishing (several unlocks), the one-time launch welcome, the persistent hint, and a single trophy item with "Wear it".
+  Switch variants with the bottom bar, ← →, or #sheet / #stamp / #inline. Scenes are the tabs above the phone.
+-->
+<style>
+  :root {
+    --ink: #0d0e12; --surface: #15161b; --surface-raised: #1e1f25; --line: #2c2d35;
+    --paper: #f4efe8; --paper-dim: #b3ada5; --orange: #f06a2a; --on-orange: #1a120c; --gold: #e2b33c; --win: #3fa66b;
+    --font: 'Archivo', 'Arial Narrow', system-ui, sans-serif; color-scheme: dark;
+    --expo: cubic-bezier(.16, 1, .3, 1);
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--ink); color: var(--paper); font-family: var(--font); font-size: 15px; line-height: 1.4; margin: 0; }
+  button { font: inherit; color: inherit; }
+  .page { max-width: 1040px; margin: 0 auto; padding-block: 20px 120px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+  .display { font-stretch: 125%; font-weight: 850; letter-spacing: -0.01em; }
+  .num { font-stretch: 72%; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .dim { color: var(--paper-dim); }
+  .intro h1 { margin: 0; font-size: clamp(26px, 5vw, 38px); }
+  .intro p { color: var(--paper-dim); max-width: 66ch; margin: 6px 0 0; }
+  .layout { display: grid; grid-template-columns: 390px minmax(0, 1fr); gap: 32px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .scenes { display: flex; gap: 6px; flex-wrap: wrap; }
+  .scenes button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .scenes button[aria-pressed="true"] { background: var(--paper); color: var(--ink); border-color: var(--paper); }
+  .tools { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--paper-dim); }
+  .tools label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .linkbtn { background: none; border: 0; color: var(--orange); cursor: pointer; padding: 0; font-weight: 700; }
+
+  /* phone */
+  .phone { position: relative; width: 100%; max-width: 390px; height: 720px; border: 1px solid var(--line); border-radius: 28px; overflow: hidden; background: var(--ink); isolation: isolate; }
+  .app { position: absolute; inset: 0; overflow-y: auto; padding-bottom: 72px; }
+  .hdr { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--ink); z-index: 2; }
+  .wordmark { font-size: 18px; }
+  .wordmark b { color: var(--orange); }
+  .me-btn { position: relative; border: 0; background: none; padding: 0; cursor: pointer; display: inline-grid; }
+  .dot { position: absolute; top: -1px; right: -1px; width: 11px; height: 11px; border-radius: 50%; background: var(--orange); border: 2px solid var(--ink); }
+  .content { padding: 16px; display: grid; gap: 16px; }
+  .panel { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 14px; }
+  .label { font-size: 12px; font-weight: 700; color: var(--paper-dim); margin: 0; }
+  .btn { border: 1px solid var(--line); background: var(--surface-raised); border-radius: 10px; padding: 10px 14px; font-weight: 700; cursor: pointer; position: relative; transition: transform .12s; min-height: 44px; }
+  .btn:active { transform: scale(.97); }
+  .btn.primary { background: var(--orange); color: var(--on-orange); border-color: var(--orange); }
+  .btn.ghost { background: none; }
+  .btn .dot { top: -4px; right: -4px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  .stand-row { display: grid; grid-template-columns: 28px 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .stand-row:last-child { border-bottom: 0; }
+  .stand-row.me { background: var(--surface-raised); margin: 0 -14px; padding: 8px 14px; }
+  .stand-row .r { font-size: 20px; color: var(--paper-dim); }
+  .stand-row.me .r { color: var(--orange); }
+  .chip { display: inline-flex; border: 1px solid var(--gold); color: var(--gold); border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .tabbar { position: absolute; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); background: var(--ink); z-index: 3; }
+  .tabbar button { background: none; border: 0; padding: 10px 0 14px; font-size: 11px; font-weight: 700; color: var(--paper-dim); position: relative; cursor: pointer; }
+  .tabbar button.on { color: var(--paper); }
+  .tabbar .dot { top: 6px; right: calc(50% - 22px); }
+  .new-tag { font-size: 10px; font-weight: 800; color: var(--on-orange); background: var(--orange); border-radius: 4px; padding: 1px 5px; letter-spacing: .04em; }
+  .item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+  .item b { display: block; }
+  .item small { color: var(--paper-dim); font-size: 12px; }
+  .badge-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 2px; }
+  .badge-strip figure { margin: 0; display: grid; justify-items: center; gap: 4px; width: 68px; flex: none; font-size: 11px; color: var(--paper-dim); text-align: center; }
+
+  /* A: bottom sheet */
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.6); z-index: 5; animation: fade .2s ease-out; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 1px solid var(--line); border-radius: 20px 20px 0 0; padding: 10px 16px 18px; display: grid; gap: 14px; max-height: 88%; overflow-y: auto; animation: rise .42s var(--expo); }
+  .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); justify-self: center; }
+  .sheet h2 { margin: 0; font-size: 24px; }
+  .sheet-list { display: grid; gap: 10px; }
+  .sheet-list > div { border-top: 1px solid var(--line); padding-top: 10px; }
+  .wear { display: grid; grid-template-columns: 64px minmax(0,1fr) auto; gap: 12px; align-items: center; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+
+  /* B: full-screen stamp */
+  .stage { position: absolute; inset: 0; z-index: 6; background: var(--ink); display: grid; grid-template-rows: auto 1fr auto; padding: 18px 16px 22px; cursor: pointer; animation: fade .18s ease-out; }
+  .stage .top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--paper-dim); }
+  .stage .center { display: grid; place-items: center; align-content: center; gap: 14px; text-align: center; }
+  .stamp-slab { position: relative; display: grid; place-items: center; padding: 22px 34px; }
+  .stamp-slab::before { content: ''; position: absolute; inset: 0; background: var(--orange); transform: skewX(-12deg); border-radius: 8px; animation: wipe .72s var(--expo) both; }
+  .stamp-slab > * { position: relative; }
+  .stamp-in { animation: stamp .5s .32s var(--expo) both; }
+  .stage h2 { margin: 0; font-size: 30px; line-height: 1.05; }
+  .pips { display: flex; gap: 6px; justify-content: center; }
+  .pips i { width: 22px; height: 4px; border-radius: 2px; background: var(--line); }
+  .pips i.on { background: var(--paper); }
+  .count { font-size: 120px; line-height: .8; color: var(--orange); }
+
+  /* C: inline */
+  .earned { border: 1px solid var(--orange); border-radius: 14px; background: var(--surface); padding: 14px; display: grid; gap: 12px; animation: grow .42s var(--expo); }
+  .earned-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .earned .badge-strip figure { animation: pop .36s var(--expo) both; }
+  .banner-card { border: 1px solid var(--line); border-left: 4px solid var(--orange); border-radius: 12px; background: var(--surface); padding: 12px 14px; display: grid; gap: 8px; }
+
+  @keyframes fade { from { opacity: 0 } }
+  @keyframes rise { from { transform: translateY(100%) } }
+  @keyframes wipe { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
+  @keyframes stamp { from { transform: scale(1.35); opacity: 0 } }
+  @keyframes pop { from { transform: translateY(8px); opacity: 0 } }
+  @keyframes grow { from { opacity: 0; transform: translateY(-6px) } }
+  .reduce *, .reduce *::before { animation-name: fade !important; animation-duration: .2s !important; transform: none !important; }
+  .reduce .stamp-slab::before { transform: skewX(-12deg) !important; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before { animation-name: fade !important; animation-duration: .2s !important; }
+  }
+
+  .notes { display: grid; gap: 14px; }
+  .notes h2 { margin: 0; font-size: 22px; }
+  .notes p { margin: 0; color: var(--paper-dim); max-width: 60ch; }
+  .notes ul { margin: 0; padding-left: 18px; color: var(--paper-dim); display: grid; gap: 6px; max-width: 60ch; }
+  .notes b { color: var(--paper); }
+  .log { font-family: ui-monospace, monospace; font-size: 12px; color: var(--paper-dim); border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; }
+
+  .switcher { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 4px; background: #fff; color: #111; border-radius: 999px; padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.5); z-index: 20; font-family: system-ui, sans-serif; font-size: 13px; max-width: calc(100vw - 32px); }
+  .switcher button { border: 0; background: #eee; border-radius: 999px; width: 34px; height: 34px; cursor: pointer; font-size: 16px; color: #111; }
+  .switcher .lbl { padding: 0 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+
+<main class="page">
+  <header class="intro">
+    <h1 class="display">Unlock celebration</h1>
+    <p>Three ways a player finds out they earned a badge, title or trophy item. Each variant runs through the same four scenes. Tap inside the phone: dismiss, "Wear it" and the hint all work. Switch variants with the bar at the bottom.</p>
+  </header>
+  <div class="scenes" id="scenes" role="group" aria-label="Scene"></div>
+  <div class="layout">
+    <div style="display:grid;gap:10px">
+      <div class="phone" id="phone"></div>
+      <div class="tools"><button class="linkbtn" id="replay">Replay scene</button><label><input type="checkbox" id="rm"> Reduced motion</label></div>
+    </div>
+    <section class="notes" id="notes"></section>
+  </div>
+</main>
+<div class="switcher" role="toolbar" aria-label="Prototype variant"><button id="prev" aria-label="Previous variant">←</button><span class="lbl" id="vlabel"></span><button id="next" aria-label="Next variant">→</button></div>
+
+<script>
+const SKIN = ['#F7DCC8', '#EBBF9C', '#D49C70', '#AE7449', '#7D4B2C', '#4F2F1D']
+const HAIR = ['#17181B', '#4A2E1E', '#8A5A2B', '#D9A441', '#CFC8BE', '#B5452F', '#3E5DA8']
+const CLOTH = ['#EDE8E0', '#2B2E36', '#3F6FB6', '#C23B3B', '#2F8F5B', '#E2B33C', '#7A4FB0', '#2C8C99']
+const INK = '#14151a'
+const GOLD = '#E2B33C'
+
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16)
+  const f = (c) => Math.max(0, Math.min(255, Math.round(c + (amt < 0 ? c * amt : (255 - c) * amt))))
+  const r = f(n >> 16), g = f((n >> 8) & 255), b = f(n & 255)
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)
+}
+// ---------- parts ----------
+// Each part returns { back, front } SVG strings. `s(d, fill)` draws a filled shape (outlined in the sticker direction).
+// Hair is a full volume around the skull (not painted on): crown ~16 units above the head, sides past the temples.
+const VOL = 'M48 102C42 50 68 32 100 32C132 32 158 50 152 102C148 86 142 76 132 70C118 75 82 75 68 70C58 76 52 86 48 102Z'
+const HAIRS = {
+  bald: { name: 'Bald', draw: () => ({}) },
+  short: { name: 'Short', draw: (c, s) => ({ front: s(VOL, c) }) },
+  spiky: { name: 'Spiky', draw: (c, s) => ({ front: s('M50 70L56 34L72 44L76 18L92 36L100 12L110 36L126 18L130 44L146 34L150 70Z', c) + s(VOL, c) }) },
+  long: { name: 'Long', draw: (c, s) => ({ back: s('M46 100C40 46 68 30 100 30C132 30 160 46 154 100L160 168L40 168Z', shade(c, -0.18)), front: s('M48 104C42 50 68 32 100 32C132 32 158 50 152 104C146 84 132 70 112 64C100 74 76 76 60 74C54 82 50 92 48 104Z', c) }) },
+  curly: { name: 'Curly', draw: (c, s) => ({ front: [[50, 92], [52, 70], [64, 50], [82, 36], [100, 32], [118, 36], [136, 50], [148, 70], [150, 92]].map(([x, y]) => s(`M${x - 17} ${y}a17 17 0 1 0 34 0a17 17 0 1 0 -34 0Z`, c)).join('') + s(VOL, c) }) },
+  ponytail: { name: 'Ponytail', draw: (c, s) => ({ back: s('M140 64C172 70 176 124 156 156C152 128 148 104 132 86Z', shade(c, -0.12)), front: s(VOL, c) }) },
+  buzz: { name: 'Buzz', draw: (c, s) => ({ front: s('M52 96C48 54 72 40 100 40C128 40 152 54 148 96C142 80 126 70 100 70C74 70 58 80 52 96Z', shade(c, 0.12)) }) },
+}
+
+const TOPS = {
+  tee: { name: 'Tee', draw: (c, s, skin) => ({ body: s(BODY, c) + s('M86 146Q100 164 114 146Z', skin) }) },
+  hoodie: { name: 'Hoodie', draw: (c, s) => ({ behind: s('M58 166C56 128 76 120 100 120C124 120 144 128 142 166Z', shade(c, -0.25)), body: s(BODY, c) + `<path d="M93 156V182M107 156V182" stroke="${shade(c, 0.6)}" stroke-width="3" stroke-linecap="round"/>` }) },
+  jacket: { name: 'Track jacket', draw: (c, s) => ({ body: s(BODY, c) + s('M86 148L100 196L114 148Z', CLOTH[0]) + s('M86 148L100 196L76 160Z', shade(c, -0.2)) + s('M114 148L100 196L124 160Z', shade(c, -0.2)) + `<path d="M40 178L60 162M160 178L140 162" stroke="${CLOTH[0]}" stroke-width="4"/>` }) },
+  jersey: { name: 'Jersey', draw: (c, s) => ({ body: s(BODY, c) + `<rect x="30" y="172" width="140" height="10" fill="${shade(c, 0.55)}"/>` + s('M86 146Q100 162 114 146Z', shade(c, -0.25)) }) },
+  topcut: { name: 'Top-cut jacket', trophy: 'Make a top cut', draw: (c, s) => ({ body: s(BODY, CLOTH[1]) + s('M86 148L100 196L114 148Z', GOLD) + `<path d="M38 182L62 160M162 182L138 160" stroke="${GOLD}" stroke-width="6"/>` }) },
+}
+const BODY = 'M30 212C30 168 60 148 100 148C140 148 170 168 170 212Z'
+
+// Crowns are wider and taller than any hair volume, so hair never pokes through the top; `covers` hats clip hair above the brim.
+const CROWN = 'M48 90C48 40 72 22 100 22C128 22 152 40 152 90Z'
+const PANEL = 'M76 90C76 48 86 28 100 28C114 28 124 48 124 90Z'
+const BRIM = 'M40 90Q100 77 160 90Q164 102 100 100Q36 102 40 90Z'
+const VBRIM = 'M40 84Q100 71 160 84Q164 96 100 94Q36 96 40 84Z'
+const HATS = {
+  none: { name: 'None', draw: () => '' },
+  trainer: { name: 'Trainer cap', covers: true, draw: (c, c2, s) => s(CROWN, c) + s(PANEL, c2) + s('M91 66L100 56L109 66L104.5 66L100 61L95.5 66Z', c) + s(BRIM, shade(c, -0.25)) },
+  backwards: { name: 'Backwards cap', covers: true, draw: (c, c2, s) => s(CROWN, c) + s('M78 76H122V88H78Z', shade(c, -0.3)) + `<circle cx="89" cy="82" r="2.2" fill="${c2}"/><circle cx="100" cy="82" r="2.2" fill="${c2}"/><circle cx="111" cy="82" r="2.2" fill="${c2}"/>` },
+  beanie: { name: 'Beanie', covers: true, draw: (c, c2, s) => s('M100 8a13 13 0 1 0 0.1 0Z', c2) + s('M50 84C50 36 74 22 100 22C126 22 150 36 150 84Z', c) + s('M44 72H156V94H44Z', shade(c, -0.2)) },
+  visor: { name: 'Visor', draw: (c, c2, s) => s('M48 70H152V84H48Z', c) + s(VBRIM, c2) },
+  bucket: { name: 'Bucket hat', covers: true, draw: (c, c2, s) => s('M54 82C54 34 78 22 100 22C122 22 146 34 146 82Z', c) + s('M54 70H146V82H54Z', c2) + s('M28 98L54 78H146L172 98Q100 108 28 98Z', shade(c, -0.2)) },
+  headband: { name: 'Headband', draw: (c, c2, s) => s('M48 68H152V82H48Z', c) + s('M150 70L172 60L170 82Z', c2) },
+  champion: { name: 'Champion cap', trophy: 'Win an event', covers: true, draw: (c, c2, s) => s(CROWN, c) + s(PANEL, GOLD) + s('M100 44L104.5 55L116 55L107 62L110.5 74L100 67L89.5 74L93 62L84 55L95.5 55Z', c) + s(BRIM, GOLD) },
+  cupvisor: { name: 'Cup visor', trophy: 'Top 8 at a League Cup', draw: (c, c2, s) => s('M48 70H152V84H48Z', c) + s(VBRIM, GOLD) },
+}
+
+const ACCS = {
+  none: { name: 'None', draw: () => ({}) },
+  glasses: { name: 'Glasses', draw: () => ({ face: `<g fill="none" stroke="${INK}" stroke-width="3.5"><rect x="72" y="88" width="22" height="16" rx="5"/><rect x="106" y="88" width="22" height="16" rx="5"/><path d="M94 95H106"/></g>` }) },
+  plaster: { name: 'Plaster', draw: (s) => ({ face: s('M114 112l14-6l3 6l-14 6Z', CLOTH[0]) }) },
+  straps: { name: 'Backpack', draw: (s) => ({ over: s('M58 156L70 152L76 212L62 212Z', '#5b4634') + s('M142 156L130 152L124 212L138 212Z', '#5b4634') }) },
+  pin: { name: 'League pin', trophy: 'Play 10 events', draw: (s) => ({ over: s('M128 170a8 8 0 1 0 0.1 0Z', GOLD) }) },
+}
+
+function avatarSVG(cfg, variant, size) {
+  const id = 'a' + (uid++)
+  const outline = variant === 'sticker'
+  const angular = variant === 'tile'
+  const s = (d, fill) => `<path d="${d}" fill="${fill}"${outline ? ` stroke="${INK}" stroke-width="4.5" stroke-linejoin="round"` : ''}/>`
+  const skin = SKIN[cfg.skin]
+  const hairC = HAIR[cfg.hairColour]
+  const hair = HAIRS[cfg.hair].draw(hairC, s)
+  const top = TOPS[cfg.top].draw(CLOTH[cfg.topColour], s, skin)
+  const acc = ACCS[cfg.accessory].draw(s)
+  const hat = HATS[cfg.hat].draw(CLOTH[cfg.hatColour], CLOTH[cfg.hatColour2], s)
+  const head = angular
+    ? s('M70 54L130 54L146 76L146 112L126 134L74 134L54 112L54 76Z', skin)
+    : s('M56 94a44 44 0 1 0 88 0a44 44 0 1 0 -88 0Z', skin)
+  const ears = s('M48 98a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z', shade(skin, -0.08)) + s('M136 98a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z', shade(skin, -0.08))
+  const eyes = angular
+    ? `<rect x="80" y="92" width="8" height="9" fill="${INK}"/><rect x="112" y="92" width="8" height="9" fill="${INK}"/>`
+    : `<circle cx="84" cy="97" r="4.5" fill="${INK}"/><circle cx="116" cy="97" r="4.5" fill="${INK}"/>`
+  const mouth = `<path d="M90 112Q100 120 110 112" fill="none" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>`
+  const neck = s('M88 120H112V152H88Z', shade(skin, -0.12))
+
+  const hc = HATS[cfg.hat].covers
+  const hairClip = hc ? `<clipPath id="${id}h"><rect x="0" y="56" width="200" height="200"/></clipPath>` : ''
+  const wrapHair = (x) => x && hc ? `<g clip-path="url(#${id}h)">${x}</g>` : x
+  hair.back = wrapHair(hair.back); hair.front = wrapHair(hair.front)
+  const art = [hair.back, top.behind, neck, top.body, acc.over, ears, head, eyes, mouth, acc.face, hair.front, hat && `<g transform="translate(0 -9)">${hat}</g>`].filter(Boolean).join('')
+
+  let frame, viewBox, clip
+  if (variant === 'tile') {
+    viewBox = '30 18 140 140'
+    clip = `<clipPath id="${id}"><path d="M52 18H170L148 158H30Z"/></clipPath>`
+    frame = `<path d="M52 18H170L148 158H30Z" fill="${CLOTH[cfg.sleeve]}"/><path d="M52 18H170L148 158H30Z" fill="${INK}" opacity=".35"/>`
+  } else {
+    viewBox = '0 0 200 200'
+    clip = `<clipPath id="${id}"><circle cx="100" cy="100" r="${outline ? 94 : 100}"/></clipPath>`
+    frame = `<circle cx="100" cy="100" r="100" fill="${outline ? '#f4efe8' : '#24252c'}"/>` + (outline ? `<circle cx="100" cy="100" r="94" fill="#24252c"/>` : '')
+  }
+  return `<svg class="avatar-in" width="${size}" height="${size}" viewBox="${viewBox}" role="img" aria-label="Avatar">${clip}${hairClip}${frame}<g clip-path="url(#${id})">${art}</g></svg>`
+}
+
+let uid = 0
+// ---------- achievements (from "Achievement catalogue") ----------
+const SHAPES = {
+  circle: 'M50 6a44 44 0 1 0 0.1 0Z',
+  hex: 'M50 4L90 27V73L50 96L10 73V27Z',
+  shield: 'M50 4L90 16V50C90 74 72 90 50 98C28 90 10 74 10 50V16Z',
+  diamond: 'M50 2L98 50L50 98L2 50Z',
+  square: 'M14 8H86Q92 8 92 14V86Q92 92 86 92H14Q8 92 8 86V14Q8 8 14 8Z',
+}
+const ACH = {
+  regular: { name: 'Regular', unit: 'events played', tiers: [1, 5, 10, 25, 50, 100], shape: 'circle' },
+  winner: { name: 'Match winner', unit: 'match wins', tiers: [1, 10, 50, 100, 250, 500], shape: 'hex' },
+  champion: { name: 'Champion', unit: 'events won', tiers: [1, 5, 10, 25], shape: 'shield' },
+  topcut: { name: 'Top cut', unit: 'top cuts', tiers: [1, 5, 10, 25], shape: 'diamond' },
+  host: { name: 'Host', unit: 'events hosted', tiers: [1, 10, 25, 50], shape: 'square' },
+  sweep: { name: 'Clean sweep', unit: 'clean sweeps', tiers: [5, 25, 100], shape: 'hex' },
+  brewer: { name: 'Brewer', unit: 'decks registered', tiers: [1, 5, 15], shape: 'square' },
+  undefeated: { name: 'Undefeated', tiers: [1], shape: 'shield' },
+  marathon: { name: 'Marathon', secret: true, tiers: [1], shape: 'diamond' },
+}
+function badge(id, tier, size) {
+  const a = ACH[id]
+  const top = tier === a.tiers.at(-1) && a.tiers.length > 1
+  const label = a.tiers.length === 1 ? '★' : tier
+  return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" role="img" aria-label="${a.name} ${a.tiers.length > 1 ? tier : ''}"><path d="${SHAPES[a.shape]}" fill="${top ? GOLD : '#f4efe8'}"/><path d="${SHAPES[a.shape]}" fill="none" stroke="#14151a" stroke-width="5" transform="translate(50 50) scale(.84) translate(-50 -50)"/><text x="50" y="${a.tiers.length === 1 ? 64 : 66}" text-anchor="middle" font-family="Archivo" font-stretch="72%" font-weight="800" font-size="${String(label).length > 2 ? 30 : 40}" fill="#14151a">${label}</text></svg>`
+}
+const badgeName = (u) => `${ACH[u.ach].name}${ACH[u.ach].tiers.length > 1 ? ' ' + u.tier : ''}`
+const fig = (u, size = 52, i = 0) => `<figure style="animation-delay:${Math.min(i, 7) * 50}ms">${badge(u.ach, u.tier, size)}<figcaption>${badgeName(u)}</figcaption></figure>`
+
+// ---------- items (trophy items: 5) ----------
+const ITEMS = {
+  champcap: { name: 'Champion cap', slot: 'hat', value: 'champion', from: 'Champion 1 · Win an event' },
+  champslab: { name: 'Champion slab banner', slot: 'banner', value: 'slab', from: 'Champion 1 · Win an event' },
+  topcut: { name: 'Top-cut jacket', slot: 'top', value: 'topcut', from: 'Top cut 1 · Make a top cut' },
+  pin: { name: 'League pin', slot: 'accessory', value: 'pin', from: 'Regular 10 · Play 10 events' },
+  visor: { name: 'Top 8 visor', slot: 'hat', value: 'cupvisor', from: 'Top cut 5 · Make 5 top cuts' },
+}
+
+// ---------- scenes ----------
+// unlocks are sorted best-first: trophy items, then titles, then badges by rarity.
+const SCENES = {
+  event: {
+    tab: 'Event finished',
+    ask: 'Thursday League just finished. You won it 4-0. That crossed three tiers at once.',
+    badges: [{ ach: 'champion', tier: 1 }, { ach: 'regular', tier: 25 }, { ach: 'winner', tier: 50 }],
+    titles: ['Champion', 'Regular'],
+    items: ['champcap', 'champslab'],
+  },
+  launch: {
+    tab: 'Launch welcome',
+    ask: 'First open after launch. The backfill found 14 badges in your past events.',
+    badges: [
+      { ach: 'champion', tier: 1 }, { ach: 'regular', tier: 1 }, { ach: 'regular', tier: 5 }, { ach: 'regular', tier: 10 }, { ach: 'regular', tier: 25 },
+      { ach: 'winner', tier: 1 }, { ach: 'winner', tier: 10 }, { ach: 'winner', tier: 50 }, { ach: 'topcut', tier: 1 }, { ach: 'topcut', tier: 5 },
+      { ach: 'host', tier: 1 }, { ach: 'brewer', tier: 1 }, { ach: 'undefeated', tier: 1 }, { ach: 'marathon', tier: 1 },
+    ],
+    titles: ['Champion', 'Regular', 'Undefeated'],
+    items: ['champcap', 'champslab', 'topcut', 'pin', 'visor'],
+  },
+  trophy: {
+    tab: 'One trophy item',
+    ask: 'You made your first top cut tonight. One badge, one trophy item, no title.',
+    badges: [{ ach: 'topcut', tier: 1 }],
+    titles: [],
+    items: ['topcut'],
+  },
+  hint: {
+    tab: 'Hint until seen',
+    ask: 'You closed the celebration without looking, or left the store before the event finished. Two days later you open the app.',
+    badges: [{ ach: 'champion', tier: 1 }, { ach: 'regular', tier: 25 }, { ach: 'winner', tier: 50 }],
+    titles: ['Champion', 'Regular'],
+    items: ['champcap', 'champslab'],
+  },
+}
+const SCENE_KEYS = Object.keys(SCENES)
+
+// ---------- variants ----------
+const VARIANTS = {
+  sheet: {
+    key: 'A', name: 'Bottom sheet',
+    summary: 'A sheet rises over whatever page you are on, once, the first time the app sees new unlocks. Everything is on one sheet, best first: trophy items with <b>Wear it</b>, titles with <b>Show it</b>, then the badges. One <b>Done</b> closes it.',
+    hint: 'After the sheet: an orange dot on your avatar in the header and on <b>Customise</b>, until you open the Achievements tab.',
+    absent: 'Not on the event page when it finished? The same sheet appears on your next app open, on any page.',
+    pros: ['One tap to dismiss, the scrim also closes it', 'Everything visible at once, so 3 or 14 unlocks are the same shape', 'Reuses the sheet pattern from reporting'],
+    cons: ['No real focal moment, it feels like a receipt', 'Long on launch (14 badges + 5 items)'],
+  },
+  stamp: {
+    key: 'B', name: 'Stamp sequence',
+    summary: 'A full-screen moment: the slab wipes in and the badge stamps onto it, one unlock per screen, best first. Tap anywhere for the next one; <b>Skip</b> closes the whole run. Trophy items get <b>Wear it</b> on their own screen. Launch shows one big count, then the items.',
+    hint: 'After it: a number on the Profile tab and <b>New</b> tags on the badges, until you open the Achievements tab.',
+    absent: 'Not on the event page when it finished? It plays on your next app open.',
+    pros: ['A real focal moment that reuses the slab wipe', 'Each item gets its own <b>Wear it</b>'],
+    cons: ['3 unlocks = 3 taps (or Skip), heavy at a busy table', 'Full screen hides the pairing if a new event is starting', 'Two focal moments compete with the pairing slab'],
+  },
+  inline: {
+    kind: 'inline', key: 'C', name: 'Inline card',
+    summary: 'No overlay. The event page grows an <b>Earned tonight</b> card under your final placement, with the badges and <b>Wear it</b> rows. On launch, an inline welcome card on the events page. <b>Got it</b> or × hides it.',
+    hint: 'No dot. New badges carry a <b>New</b> tag in the Achievements tab, and the Earned card stays on the event page.',
+    absent: 'Not on the event page when it finished? A smaller card waits at the top of the events page until seen.',
+    pros: ['Never blocks the pairing or the clock', 'Lives with the result it came from', 'Nothing to dismiss if you are busy'],
+    cons: ['Easy to miss, especially a trophy item', 'Two places to build (event page + events page)'],
+  },
+}
+const ORDER = Object.keys(VARIANTS)
+
+// ---------- state ----------
+const BASE = { skin: 1, hair: 'spiky', hairColour: 2, top: 'hoodie', topColour: 7, hat: 'trainer', hatColour: 3, hatColour2: 0, accessory: 'none', sleeve: 7 }
+let state
+function reset() {
+  state = { open: true, step: 0, seen: false, view: 'start', avatar: { ...BASE }, banner: 'card-zones', title: null, wearing: [], log: [] }
+  if (scene === 'hint') state.open = variant === 'inline'
+  log(`scene "${SCENES[scene].tab}": ${SCENES[scene].badges.length} new since last-seen marker`)
+}
+let variant = ORDER.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'sheet'
+let scene = 'event'
+
+function log(m) { state.log.push(m); if (state.log.length > 6) state.log.shift() }
+const S = () => SCENES[scene]
+const newCount = () => (state.seen ? 0 : S().badges.length)
+function wear(id) {
+  const it = ITEMS[id]
+  if (state.wearing.includes(id)) {
+    state.wearing = state.wearing.filter((x) => x !== id)
+    if (it.slot === 'banner') state.banner = 'card-zones'; else state.avatar[it.slot] = BASE[it.slot]
+    log(`undo: ${it.name} off`)
+  } else {
+    for (const w of state.wearing) if (ITEMS[w].slot === it.slot) state.wearing = state.wearing.filter((x) => x !== w)
+    state.wearing.push(id)
+    if (it.slot === 'banner') state.banner = 'slab'; else state.avatar[it.slot] = it.value
+    log(`wear: ${it.name} (saved at once, no Save step)`)
+  }
+  render()
+}
+function showTitle(t) { state.title = state.title === t ? null : t; log(state.title ? `title shown: ${t}` : 'title hidden'); render() }
+function dismiss(how) { state.open = false; log(`dismissed (${how}); marker NOT moved, hint stays`); render() }
+function markSeen() { if (!state.seen) { state.seen = true; log('Achievements tab opened: last-seen marker moved to now; hint cleared') } }
+function go(view) { state.view = view; if (view === 'ach') markSeen(); render() }
+
+// ---------- shared phone chrome ----------
+const ava = (size) => avatarSVG(state.avatar, 'flat', size)
+function header(dot) {
+  return `<div class="hdr"><span class="display wordmark">tcg<b>Rank</b></span><button class="me-btn" data-go="profile" aria-label="Your profile${dot ? ', new unlocks' : ''}">${ava(34)}${dot ? '<span class="dot"></span>' : ''}</button></div>`
+}
+function tabbar(active, profileMark) {
+  const t = (id, label) => `<button class="${active === id ? 'on' : ''}" data-go="${id}">${label}${id === 'profile' ? profileMark : ''}</button>`
+  return `<nav class="tabbar" style="grid-template-columns:repeat(3,1fr)">${t('start', 'Events')}${t('decks', 'Decks')}${t('profile', 'Profile')}</nav>`
+}
+const titleChip = () => (state.title ? ` <span class="chip">${state.title}</span>` : '')
+function eventPage(extra = '') {
+  const rows = [['1', 'Kauã Andrade', '4-0-0', true], ['2', 'Bia Moreira', '3-1-0'], ['3', 'Leo Tanaka', '3-1-0'], ['4', 'Rafa Souza', '2-2-0'], ['5', 'Duda Lima', '2-2-0']]
+  return `<div class="content">
+    <div><p class="label">Thursday League · Arena Geek</p><h1 class="display" style="margin:2px 0 0;font-size:24px">Final standings</h1></div>
+    ${extra}
+    <div class="panel" style="padding-block:4px">${rows.map(([r, n, rec, me]) => `<div class="stand-row ${me ? 'me' : ''}"><span class="num r">${r}</span>${me ? ava(30) : `<span style="width:30px;height:30px;border-radius:50%;background:var(--surface-raised);display:block"></span>`}<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">${n}${me ? titleChip() : ''}</span><span class="num" style="font-size:18px">${rec}</span></div>`).join('')}</div>
+  </div>`
+}
+function eventsHome(extra = '') {
+  return `<div class="content">${extra}<h1 class="display" style="margin:0;font-size:24px">Events</h1>
+    <div class="panel item" style="grid-template-columns:minmax(0,1fr) auto"><div><b>Thursday League</b><small>Arena Geek · finished · you placed #1</small></div><span class="num" style="font-size:22px;color:var(--orange)">#1</span></div>
+    <div class="panel item" style="grid-template-columns:minmax(0,1fr) auto"><div><b>Saturday Standard</b><small>Arena Geek · registration open</small></div><button class="btn">Join</button></div></div>`
+}
+function profilePage(customiseDot) {
+  const bannerBg = state.banner === 'slab'
+    ? `repeating-linear-gradient(-12deg, #e2b33c 0 18px, #c79a2c 18px 36px)`
+    : `repeating-linear-gradient(90deg, #2c8c99 0 40px, #247480 40px 44px)`
+  return `<div><div style="height:96px;background:${bannerBg}"></div>
+    <div class="content" style="padding-top:0;margin-top:-40px">
+      <div class="row" style="align-items:end">${avatarSVG(state.avatar, 'flat', 88)}<div class="grow"></div><button class="btn" data-go="customise">Customise${customiseDot ? '<span class="dot"></span>' : ''}</button></div>
+      <div><h1 class="display" style="margin:0;font-size:24px">Kauã Andrade</h1>${state.title ? `<span class="chip">${state.title}</span>` : '<span class="dim" style="font-size:13px">No title shown</span>'}</div>
+      <div class="row" style="gap:18px;border-bottom:1px solid var(--line);font-size:13px;font-weight:700"><span class="dim" style="padding:8px 0">Matches</span><span class="dim">Decks</span><button data-go="ach" style="background:none;border:0;padding:8px 0;cursor:pointer;font-weight:700">Achievements ${newCount() && variant !== 'sheet' ? `<span class="new-tag">${newCount()} NEW</span>` : ''}</button></div>
+      <p class="dim" style="margin:0;font-size:13px">Open the Achievements tab to see what changed.</p>
+    </div></div>`
+}
+function achPage() {
+  const b = S().badges
+  return `<div class="content"><button class="linkbtn" data-go="profile" style="justify-self:start">← Profile</button><h1 class="display" style="margin:0;font-size:24px">Achievements</h1>
+    ${b.map((u) => `<div class="panel item">${badge(u.ach, u.tier, 44)}<div><b>${badgeName(u)}</b><small>${ACH[u.ach].secret ? 'Secret' : `${u.tier} ${ACH[u.ach].unit || ''}`}</small></div>${state.newSnapshot ? '<span class="new-tag">NEW</span>' : ''}</div>`).join('')}
+    <p class="dim" style="font-size:13px;margin:0">New tags show on this visit only; the marker moved when you opened the tab.</p></div>`
+}
+function customisePage() {
+  return `<div class="content"><button class="linkbtn" data-go="profile" style="justify-self:start">← Profile</button><h1 class="display" style="margin:0;font-size:24px">Customise</h1><div style="justify-self:center">${avatarSVG(state.avatar, 'flat', 140)}</div><p class="dim" style="margin:0">The editor itself is the "Customise editor" ticket. Earned items show first here, marked New.</p></div>`
+}
+
+// ---------- unlock content blocks ----------
+function itemRow(id, size = 56) {
+  const it = ITEMS[id], on = state.wearing.includes(id)
+  const preview = it.slot === 'banner'
+    ? `<span style="width:${size}px;height:${Math.round(size * .6)}px;border-radius:6px;display:block;background:repeating-linear-gradient(-12deg,#e2b33c 0 8px,#c79a2c 8px 16px)"></span>`
+    : avatarSVG({ ...state.avatar, [it.slot]: it.value }, 'flat', size)
+  return `<div class="wear">${preview}<div style="min-width:0"><b>${it.name}</b><small class="dim" style="display:block;font-size:12px">${it.from}</small></div><button class="btn ${on ? '' : 'primary'}" data-wear="${id}">${on ? 'Wearing · Undo' : 'Wear it'}</button></div>`
+}
+function titleRow(t) {
+  const on = state.title === t
+  return `<div class="row" style="justify-content:space-between"><span><span class="chip">${t}</span> <small class="dim">new title</small></span><button class="btn ${on ? '' : 'ghost'}" data-title="${t}">${on ? 'Shown · Hide' : 'Show it'}</button></div>`
+}
+
+// ---------- variant A: sheet ----------
+function sheetBody() {
+  const s = S(), launch = scene === 'launch'
+  const head = launch
+    ? `<div><p class="label">Welcome to achievements</p><h2 class="display">Your history earned you <span style="color:var(--orange)">${s.badges.length}</span> badges</h2></div>`
+    : `<div><p class="label">Thursday League</p><h2 class="display">${s.badges.length === 1 ? 'Unlocked' : `${s.badges.length} unlocked`}</h2></div>`
+  return `<div class="scrim" data-dismiss="scrim"></div><div class="sheet" role="dialog" aria-label="Unlocked"><div class="grab"></div>${head}
+    <div class="sheet-list">
+      ${s.items.length ? `<div style="display:grid;gap:8px">${s.items.map((i) => itemRow(i)).join('')}</div>` : ''}
+      ${s.titles.length ? `<div style="display:grid;gap:8px">${s.titles.map(titleRow).join('')}</div>` : ''}
+      <div class="badge-strip">${s.badges.map((u, i) => fig(u, 52, i)).join('')}</div>
+    </div>
+    <button class="btn primary" data-dismiss="Done" style="width:100%">Done</button></div>`
+}
+// ---------- variant B: stamp ----------
+function stampSteps() {
+  const s = S()
+  if (scene === 'launch') return [{ kind: 'count' }, { kind: 'items' }]
+  const steps = []
+  const used = new Set()
+  for (const id of s.items) steps.push({ kind: 'item', id })
+  // a badge that brought a title gets the title on its own screen
+  for (const u of s.badges) steps.push({ kind: 'badge', u, title: u.ach === 'champion' && s.titles.includes('Champion') ? 'Champion' : u.ach === 'regular' && s.titles.includes('Regular') ? 'Regular' : null })
+  return steps.filter((x) => !(x.kind === 'item' && used.has(x.id)))
+}
+function stampBody() {
+  const steps = stampSteps(), st = steps[state.step], s = S()
+  let center = ''
+  if (st.kind === 'count') center = `<p class="label">Welcome to achievements</p><div class="stamp-slab"><span class="num count stamp-in" style="color:var(--on-orange)">${s.badges.length}</span></div><h2 class="display">badges from your past events</h2><p class="dim" style="margin:0">Plus ${s.titles.length} titles and ${s.items.length} trophy items.</p>`
+  if (st.kind === 'items') center = `<h2 class="display">Your trophy items</h2><div style="display:grid;gap:8px;width:100%;text-align:left">${s.items.map((i) => itemRow(i, 48)).join('')}</div>`
+  if (st.kind === 'item') center = `<p class="label">Trophy item</p><div class="stamp-slab"><span class="stamp-in">${ITEMS[st.id].slot === 'banner' ? `<span style="width:150px;height:80px;border-radius:8px;display:block;background:repeating-linear-gradient(-12deg,#e2b33c 0 14px,#c79a2c 14px 28px)"></span>` : avatarSVG({ ...state.avatar, [ITEMS[st.id].slot]: ITEMS[st.id].value }, 'flat', 150)}</span></div><h2 class="display">${ITEMS[st.id].name}</h2><p class="dim" style="margin:0">${ITEMS[st.id].from}</p><button class="btn ${state.wearing.includes(st.id) ? '' : 'primary'}" data-wear="${st.id}">${state.wearing.includes(st.id) ? 'Wearing · Undo' : 'Wear it'}</button>`
+  if (st.kind === 'badge') center = `<p class="label">Badge</p><div class="stamp-slab"><span class="stamp-in">${badge(st.u.ach, st.u.tier, 140)}</span></div><h2 class="display">${badgeName(st.u)}</h2><p class="dim" style="margin:0">${ACH[st.u.ach].secret ? 'Secret achievement' : `${st.u.tier} ${ACH[st.u.ach].unit}`}</p>${st.title ? titleRow(st.title) : ''}`
+  const last = state.step === steps.length - 1
+  return `<div class="stage" data-next="1" role="dialog" aria-label="Unlocked"><div class="top"><span class="num">${state.step + 1} / ${steps.length}</span><button class="btn ghost" data-dismiss="Skip" style="min-height:36px;padding:6px 12px">${last ? 'Close' : 'Skip'}</button></div>
+    <div class="center" ${'data-k="' + state.step + '"'}>${center}</div>
+    <div style="display:grid;gap:10px;justify-items:center"><div class="pips">${steps.map((_, i) => `<i class="${i <= state.step ? 'on' : ''}"></i>`).join('')}</div><span class="dim" style="font-size:13px">${last ? 'Tap to close' : 'Tap for next'}</span></div></div>`
+}
+// ---------- variant C: inline ----------
+function inlineCard(compact) {
+  const s = S(), launch = scene === 'launch'
+  if (!state.open) return ''
+  const head = launch
+    ? `<div class="earned-head"><b class="display" style="font-size:18px">Your history earned you <span style="color:var(--orange)">${s.badges.length}</span> badges</b><button class="linkbtn" data-dismiss="×" aria-label="Hide">×</button></div>`
+    : `<div class="earned-head"><b class="display" style="font-size:18px">${compact ? 'Earned at Thursday League' : 'Earned tonight'}</b><button class="linkbtn" data-dismiss="Got it">Got it</button></div>`
+  const strip = `<div class="badge-strip">${s.badges.slice(0, launch ? 6 : 99).map((u, i) => fig(u, 48, i)).join('')}${launch ? `<figure><span class="num" style="width:48px;height:48px;display:grid;place-items:center;border:1px dashed var(--line);border-radius:50%;font-size:18px">+${s.badges.length - 6}</span><figcaption>more</figcaption></figure>` : ''}</div>`
+  const items = (launch ? s.items.slice(0, 2) : s.items).map((i) => itemRow(i, 48)).join('')
+  const more = launch ? `<button class="btn" data-go="ach">See all achievements</button>` : ''
+  return `<section class="earned" aria-label="Earned">${head}${strip}${items}${s.titles.map(titleRow).join('')}${more}</section>`
+}
+
+// ---------- page assembly ----------
+function render() {
+  const v = VARIANTS[variant], s = S()
+  const pendingHint = !state.open && !state.seen
+  let page = '', overlay = '', profileMark = '', headerDot = false, customiseDot = false
+  if (variant === 'sheet') { headerDot = pendingHint; customiseDot = pendingHint; profileMark = pendingHint ? '<span class="dot"></span>' : '' }
+  if (variant === 'stamp') profileMark = pendingHint ? `<span class="new-tag" style="position:absolute;top:4px;right:calc(50% - 30px)">${newCount()}</span>` : ''
+
+  const view = state.view
+  if (view === 'start') {
+    if (scene === 'event' || scene === 'trophy') page = eventPage(variant === 'inline' ? inlineCard(false) : '')
+    else if (scene === 'launch') page = eventsHome(variant === 'inline' ? inlineCard(false) : '')
+    else page = eventsHome(variant === 'inline' && !state.seen ? inlineCard(true) : '')
+  } else if (view === 'profile') page = profilePage(customiseDot)
+  else if (view === 'ach') page = achPage()
+  else if (view === 'customise') page = customisePage()
+  else page = `<div class="content"><h1 class="display" style="margin:0;font-size:24px">Decks</h1><p class="dim">…</p></div>`
+
+  if (state.open && view === 'start' && variant === 'sheet') overlay = sheetBody()
+  if (state.open && view === 'start' && variant === 'stamp') overlay = stampBody()
+
+  document.getElementById('phone').innerHTML = `<div class="app">${header(headerDot)}${page}</div>${tabbar(view === 'ach' || view === 'customise' ? 'profile' : view, profileMark)}${overlay}`
+  document.getElementById('phone').classList.toggle('reduce', document.getElementById('rm').checked)
+
+  document.getElementById('scenes').innerHTML = SCENE_KEYS.map((k) => `<button aria-pressed="${k === scene}" data-scene="${k}">${SCENES[k].tab}</button>`).join('')
+  document.getElementById('vlabel').textContent = `${v.key} (${v.name})`
+  const st = { scene, overlayOpen: state.open, newSinceMarker: newCount(), hintShowing: pendingHint && variant !== 'inline', titleShown: state.title, wearing: state.wearing.map((i) => ITEMS[i].name), view }
+  document.getElementById('notes').innerHTML = `
+    <div><p class="label">${v.key} · ${v.name}</p><h2 class="display">${s.tab}</h2><p style="margin-top:6px">${s.ask}</p></div>
+    <p>${v.summary}</p><p>${v.hint}</p><p>${v.absent}</p>
+    <ul>${v.pros.map((p) => `<li><b>+</b> ${p}</li>`).join('')}${v.cons.map((p) => `<li><b>−</b> ${p}</li>`).join('')}</ul>
+    <div class="log">${JSON.stringify(st, null, 1).replace(/[{}"]/g, '').trim()}\n\n${state.log.join('\n')}</div>`
+}
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-scene],[data-go],[data-wear],[data-title],[data-dismiss],[data-next]')
+  if (!el) return
+  const d = el.dataset
+  if (d.scene) { scene = d.scene; reset(); return render() }
+  if (d.wear) { e.stopPropagation(); return wear(d.wear) }
+  if (d.title) { e.stopPropagation(); return showTitle(d.title) }
+  if (d.dismiss) { e.stopPropagation(); return dismiss(d.dismiss) }
+  if (d.go) { if (d.go === 'ach') state.newSnapshot = !state.seen; return go(d.go) }
+  if (d.next) {
+    const n = stampSteps().length
+    if (state.step < n - 1) { state.step++; log(`next → ${state.step + 1}/${n}`); render() } else dismiss('tap after last')
+  }
+})
+function setVariant(k) { variant = k; history.replaceState(null, '', '#' + k); reset(); render() }
+const cycle = (d) => setVariant(ORDER[(ORDER.indexOf(variant) + d + ORDER.length) % ORDER.length])
+document.getElementById('prev').onclick = () => cycle(-1)
+document.getElementById('next').onclick = () => cycle(1)
+document.getElementById('replay').onclick = () => { reset(); render() }
+document.getElementById('rm').onchange = () => { reset(); render() }
+addEventListener('keydown', (e) => { if (e.target.matches('input,textarea,[contenteditable]')) return; if (e.key === 'ArrowLeft') cycle(-1); if (e.key === 'ArrowRight') cycle(1) })
+addEventListener('hashchange', () => { const k = location.hash.slice(1); if (ORDER.includes(k) && k !== variant) setVariant(k) })
+reset(); render()
+</script>
