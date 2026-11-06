@@ -15,6 +15,8 @@
 
 Dark only: the use scene is a dim store with phones held at the table.
 
+**The avatar palette is content, not UI.** Avatars, playmat banners and sleeve colours use a curated, fixed set of skin, hair and clothing colours (`src/domain/avatar-parts.ts`). Those colours live only inside that art, never as UI tokens, and the UI chrome around them still uses only the tokens above. The one exception is `--trophy`, the palette's gold, which marks earned things only: a top-tier badge, a title chip, a trophy item. It is never an action or a state colour, so `--orange` stays the only accent.
+
 ## Type
 
 One self-hosted family, **Archivo Variable**, using its width axis:
