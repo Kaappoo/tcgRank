@@ -52,19 +52,30 @@ export async function createEvent(
 }
 
 /**
- * The host enters a 2–0 win for player 1 at every table of the round on show, from the table pencils. Pass a bracket
- * round's name to report within its section only (Pairings lists every bracket round at once).
+ * The host enters a 2–0 win for player 1 at every table of the round on show, from the table pencils (for `winner`
+ * at their own table). Pass a bracket round's name to report within its section only (Pairings lists every bracket
+ * round at once).
  */
-export async function hostReportsRound(page: Page, bracketRound?: string) {
+export async function hostReportsRound(page: Page, bracketRound?: string, winner?: string) {
   const scope = bracketRound ? page.getByRole('region', { name: bracketRound, exact: true }) : page
   const pencils = scope.getByRole('button', { name: /^Set result for table/ })
   const tables = await pencils.count()
   for (let i = 0; i < tables; i++) {
     await pencils.nth(i).click()
     const dialog = page.getByRole('dialog', { name: /^Table \d+$/ })
-    const addGame = dialog.getByRole('button', { name: /^Add a game:/ })
-    await addGame.first().click()
-    await addGame.first().click()
+    const favourite = winner ? dialog.getByRole('button', { name: `Add a game: ${winner}`, exact: true }) : null
+    const addGame =
+      favourite && (await favourite.count()) > 0
+        ? favourite
+        : dialog.getByRole('button', { name: /^Add a game:/ }).first()
+    if (await addGame.isDisabled()) {
+      // Already reported in full by the players: leave it as it is.
+      await page.keyboard.press('Escape')
+      await expect(dialog).toBeHidden()
+      continue
+    }
+    await addGame.click()
+    await addGame.click()
     await dialog.getByRole('button', { name: 'Send result' }).click()
     await expect(dialog).toBeHidden()
   }
