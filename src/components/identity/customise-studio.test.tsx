@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Toaster } from '#/components/ui/toast.tsx'
-import { defaultAvatar } from '#/domain/avatar-parts.ts'
+import { AVATAR_PARTS, defaultAvatar } from '#/domain/avatar-parts.ts'
 import { useSaveStyle } from '#/hooks/use-save-style.ts'
 import { styleDraftStore } from '#/lib/style-draft.ts'
 import type { StyleEditor } from '#/server/identity/player-style.ts'
@@ -15,6 +15,7 @@ vi.mock('#/server/functions/identity.ts', () => ({ searchPartnerCards: search, s
 
 const USER = 'usr_ash'
 const defaults = defaultAvatar(USER)
+const defaultHairName = AVATAR_PARTS.hair.find((p) => p.id === defaults.hair)!.name
 
 const editor: StyleEditor = {
   style: {
@@ -81,25 +82,33 @@ describe('CustomiseStudio', () => {
     expect(screen.getByText(/Reach Champion 1/)).toBeInTheDocument()
   })
 
-  it('starts every part slot with the player’s own default part', async () => {
+  it('offers only real parts, no separate Default tile', async () => {
     renderStudio()
     await openSlot('Hair')
-    const fallback = screen.getByRole('button', { name: 'Default' })
-    expect(fallback).toHaveAttribute('aria-pressed', 'false')
-    await userEvent.click(fallback)
-    expect(fallback).toHaveAttribute('aria-pressed', 'true')
-    expect(draftHair()).toBe(defaults.hair)
+    expect(screen.queryByRole('button', { name: 'Default' })).not.toBeInTheDocument()
   })
 
-  it('resets the whole avatar with Reset all, and Undo brings it back', async () => {
+  it('asks before Reset all puts the avatar back to the default, and Undo brings it back', async () => {
     renderStudio()
     await openSlot('Sleeve colour')
     await userEvent.click(screen.getByRole('button', { name: 'Sleeve colour: Red' }))
     await userEvent.click(screen.getByRole('button', { name: /Reset all/ }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Keep it' }))
+    expect(draftHair()).toBe(editor.style.avatar.hair)
+
+    await userEvent.click(screen.getByRole('button', { name: /Reset all/ }))
+    expect(await screen.findByText('Reset your avatar?')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Reset avatar' }))
     expect(draftHair()).toBe(defaults.hair)
     expect(styleDraftStore.load(USER)?.draft.sleeveColour).toBe('red')
     await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
     expect(draftHair()).toBe(editor.style.avatar.hair)
+  })
+
+  it('keeps Reset all out of the slot strip', () => {
+    renderStudio()
+    const strip = screen.getByRole('navigation', { name: 'Slots' })
+    expect(within(strip).queryByRole('button', { name: /Reset all/ })).not.toBeInTheDocument()
   })
 
   it('greys out private decks in the Featured deck slot', async () => {
@@ -114,7 +123,7 @@ describe('CustomiseStudio', () => {
     const onDone = vi.fn()
     renderStudio(onDone)
     await openSlot('Hair')
-    await userEvent.click(screen.getByRole('button', { name: 'Default' }))
+    await userEvent.click(screen.getByRole('button', { name: defaultHairName }))
     await userEvent.click(screen.getByRole('button', { name: 'Done' }))
     await waitFor(() => expect(onDone.mock.calls[0]?.[0]).toBe('queued'))
     expect(save).not.toHaveBeenCalled()
@@ -126,7 +135,7 @@ describe('CustomiseStudio', () => {
     const onDone = vi.fn()
     renderStudio(onDone)
     await openSlot('Hair')
-    await userEvent.click(screen.getByRole('button', { name: 'Default' }))
+    await userEvent.click(screen.getByRole('button', { name: defaultHairName }))
     await userEvent.click(screen.getByRole('button', { name: 'Done' }))
     await waitFor(() => expect(onDone.mock.calls[0]?.[0]).toBe('saved'))
     expect(save.mock.calls[0]![0].data.avatar.hair).toBe(defaults.hair)
