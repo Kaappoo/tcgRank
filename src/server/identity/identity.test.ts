@@ -237,6 +237,28 @@ describe('achievements from events', () => {
     }).pipe(Effect.provide(TestLayer)),
   )
 
+  it.effect('a player who drops after playing gets the event as played, but nothing from placement', () =>
+    Effect.gen(function* () {
+      const [host, ash, gary, misty, brock] = yield* people('Elesa', 'Ash', 'Gary', 'Misty', 'Brock')
+      const events = yield* EventsService
+      const { id } = yield* events.create({ ...newEvent, pairingSystem: 'swiss', plannedRounds: 3 }).pipe(asUser(host!))
+      for (const p of [ash!, gary!, misty!, brock!]) yield* events.join(id).pipe(asUser(p))
+      // Gary wins round 1 and drops unbeaten; the event plays its 3 rounds without him.
+      yield* events.startNextRound(id).pipe(asUser(host!))
+      yield* playRound(host!, id, [gary!.id])
+      yield* events.leave(id).pipe(asUser(gary!))
+      for (let round = 2; round <= 3; round++) {
+        yield* events.startNextRound(id).pipe(asUser(host!))
+        yield* playRound(host!, id, [ash!.id])
+      }
+      yield* TestClock.adjust(HOUR)
+      yield* events.finishEvent(id).pipe(asUser(host!))
+
+      // Unbeaten in a 3-round event would be Undefeated, but a drop earns nothing from placement.
+      expect(yield* tiers(gary!.id)).toEqual(['match-winner:1', 'regular:1'])
+    }).pipe(Effect.provide(TestLayer)),
+  )
+
   it.effect('claiming a guest brings their history to the account and drops the guest style', () =>
     Effect.gen(function* () {
       const [host, gary, misty, brock, ash] = yield* people('Elesa', 'Gary', 'Misty', 'Brock', 'Ash')
