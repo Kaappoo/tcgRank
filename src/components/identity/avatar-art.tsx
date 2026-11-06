@@ -210,7 +210,7 @@ const HAIR: Record<string, (c: string) => HairLayers> = {
         <path d={MIDDLE_PART_LEFT} fill={c} />
         <path d={MIDDLE_PART_LEFT} fill={c} transform="matrix(-1 0 0 1 200 0)" />
         <path
-          d="M74 46Q60 60 64 76Q68 90 58 104M126 46Q140 60 136 76Q132 90 142 104"
+          d="M100 48C90 38 74 40 66 56C58 72 66 86 60 100Q56 108 58 116M100 48C110 38 126 40 134 56C142 72 134 86 140 100Q144 108 142 116"
           stroke={shade(c, -0.22)}
           strokeWidth={2.5}
           strokeLinecap="round"
