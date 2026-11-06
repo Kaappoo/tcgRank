@@ -65,6 +65,10 @@ export const HAIR_COLOURS: ReadonlyArray<AvatarPart> = [
   { id: 'red', name: 'Red', hex: '#B5452F' },
   { id: 'blue', name: 'Blue', hex: '#3E5DA8' },
   { id: 'pink', name: 'Pink', hex: '#D97BA6' },
+  { id: 'ginger', name: 'Ginger', hex: '#C8682F' },
+  { id: 'white', name: 'White', hex: '#EEEBE5' },
+  { id: 'green', name: 'Green', hex: '#3E8A5A' },
+  { id: 'purple', name: 'Purple', hex: '#7B5CB8' },
 ]
 
 /** Shared by tops, hats, the sleeve colour and the playmat banner. */
@@ -119,6 +123,14 @@ export const AVATAR_PARTS: AvatarParts = {
     { id: 'curly', name: 'Curly' },
     { id: 'ponytail', name: 'Ponytail' },
     { id: 'buzz', name: 'Buzz' },
+    { id: 'afro', name: 'Afro' },
+    { id: 'mohawk', name: 'Mohawk' },
+    { id: 'bob', name: 'Bob' },
+    { id: 'side-part', name: 'Side part' },
+    { id: 'bun', name: 'Bun' },
+    { id: 'pigtails', name: 'Pigtails' },
+    { id: 'braids', name: 'Braids' },
+    { id: 'middle-part', name: 'Middle part' },
   ],
   hairColour: HAIR_COLOURS,
   facialHair: [
@@ -126,11 +138,19 @@ export const AVATAR_PARTS: AvatarParts = {
     { id: 'stubble', name: 'Stubble' },
     { id: 'moustache', name: 'Moustache' },
     { id: 'beard', name: 'Beard' },
+    { id: 'goatee', name: 'Goatee' },
+    { id: 'handlebar', name: 'Handlebar' },
+    { id: 'chinstrap', name: 'Chinstrap' },
+    { id: 'full-beard', name: 'Full beard' },
   ],
   face: [
     { id: 'smile', name: 'Smile' },
     { id: 'grin', name: 'Grin' },
     { id: 'focused', name: 'Focused' },
+    { id: 'wink', name: 'Wink' },
+    { id: 'surprised', name: 'Surprised' },
+    { id: 'smirk', name: 'Smirk' },
+    { id: 'joyful', name: 'Joyful' },
   ],
   top: [
     { id: 'tee', name: 'Tee' },
@@ -138,6 +158,9 @@ export const AVATAR_PARTS: AvatarParts = {
     { id: 'track-jacket', name: 'Track jacket' },
     { id: 'jersey', name: 'Jersey' },
     { id: 'topcut-jacket', name: 'Top-cut jacket', trophy: 'topcut-jacket' },
+    { id: 'polo', name: 'Polo' },
+    { id: 'turtleneck', name: 'Turtleneck' },
+    { id: 'overalls', name: 'Overalls' },
   ],
   topColour: CLOTHING_COLOURS,
   hat: [
@@ -150,6 +173,11 @@ export const AVATAR_PARTS: AvatarParts = {
     { id: 'headband', name: 'Headband' },
     { id: 'champion-cap', name: 'Champion cap', trophy: 'champion-cap' },
     { id: 'top8-visor', name: 'Top 8 visor', trophy: 'top8-visor' },
+    { id: 'beret', name: 'Beret' },
+    { id: 'flat-cap', name: 'Flat cap' },
+    { id: 'cowboy-hat', name: 'Cowboy hat' },
+    { id: 'bandana', name: 'Bandana' },
+    { id: 'top-hat', name: 'Top hat' },
   ],
   hatColour: CLOTHING_COLOURS,
   hatPanel: CLOTHING_COLOURS,
@@ -159,6 +187,12 @@ export const AVATAR_PARTS: AvatarParts = {
     { id: 'plaster', name: 'Plaster' },
     { id: 'backpack', name: 'Backpack' },
     { id: 'league-pin', name: 'League pin', trophy: 'league-pin' },
+    { id: 'sunglasses', name: 'Sunglasses' },
+    { id: 'round-glasses', name: 'Round glasses' },
+    { id: 'headphones', name: 'Headphones' },
+    { id: 'earrings', name: 'Earrings' },
+    { id: 'scarf', name: 'Scarf' },
+    { id: 'freckles', name: 'Freckles' },
   ],
 }
 
@@ -169,6 +203,11 @@ const COVERING_HATS: ReadonlySet<string> = new Set([
   'beanie',
   'bucket-hat',
   'champion-cap',
+  'beret',
+  'flat-cap',
+  'cowboy-hat',
+  'bandana',
+  'top-hat',
 ])
 export const hatCoversHead = (hatId: string): boolean => COVERING_HATS.has(hatId)
 
