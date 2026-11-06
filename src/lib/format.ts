@@ -128,11 +128,3 @@ export const roundPairedTitle = (event: EventState): string => {
   if (stage) return `${STAGE_PAIRINGS[stage].replace(/^./, (c) => c.toUpperCase())} are paired`
   return `${bracketRoundLabel(event) ?? `Round ${event.currentRound}`} is paired`
 }
-
-export const initials = (name: string): string =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('')

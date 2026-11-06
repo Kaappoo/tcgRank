@@ -20,7 +20,7 @@ export interface RewardChoices {
   readonly showcase: ReadonlyArray<AchievementId>
 }
 
-export const MAX_SHOWCASE = 3
+const MAX_SHOWCASE = 3
 
 /** Why these choices can't be saved, or null when every trophy item, title and badge is earned. */
 export const unearnedChoice = (choices: RewardChoices, rewards: Rewards): string | null => {

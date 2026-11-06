@@ -43,14 +43,14 @@ const isAchievement = (id: unknown): id is AchievementId => ACHIEVEMENT_IDS.incl
 const isClothing = (id: string | null | undefined) => CLOTHING_COLOURS.some((c) => c.id === id)
 
 /** Columns a dense surface reads, to select next to the user. */
-export const lookColumns = {
+const lookColumns = {
   styleAvatar: playerStyle.avatar,
   styleSleeve: playerStyle.sleeveColour,
   styleTitle: playerStyle.titleId,
 }
 
 /** Resolves the look from `lookColumns` (all null when the row is missing). */
-export const lookOf = (
+const lookOf = (
   userId: string,
   row: { styleAvatar: unknown; styleSleeve: string | null; styleTitle: string | null },
 ): PlayerLook => ({

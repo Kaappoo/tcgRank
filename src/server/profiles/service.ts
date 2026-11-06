@@ -80,7 +80,7 @@ export interface FeaturedDeck {
 }
 
 /** What the trainer card shows beyond the look on `user`. */
-export interface ProfileIdentity {
+interface ProfileIdentity {
   readonly sleeveColour: string
   readonly banner: string
   readonly bannerColour: string | null

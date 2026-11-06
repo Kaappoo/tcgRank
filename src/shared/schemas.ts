@@ -151,7 +151,7 @@ const partId = (parts: ReadonlyArray<{ id: string }>) => z.enum(parts.map((p) =>
 const slot = (parts: ReadonlyArray<AvatarPart>) => partId(parts)
 
 /** An avatar: each slot names a part from the parts list. */
-export const avatarInput = z.object({
+const avatarInput = z.object({
   skin: slot(AVATAR_PARTS.skin),
   hair: slot(AVATAR_PARTS.hair),
   hairColour: slot(AVATAR_PARTS.hairColour),

@@ -37,7 +37,7 @@ export type CatalogCard = typeof CatalogCardSchema.Type
 export type CardSearchResult = typeof SearchResponse.Type
 
 /** A search needs at least this many characters. */
-export const MIN_SEARCH_LENGTH = 2
+const MIN_SEARCH_LENGTH = 2
 const PER_PAGE = 24
 
 /** "TWM 130" — must match `cardArtKey` in the deck-list domain. */

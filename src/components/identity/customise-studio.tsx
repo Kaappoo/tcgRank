@@ -2,7 +2,7 @@ import { useDebouncedValue } from '@tanstack/react-pacer'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
 import { Lock, RotateCcw } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { SubmitButton } from '#/components/ui/submit-button.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import { toast } from '#/components/ui/toast.tsx'
@@ -178,22 +178,26 @@ export function CustomiseStudio({
   const hydrated = useHydrated()
   const [draft, setDraft] = useState<StyleDraft>(() => draftFrom(editor))
   const [slot, setSlot] = useState<StudioSlot>(initialSlot)
-  const [restored, setRestored] = useState(false)
+  const restored = useRef(false)
+  const edited = useRef(false)
 
   // After hydration, pick up a draft left on this phone (a reload, or Done while offline).
   useEffect(() => {
-    if (!hydrated || restored) return
+    if (!hydrated || restored.current) return
+    restored.current = true
     const stored = styleDraftStore.load(userId)
     if (stored) setDraft(stored.draft)
-    setRestored(true)
-  }, [hydrated, restored, userId])
+  }, [hydrated, userId])
 
-  const update = (change: Partial<StyleDraft>) =>
-    setDraft((current) => {
-      const next = { ...current, ...change }
-      styleDraftStore.save(userId, next)
-      return next
-    })
+  // Every edit is kept on the phone straight away, so a reload or a dropped connection never loses it.
+  useEffect(() => {
+    if (edited.current) styleDraftStore.save(userId, draft)
+  }, [draft, userId])
+
+  const update = (change: Partial<StyleDraft>) => {
+    edited.current = true
+    setDraft((current) => ({ ...current, ...change }))
+  }
   const setPart = (part: AvatarSlot, id: string) => update({ avatar: { ...draft.avatar, [part]: id } })
 
   const earnedTrophies = new Set(editor.earned.trophies)
@@ -542,7 +546,7 @@ export function CustomiseStudio({
 }
 
 /** Finds any Pokémon card by name. Tells "no results" apart from "the catalog is unreachable". */
-export function PartnerPicker({
+function PartnerPicker({
   value,
   onPick,
 }: {

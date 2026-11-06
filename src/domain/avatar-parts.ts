@@ -299,10 +299,6 @@ export const resolveAvatar = (stored: unknown, userId: string): Avatar => {
   return resolved
 }
 
-/** The trophy items an avatar is wearing. */
-export const trophiesWorn = (avatar: Avatar): ReadonlyArray<TrophyItemId> =>
-  AVATAR_SLOTS.flatMap((slot) => partOf(slot, avatar[slot])?.trophy ?? [])
-
 /** How a player with no stored style looks on dense surfaces: their default avatar and sleeve, no title. */
 export const defaultLook = (userId: string) => ({
   avatar: defaultAvatar(userId),
